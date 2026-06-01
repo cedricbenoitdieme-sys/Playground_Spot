@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useUser, MOCK_USERS } from '../context/UserContext';
+import { useUser } from '../context/UserContext';
 import { 
   IconBallFootball, 
   IconCheck, 
@@ -120,18 +120,13 @@ export const Landing = ({ setView }) => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  // Quick action to log in directly for a mock role
   const handleGoToApp = (role, targetView) => {
     if (currentUser) {
       setView(targetView || (currentUser.role === 'admin' ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home'));
       return;
     }
-    if (role && MOCK_USERS[role]) {
-      setCurrentUser(MOCK_USERS[role]);
-      setView(targetView || (role === 'gerant' ? 'gerant-dashboard' : role === 'joueur' ? 'joueur-home' : 'dashboard'));
-    } else {
-      setView('login');
-    }
+    // En production, on redirige vers la page de connexion
+    setView('login');
   };
 
   const handleGerantFormSubmit = (e) => {

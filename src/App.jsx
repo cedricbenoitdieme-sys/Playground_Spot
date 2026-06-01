@@ -30,7 +30,6 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { useUser } from './context/UserContext';
 
 import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout } from '@tabler/icons-react';
-import { TOP_TERRAINS } from './data/mockData';
 
 function App() {
   const path = window.location.pathname;

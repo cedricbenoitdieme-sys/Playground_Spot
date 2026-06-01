@@ -1,61 +1,51 @@
 import React, { useState } from 'react';
-import { useUser, MOCK_USERS } from '../context/UserContext';
+import { useUser } from '../context/UserContext';
+import { signIn } from '../services/auth';
 import { 
   IconBallFootball, 
   IconMail, 
   IconLock, 
   IconArrowRight, 
   IconArrowLeft, 
-  IconCheck, 
-  IconUser, 
-  IconBuildingStore, 
-  IconUserShield 
 } from '@tabler/icons-react';
 
 export const Login = ({ setView }) => {
-  const { setCurrentUser } = useUser();
+  const { currentUser } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
 
-  const handleLoginSubmit = (e) => {
+  // Si déjà connecté, rediriger
+  if (currentUser) {
+    const dest = currentUser.role === 'admin' ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
+    setTimeout(() => setView(dest), 0);
+    return null;
+  }
+
+  const handleLoginSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
 
-    // Simulated network delay
-    setTimeout(() => {
-      // Find matching mock user by email
-      const matchedRole = Object.keys(MOCK_USERS).find(
-        (key) => MOCK_USERS[key].email.toLowerCase() === email.trim().toLowerCase()
-      );
-
-      if (matchedRole) {
-        const user = MOCK_USERS[matchedRole];
-        setCurrentUser(user);
+    try {
+      await signIn({ email: email.trim(), password });
+      // onAuthStateChange dans UserContext mettra à jour currentUser
+      // Petit délai pour laisser le profil se charger
+      setTimeout(() => {
         setLoading(false);
-        // Redirect based on role
-        setView(user.role === 'admin' ? 'dashboard' : user.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home');
-      } else {
-        setLoading(false);
-        setError("Identifiants de démonstration incorrects. Utilisez la Connexion Rapide ci-dessous !");
-      }
-    }, 1000);
-  };
-
-  const handleQuickLogin = (roleKey) => {
-    setLoading(true);
-    setError(null);
-    const user = MOCK_USERS[roleKey];
-    setEmail(user.email);
-    setPassword('••••••••'); // visual feedback
-
-    setTimeout(() => {
-      setCurrentUser(user);
+      }, 500);
+    } catch (err) {
       setLoading(false);
-      setView(user.role === 'admin' ? 'dashboard' : user.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home');
-    }, 800);
+      // Messages d'erreur Supabase traduits
+      if (err.message?.includes('Invalid login')) {
+        setError('Email ou mot de passe incorrect.');
+      } else if (err.message?.includes('Email not confirmed')) {
+        setError('Veuillez confirmer votre adresse email avant de vous connecter.');
+      } else {
+        setError(err.message || 'Erreur de connexion. Veuillez réessayer.');
+      }
+    }
   };
 
   return (
@@ -84,7 +74,7 @@ export const Login = ({ setView }) => {
           </div>
           <div>
             <h2 className="font-display font-bold text-2xl tracking-tight text-white">Connexion PlaygroundSpot</h2>
-            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mt-1">Espace SaaS d'administration</p>
+            <p className="text-xs text-gray-400 font-semibold uppercase tracking-wider mt-1">Plateforme de réservation de terrains</p>
           </div>
         </div>
 
@@ -160,50 +150,17 @@ export const Login = ({ setView }) => {
 
           </form>
 
-          {/* Quick Login Section (Connexion Rapide) */}
-          <div className="space-y-3.5 border-t border-white/5 pt-5">
-            <div className="flex flex-col items-center">
-              <span className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">🧪 Connexion Rapide Démo</span>
-              <p className="text-[9px] text-gray-600 font-semibold mt-0.5">Cliquez sur un rôle pour vous connecter instantanément</p>
-            </div>
-            
-            <div className="grid grid-cols-3 gap-2.5">
-              {/* Admin Pill */}
-              <button 
-                onClick={() => handleQuickLogin('admin')}
-                disabled={loading}
-                className="bg-white/5 border border-white/10 p-3 rounded-2xl flex flex-col items-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          {/* Inscription */}
+          <div className="border-t border-white/5 pt-5 text-center">
+            <p className="text-[11px] text-gray-500 font-semibold">
+              Pas encore de compte ?{' '}
+              <span 
+                onClick={() => setView('landing')} 
+                className="text-primary hover:underline cursor-pointer font-bold"
               >
-                <div className="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <IconUserShield size={18} />
-                </div>
-                <span className="text-[10px] font-bold text-gray-300">Admin</span>
-              </button>
-
-              {/* Gérant Pill */}
-              <button 
-                onClick={() => handleQuickLogin('gerant')}
-                disabled={loading}
-                className="bg-white/5 border border-white/10 p-3 rounded-2xl flex flex-col items-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <IconBuildingStore size={18} />
-                </div>
-                <span className="text-[10px] font-bold text-gray-300">Gérant</span>
-              </button>
-
-              {/* Joueur Pill */}
-              <button 
-                onClick={() => handleQuickLogin('joueur')}
-                disabled={loading}
-                className="bg-white/5 border border-white/10 p-3 rounded-2xl flex flex-col items-center gap-1.5 hover:bg-white/10 active:scale-95 transition-all text-center group cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                <div className="w-8 h-8 rounded-lg bg-primary/10 text-primary-light flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <IconUser size={18} />
-                </div>
-                <span className="text-[10px] font-bold text-gray-300">Joueur</span>
-              </button>
-            </div>
+                Créer un compte
+              </span>
+            </p>
           </div>
 
         </div>

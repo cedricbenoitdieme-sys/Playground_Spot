@@ -3,7 +3,6 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { IconBallFootball } from '@tabler/icons-react';
-import { TERRAINS } from '../data/mockData';
 
 // Custom Marker Icon Creator
 const createCustomIcon = (isSelected = false) => {

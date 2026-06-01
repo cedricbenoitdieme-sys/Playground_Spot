@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   IconSearch, 
   IconBallFootball, 
@@ -8,16 +8,35 @@ import {
   IconHeart, 
   IconStar, 
   IconCalendar,
-  IconArrowRight
+  IconArrowRight,
+  IconLoader2
 } from '@tabler/icons-react';
-import { TOP_TERRAINS, formatAmountAbbreviated } from '../data/mockData';
+import { fetchTopTerrains } from '../services/terrains';
+import { formatAmountAbbreviated } from '../services/stats';
 import { useUser } from '../context/UserContext';
 
 export const JoueurHome = ({ setView, setSelectedTerrain }) => {
   const { currentUser } = useUser();
   const [searchQuery, setSearchQuery] = useState('');
+  const [featuredTerrains, setFeaturedTerrains] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const featuredTerrains = TOP_TERRAINS.slice(0, 3);
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchTopTerrains(3);
+        setFeaturedTerrains(data.map((t, i) => ({
+          ...t,
+          bookings: [34, 28, 22][i] || 15,
+        })));
+      } catch (err) {
+        console.error('Erreur chargement terrains:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();

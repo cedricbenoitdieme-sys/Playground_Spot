@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { RECENT_RESERVATIONS } from '../data/mockData';
+import { fetchRecentReservations } from '../services/stats';
+import { updateReservationStatut } from '../services/reservations';
 import { 
   IconChevronRight, 
   IconX, 
@@ -12,13 +13,31 @@ import {
   IconBrandWhatsapp,
   IconCheck,
   IconTrash,
-  IconInfoCircle
+  IconInfoCircle,
+  IconLoader2
 } from '@tabler/icons-react';
 
 export const ReservationsTable = () => {
-  const [reservations, setReservations] = useState(RECENT_RESERVATIONS);
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedRes, setSelectedRes] = useState(null);
   const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    loadReservations();
+  }, []);
+
+  const loadReservations = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchRecentReservations(15);
+      setReservations(data);
+    } catch (err) {
+      console.error('Erreur chargement réservations:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const showToast = (msg) => {
     setToast(msg);
@@ -35,21 +54,40 @@ export const ReservationsTable = () => {
     }
   };
 
-  const handleConfirm = (id) => {
-    setReservations(prev => prev.map(r => r.id === id ? { ...r, status: 'Confirmée' } : r));
-    setSelectedRes(prev => prev && prev.id === id ? { ...prev, status: 'Confirmée' } : prev);
-    showToast("Réservation confirmée avec succès !");
+  const handleConfirm = async (id) => {
+    try {
+      await updateReservationStatut(id, 'confirmee');
+      setReservations(prev => prev.map(r => r.id === id ? { ...r, status: 'Confirmée' } : r));
+      setSelectedRes(prev => prev && prev.id === id ? { ...prev, status: 'Confirmée' } : prev);
+      showToast("Réservation confirmée avec succès !");
+    } catch (err) {
+      showToast("Erreur : " + err.message);
+    }
   };
 
-  const handleCancel = (id) => {
-    setReservations(prev => prev.map(r => r.id === id ? { ...r, status: 'Annulée' } : r));
-    setSelectedRes(prev => prev && prev.id === id ? { ...prev, status: 'Annulée' } : prev);
-    showToast("Réservation annulée.");
+  const handleCancel = async (id) => {
+    try {
+      await updateReservationStatut(id, 'annulee');
+      setReservations(prev => prev.map(r => r.id === id ? { ...r, status: 'Annulée' } : r));
+      setSelectedRes(prev => prev && prev.id === id ? { ...prev, status: 'Annulée' } : prev);
+      showToast("Réservation annulée.");
+    } catch (err) {
+      showToast("Erreur : " + err.message);
+    }
   };
 
   const handleContact = (res) => {
-    showToast(`Appel / WhatsApp lancé vers ${res.player} (+221 77 450 12 34)`);
+    showToast(`Appel / WhatsApp lancé vers ${res.player}`);
   };
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-card shadow-subtle border border-black/5 p-12 flex items-center justify-center gap-3 text-gray-400">
+        <IconLoader2 size={20} className="animate-spin" />
+        <span className="text-sm font-medium">Chargement des réservations...</span>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -81,7 +119,7 @@ export const ReservationsTable = () => {
                 <div className="flex items-center justify-between text-xs">
                   <div className="flex items-center gap-2">
                     <div className="w-6 h-6 rounded-full bg-secondary-light flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-secondary border border-secondary/10">
-                      {res.player.split(' ').map(n => n[0]).join('')}
+                      {res.player?.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </div>
                     <span className="font-semibold text-gray-600">{res.player}</span>
                   </div>
@@ -123,7 +161,7 @@ export const ReservationsTable = () => {
                   <td className="admin-table-cell py-5">
                     <div className="flex items-center gap-3">
                       <div className="w-9 h-9 rounded-full bg-secondary-light flex-shrink-0 flex items-center justify-center text-xs font-bold text-secondary border border-secondary/10">
-                        {res.player.split(' ').map(n => n[0]).join('')}
+                        {res.player?.split(' ').map(n => n[0]).join('').slice(0, 2)}
                       </div>
                       <span className="font-semibold text-gray-800 truncate max-w-[120px]" title={res.player}>{res.player}</span>
                     </div>
@@ -143,6 +181,12 @@ export const ReservationsTable = () => {
               ))}
             </tbody>
           </table>
+
+          {reservations.length === 0 && !loading && (
+            <div className="p-12 text-center text-gray-400 text-sm">
+              Aucune réservation trouvée.
+            </div>
+          )}
         </div>
       </div>
 

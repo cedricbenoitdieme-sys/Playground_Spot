@@ -1,14 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   IconHeart, 
   IconMapPin, 
   IconStar, 
-  IconBallFootball 
+  IconBallFootball,
+  IconLoader2
 } from '@tabler/icons-react';
-import { TOP_TERRAINS, formatAmountAbbreviated } from '../data/mockData';
+import { fetchTopTerrains } from '../services/terrains';
+import { formatAmountAbbreviated } from '../services/stats';
 
 export const JoueurFavoris = ({ setView, setSelectedTerrain }) => {
-  const favoriteTerrains = TOP_TERRAINS.slice(0, 2); // Mock two favorite pitches
+  const [favoriteTerrains, setFavoriteTerrains] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        // TODO: remplacer par une vraie table favoris quand elle existe
+        const data = await fetchTopTerrains(2);
+        setFavoriteTerrains(data.map((t, i) => ({
+          ...t,
+          bookings: [34, 28][i] || 20,
+        })));
+      } catch (err) {
+        console.error('Erreur chargement favoris:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   return (
     <div className="flex-1 space-y-6 pb-28 overflow-y-auto px-6 lg:px-8 py-6">

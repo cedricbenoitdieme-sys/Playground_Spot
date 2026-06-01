@@ -1,6 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown } from '@tabler/icons-react';
+import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown, IconLoader2 } from '@tabler/icons-react';
+import { useUser } from '../context/UserContext';
+import { fetchGerantKpis, fetchRepartitionPaiements } from '../services/stats';
+import { supabase } from '../lib/supabase';
 import { GERANT_KPIS, GERANT_TERRAINS, REVENUS_PAR_JOUR, RESERVATIONS_PAR_CRENEAU, REPARTITION_PAIEMENT, TOP_JOUEURS } from '../data/mockData';
 import './gerantStats.css';
 
@@ -167,7 +170,7 @@ const DonutChart = ({ data, onSliceClick }) => {
             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
             <span className="text-sm font-semibold text-gray-700 flex-1 text-left">{d.label}</span>
             <span className="text-sm font-bold text-primary-dark">{d.value}%</span>
-            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${d.trend?.startsWith('+') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>{d.trend}</span>
+            {d.trend && <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${d.trend?.startsWith('+') ? 'bg-green-50 text-green-600' : 'bg-red-50 text-red-500'}`}>{d.trend}</span>}
           </button>
         ))}
       </div>
@@ -181,7 +184,7 @@ const StatusBadge = ({ s }) => {
   return <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${map[s]||'bg-gray-100 text-gray-500'}`}>{s}</span>;
 };
 
-/* ════════════════════════════════════════ PAGE ════════════════════════════════════════ */
+/* ── PERIODS ── */
 const PERIODES = [
   { key: 'week', label: 'Semaine' },
   { key: 'month', label: 'Mois' },
@@ -189,6 +192,7 @@ const PERIODES = [
 ];
 
 export const GerantStats = () => {
+  const { currentUser } = useUser();
   const [periode, setPeriode]       = useState('month');
   const [terrain, setTerrain]       = useState('all');
   const [showTerrainDD, setDD]      = useState(false);
@@ -199,9 +203,66 @@ export const GerantStats = () => {
   const [toast, setToast]           = useState(null);
   const [animKey, setAnimKey]       = useState(0);
 
-  const kpiByTerrain = GERANT_KPIS[terrain] || GERANT_KPIS['all'];
-  const kpi = kpiByTerrain[periode] || kpiByTerrain['month'];
-  const terrainLabel = GERANT_TERRAINS.find(t => t.id === terrain)?.label || 'Tous les terrains';
+  const [kpi, setKpi]               = useState({ revenus: 0, reservations: 0, tauxOccupation: 0, noteMoyenne: 4.8 });
+  const [terrains, setTerrains]     = useState([{ id: 'all', label: 'Tous les terrains' }]);
+  const [repartPay, setRepartPay]   = useState(REPARTITION_PAIEMENT);
+  const [loading, setLoading]       = useState(true);
+
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  // Load terrains list
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const loadTerrains = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('terrains')
+          .select('id, nom')
+          .eq('gerant_id', currentUser.id);
+        if (error) throw error;
+        if (data) {
+          setTerrains([
+            { id: 'all', label: 'Tous les terrains' },
+            ...data.map(t => ({ id: t.id, label: t.nom }))
+          ]);
+        }
+      } catch (err) {
+        console.error("Error loading terrains:", err);
+      }
+    };
+    loadTerrains();
+  }, [currentUser]);
+
+  // Load KPIs and payment methods
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const loadStats = async () => {
+      try {
+        setLoading(true);
+        const tId = terrain === 'all' ? null : terrain;
+        const liveKpi = await fetchGerantKpis(currentUser.id, tId, periode);
+        setKpi({
+          ...liveKpi,
+          noteMoyenne: liveKpi.noteMoyenne || 4.8
+        });
+
+        const livePay = await fetchRepartitionPaiements(currentUser.id);
+        if (livePay && livePay.length > 0) {
+          setRepartPay(livePay);
+        }
+      } catch (err) {
+        console.error("Error loading statistics:", err);
+        // Safe fallback mock in case RPC / DB is empty during testing
+        const kpiByTerrain = GERANT_KPIS[terrain] || GERANT_KPIS['all'];
+        setKpi(kpiByTerrain[periode] || kpiByTerrain['month']);
+      } finally {
+        setLoading(false);
+      }
+    };
+    loadStats();
+  }, [currentUser, terrain, periode]);
+
+  const terrainLabel = terrains.find(t => t.id === terrain)?.label || 'Tous les terrains';
 
   /* Re-trigger animations on filter change */
   const changeTerrain = (id) => { setTerrain(id); setDD(false); setAnimKey(k => k + 1); };
@@ -212,8 +273,6 @@ export const GerantStats = () => {
   const animReservations = useCounter(kpi.reservations);
   const animOccupation   = useCounter(kpi.tauxOccupation);
   const animNote         = useCounter(Math.round(kpi.noteMoyenne * 10));
-
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden pb-28 lg:pb-12">
@@ -234,7 +293,7 @@ export const GerantStats = () => {
           </button>
           {showTerrainDD && (
             <div className="absolute top-full left-0 mt-1 bg-white rounded-xl shadow-xl border border-gray-100 z-50 w-52 overflow-hidden">
-              {GERANT_TERRAINS.map(t => (
+              {terrains.map(t => (
                 <button key={t.id} onClick={() => changeTerrain(t.id)}
                   className={`w-full text-left px-4 py-3 text-sm font-semibold transition-all min-h-[44px] ${terrain === t.id ? 'bg-primary/10 text-primary font-bold' : 'hover:bg-gray-50 text-gray-700'}`}>
                   {t.label}
@@ -324,7 +383,7 @@ export const GerantStats = () => {
           {/* Donut */}
           <div className="bg-white rounded-2xl border border-black/5 shadow-subtle p-5">
             <h3 className="font-bold text-primary-dark mb-4">Modes de paiement</h3>
-            <DonutChart data={REPARTITION_PAIEMENT} onSliceClick={(d) => setPaySheet(d)} />
+            <DonutChart data={repartPay} onSliceClick={(d) => setPaySheet(d)} />
           </div>
 
           {/* Top joueurs */}

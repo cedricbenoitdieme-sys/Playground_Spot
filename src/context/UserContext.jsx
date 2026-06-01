@@ -1,69 +1,85 @@
-import React, { createContext, useContext, useState } from 'react';
-
-export const MOCK_USERS = {
-  admin: {
-    id: '1',
-    nom: 'Admin Dakar',
-    email: 'admin@playgroundspot.com',
-    role: 'admin',
-    avatar: 'AD'
-  },
-  gerant: {
-    id: '2',
-    nom: 'Ibrahima Fall',
-    email: 'ibrahima@playgroundspot.com',
-    role: 'gerant',
-    terrain: 'Terrain Les Champions — Almadies',
-    avatar: 'IF'
-  },
-  joueur: {
-    id: '3',
-    nom: 'Moussa Diallo',
-    email: 'moussa@playgroundspot.com',
-    role: 'joueur',
-    quartier: 'Médina',
-    avatar: 'MD'
-  }
-};
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '../lib/supabase';
+import { getProfile } from '../services/auth';
 
 const UserContext = createContext();
 
 export const UserProvider = ({ children }) => {
-  const urlParams = new URLSearchParams(window.location.search);
-  const roleParam = urlParams.get('role');
-  
-  const getInitialUser = () => {
-    if (roleParam && MOCK_USERS[roleParam]) {
-      localStorage.setItem('currentUser', JSON.stringify(MOCK_USERS[roleParam]));
-      return MOCK_USERS[roleParam];
-    }
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      try {
-        return JSON.parse(savedUser);
-      } catch (e) {
-        localStorage.removeItem('currentUser');
-      }
-    }
-    return null; // default unauthenticated
-  };
+  const [currentUser, setCurrentUser] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-  const [currentUser, setCurrentUser] = useState(getInitialUser);
-  
+  // ── Initialisation : vérifier la session Supabase active ──
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          const profile = await getProfile(session.user.id);
+          setCurrentUser({
+            id: session.user.id,
+            nom: profile.nom,
+            email: profile.email,
+            role: profile.role,
+            quartier: profile.quartier,
+            tel: profile.tel,
+            avatar: profile.avatar || getInitiales(profile.nom),
+            statut: profile.statut,
+          });
+        }
+      } catch (err) {
+        console.error('Erreur initialisation auth:', err.message);
+        setCurrentUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
+
+    // ── Écouter les changements d'état d'auth (login, logout, token refresh) ──
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (event === 'SIGNED_IN' && session?.user) {
+          try {
+            const profile = await getProfile(session.user.id);
+            setCurrentUser({
+              id: session.user.id,
+              nom: profile.nom,
+              email: profile.email,
+              role: profile.role,
+              quartier: profile.quartier,
+              tel: profile.tel,
+              avatar: profile.avatar || getInitiales(profile.nom),
+              statut: profile.statut,
+            });
+          } catch (err) {
+            console.error('Erreur chargement profil:', err.message);
+          }
+        } else if (event === 'SIGNED_OUT') {
+          setCurrentUser(null);
+        }
+      }
+    );
+
+    return () => subscription?.unsubscribe();
+  }, []);
+
+  // ── Setter qui met aussi à jour le state ──
   const handleSetCurrentUser = (user) => {
-    if (user) {
-      localStorage.setItem('currentUser', JSON.stringify(user));
-    } else {
-      localStorage.removeItem('currentUser');
-    }
     setCurrentUser(user);
   };
 
   return (
-    <UserContext.Provider value={{ currentUser, setCurrentUser: handleSetCurrentUser }}>
+    <UserContext.Provider value={{ currentUser, setCurrentUser: handleSetCurrentUser, loading }}>
       {children}
     </UserContext.Provider>
   );
 };
 
 export const useUser = () => useContext(UserContext);
+
+// ── Helper ──
+const getInitiales = (nom) => {
+  if (!nom) return '??';
+  return nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+};

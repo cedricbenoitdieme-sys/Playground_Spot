@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { DiscoveryFilters } from '../components/DiscoveryFilters';
 import { TerrainCard } from '../components/TerrainCard';
 import { MapDiscovery } from '../components/MapDiscovery';
-import { TERRAINS } from '../data/mockData';
-import { IconCheck } from '@tabler/icons-react';
+import { fetchTerrains } from '../services/terrains';
+import { IconCheck, IconLoader2 } from '@tabler/icons-react';
 
 export const Discovery = ({ setView, setSelectedTerrain }) => {
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
@@ -12,26 +12,38 @@ export const Discovery = ({ setView, setSelectedTerrain }) => {
   const [isMultiSelect, setIsMultiSelect] = useState(false);
   const [visibleCount, setVisibleCount] = useState(4);
   const [toast, setToast] = useState(null);
+  const [terrains, setTerrains] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const filteredTerrains = TERRAINS.filter(terrain => {
-    const matchesSearch = terrain.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                         terrain.quartier.toLowerCase().includes(searchQuery.toLowerCase());
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchTerrains();
+        setTerrains(data);
+      } catch (err) {
+        console.error('Erreur chargement terrains:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  const filteredTerrains = terrains.filter(terrain => {
+    const matchesSearch = (terrain.name || terrain.nom || '').toLowerCase().includes(searchQuery.toLowerCase()) || 
+                         (terrain.quartier || '').toLowerCase().includes(searchQuery.toLowerCase());
     
-    // If no filters, return true
     if (activeFilters.length === 0) return matchesSearch;
 
-    // In multi-select, it must match AT LEAST one filter (OR logic) or ALL filters (AND logic)?
-    // Usually for tags like "Synthétique" and "5v5", it's better to match ALL active filters if they are different categories,
-    // but for simplicity, let's say it must match ALL selected filters to be really precise, 
-    // or ANY selected filter. Let's do ANY for now as it was before.
     const matchesFilters = activeFilters.every(f => 
       terrain.surface === f || 
       terrain.size === f || 
-      terrain.amenities.includes(f)
+      (terrain.amenities || []).includes(f)
     );
     
     return matchesSearch && matchesFilters;
   });
+
 
   const handleToggleFilter = (filter) => {
     setActiveFilters(prev => {

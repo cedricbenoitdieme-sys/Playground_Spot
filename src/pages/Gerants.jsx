@@ -1,17 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   IconSearch, IconPlus, IconX, IconPhone, IconMail,
   IconMapPin, IconBallFootball, IconStarFilled,
   IconCheck, IconBan, IconTrash, IconEdit, IconChevronRight,
+  IconLoader2
 } from '@tabler/icons-react';
-import { GERANTS } from '../data/mockData';
+import { fetchGerants } from '../services/profiles';
+import { updateProfileStatut } from '../services/profiles';
 
 /* ── Helpers ── */
 const fmt = (n) => {
+  if (!n || n <= 0) return '—';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + 'M FCFA';
   if (n >= 1_000)     return (n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1) + 'K FCFA';
-  return n > 0 ? n.toLocaleString('fr-FR') + ' FCFA' : '—';
+  return n.toLocaleString('fr-FR') + ' FCFA';
 };
 
 const StatusBadge = ({ statut }) => {
@@ -65,7 +68,7 @@ const GerantCard = ({ g, onClick }) => (
         <p className="font-bold text-primary-dark truncate">{g.nom}</p>
         <StatusBadge statut={g.statut} />
       </div>
-      <p className="text-[11px] text-gray-400 font-medium">{g.quartier} · {g.terrains.length} terrain{g.terrains.length > 1 ? 's' : ''}</p>
+      <p className="text-[11px] text-gray-400 font-medium">{g.quartier} · {(g.terrains || []).length} terrain{(g.terrains || []).length > 1 ? 's' : ''}</p>
       <div className="flex items-center gap-3 mt-1.5">
         <span className="text-xs font-bold text-primary">{fmt(g.revenus)}</span>
         {g.note && (
@@ -88,8 +91,23 @@ export const Gerants = () => {
   const [selected, setSelected]   = useState(null);
   const [showAddForm, setAddForm] = useState(false);
   const [toast, setToast]         = useState(null);
-  const [gerants, setGerants]     = useState(GERANTS);
+  const [gerants, setGerants]     = useState([]);
+  const [loading, setLoading]     = useState(true);
   const [newForm, setNewForm]     = useState({ nom: '', email: '', tel: '', quartier: '' });
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchGerants();
+        setGerants(data);
+      } catch (err) {
+        console.error('Erreur chargement gérants:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 

@@ -16,22 +16,19 @@ import {
   IconHeart,
   IconUser
 } from '@tabler/icons-react';
-import { useUser, MOCK_USERS } from '../context/UserContext';
+import { useUser } from '../context/UserContext';
+import { signOut } from '../services/auth';
 
 export const Sidebar = ({ currentView, setView }) => {
   const { currentUser, setCurrentUser } = useUser();
 
-  const handleRoleChange = (e) => {
-    const roleKey = e.target.value;
-    setCurrentUser(MOCK_USERS[roleKey]);
-    
-    // Automatically redirect to a valid role-appropriate starting view
-    if (roleKey === 'admin') {
-      setView('dashboard');
-    } else if (roleKey === 'gerant') {
-      setView('gerant-dashboard');
-    } else {
-      setView('joueur-home');
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      setCurrentUser(null);
+      setView('landing');
+    } catch (err) {
+      console.error('Erreur déconnexion:', err.message);
     }
   };
 
@@ -91,18 +88,11 @@ export const Sidebar = ({ currentView, setView }) => {
           </span>
         </div>
 
-        {/* Development Role Switcher */}
-        <div className="bg-white/5 border border-white/10 rounded-xl p-2">
-          <label className="text-[9px] font-bold text-primary uppercase tracking-widest block mb-1">Simulateur Rôle (Dev)</label>
-          <select 
-            value={currentUser.role}
-            onChange={handleRoleChange}
-            className="w-full bg-[#0F2318] text-white border-none rounded-lg text-xs font-semibold px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-primary cursor-pointer"
-          >
-            <option value="admin">Administrateur</option>
-            <option value="gerant">Gérant Terrain</option>
-            <option value="joueur">Joueur</option>
-          </select>
+        {/* Rôle badge */}
+        <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-2">
+          <span className="text-[9px] font-bold text-primary uppercase tracking-widest">
+            {currentUser.role === 'admin' ? '🛡️ Administrateur' : currentUser.role === 'gerant' ? '🏟️ Gérant Terrain' : '⚽ Joueur'}
+          </span>
         </div>
       </div>
 
@@ -153,8 +143,7 @@ export const Sidebar = ({ currentView, setView }) => {
           <button 
             onClick={(e) => {
               e.stopPropagation();
-              setCurrentUser(null);
-              setView('landing');
+              handleLogout();
             }}
             className="text-white/40 hover:text-red-400 hover:bg-white/10 p-1 rounded transition-all cursor-pointer"
           >

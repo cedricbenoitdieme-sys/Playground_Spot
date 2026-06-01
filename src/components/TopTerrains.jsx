@@ -1,14 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { TOP_TERRAINS, formatAmountAbbreviated } from '../data/mockData';
-import { IconTrophy, IconChevronRight, IconX, IconTrendingUp, IconUsers } from '@tabler/icons-react';
+import { fetchTopTerrains } from '../services/terrains';
+import { formatAmountAbbreviated } from '../services/stats';
+import { IconTrophy, IconChevronRight, IconX, IconTrendingUp, IconUsers, IconLoader2 } from '@tabler/icons-react';
 
 export const TopTerrains = () => {
+  const [terrains, setTerrains] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedTerrain, setSelectedTerrain] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchTopTerrains(3);
+        // Enrichir avec des bookings estimés (sera remplacé par un compteur réel plus tard)
+        setTerrains(data.map((t, i) => ({
+          ...t,
+          bookings: [34, 28, 22][i] || 20,
+          revenue: formatAmountAbbreviated((t.price || 15000) * ([34, 28, 22][i] || 20)),
+        })));
+      } catch (err) {
+        console.error('Erreur chargement top terrains:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-6 text-gray-400 gap-2">
+        <IconLoader2 size={16} className="animate-spin" />
+        <span className="text-xs">Chargement...</span>
+      </div>
+    );
+  }
 
   return (
     <>
-      {TOP_TERRAINS.map((terrain, index) => (
+      {terrains.map((terrain, index) => (
         <button 
           key={terrain.id} 
           onClick={() => setSelectedTerrain(terrain)}
@@ -20,8 +51,8 @@ export const TopTerrains = () => {
         >
           <div className="relative flex-shrink-0">
             <img 
-              src={terrain.image} 
-              alt={terrain.name} 
+              src={terrain.image || terrain.image_url} 
+              alt={terrain.name || terrain.nom} 
               className="w-12 h-12 rounded-lg object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all"
             />
             <div className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-secondary text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm border border-white">
@@ -31,13 +62,13 @@ export const TopTerrains = () => {
           
           <div className="flex-1 min-w-0">
             <div className="flex items-center justify-between">
-              <h4 className="font-bold text-primary-dark truncate text-xs">{terrain.name}</h4>
+              <h4 className="font-bold text-primary-dark truncate text-xs">{terrain.name || terrain.nom}</h4>
               <IconChevronRight size={12} className="text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity" />
             </div>
             <div className="flex items-center justify-between mt-0.5">
               <span className="text-[10px] text-gray-500 font-medium">{terrain.bookings} bookings</span>
               <div className="flex items-center gap-0.5">
-                <span className="text-[10px] font-bold text-primary">{formatAmountAbbreviated(terrain.price * terrain.bookings)}</span>
+                <span className="text-[10px] font-bold text-primary">{terrain.revenue}</span>
                 <IconTrophy size={10} className="text-secondary" />
               </div>
             </div>
@@ -51,12 +82,12 @@ export const TopTerrains = () => {
           <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setSelectedTerrain(null)}></div>
           <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar">
             <div className="h-32 relative">
-               <img src={selectedTerrain.image} alt={selectedTerrain.name} className="w-full h-full object-cover" />
+               <img src={selectedTerrain.image || selectedTerrain.image_url} alt={selectedTerrain.name || selectedTerrain.nom} className="w-full h-full object-cover" />
                <div className="absolute inset-0 bg-gradient-to-t from-primary-dark/90 to-transparent"></div>
                <button onClick={() => setSelectedTerrain(null)} className="absolute top-4 right-4 text-white/50 hover:text-white bg-black/20 p-2 rounded-full backdrop-blur-md cursor-pointer">
                  <IconX size={20} />
                </button>
-               <h3 className="absolute bottom-4 left-6 text-white font-bold text-xl">{selectedTerrain.name}</h3>
+               <h3 className="absolute bottom-4 left-6 text-white font-bold text-xl">{selectedTerrain.name || selectedTerrain.nom}</h3>
             </div>
             <div className="p-6 space-y-6">
                <div className="grid grid-cols-2 gap-4">

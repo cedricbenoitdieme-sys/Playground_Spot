@@ -1,9 +1,34 @@
-import React, { useState } from 'react';
-import { OCCUPATION_BY_QUARTIER } from '../data/mockData';
-import { IconChartBar, IconInfoCircle } from '@tabler/icons-react';
+import React, { useState, useEffect } from 'react';
+import { fetchOccupationByQuartier } from '../services/stats';
+import { IconChartBar, IconInfoCircle, IconLoader2 } from '@tabler/icons-react';
 
 export const OccupationChart = () => {
+  const [quartiers, setQuartiers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeQuartier, setActiveQuartier] = useState(null);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const data = await fetchOccupationByQuartier();
+        setQuartiers(data);
+      } catch (err) {
+        console.error('Erreur chargement occupation:', err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-6 text-gray-400 gap-2">
+        <IconLoader2 size={16} className="animate-spin" />
+        <span className="text-xs">Chargement...</span>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -16,7 +41,7 @@ export const OccupationChart = () => {
       </div>
 
       <div className="space-y-4">
-        {OCCUPATION_BY_QUARTIER.map((item, index) => (
+        {quartiers.map((item, index) => (
           <button 
             key={item.quartier} 
             onClick={() => setActiveQuartier(activeQuartier === item.quartier ? null : item.quartier)}
@@ -56,8 +81,8 @@ export const OccupationChart = () => {
                   <div>
                     <p className="text-[10px] font-bold text-primary-dark uppercase mb-1">Détails {item.quartier}</p>
                     <div className="grid grid-cols-2 gap-2 text-[9px] font-medium text-gray-500">
-                      <p>Terrains actifs: <span className="text-primary font-bold">12</span></p>
-                      <p>Réservations: <span className="text-primary font-bold">45</span></p>
+                      <p>Occupation: <span className="text-primary font-bold">{item.percentage}%</span></p>
+                      <p>Tendance: <span className="text-primary font-bold">Stable</span></p>
                     </div>
                   </div>
                 </div>
@@ -65,6 +90,10 @@ export const OccupationChart = () => {
             )}
           </button>
         ))}
+
+        {quartiers.length === 0 && !loading && (
+          <p className="text-center text-gray-400 text-xs py-4">Aucune donnée d'occupation disponible.</p>
+        )}
       </div>
     </>
   );

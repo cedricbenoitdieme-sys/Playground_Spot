@@ -1,26 +1,32 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import {
   IconSearch, IconX, IconPhone, IconMail, IconMapPin,
   IconCalendarEvent, IconStarFilled, IconBan, IconTrash,
   IconChevronRight, IconTrendingUp, IconClock, IconUserOff,
+  IconLoader2
 } from '@tabler/icons-react';
-import { UTILISATEURS } from '../data/mockData';
+import { fetchJoueurs, updateProfileStatut, fetchProfileWithHistory } from '../services/profiles';
 
 /* ── Helpers ── */
 const fmt = (n) => {
+  if (!n) return '—';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + 'M FCFA';
   if (n >= 1_000)     return (n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1) + 'K FCFA';
   return n > 0 ? n.toLocaleString('fr-FR') + ' FCFA' : '—';
 };
-const niveau = (r) => r >= 15 ? { label: 'VIP', color: 'text-amber-600 bg-amber-50 border-amber-200' }
-  : r >= 8  ? { label: 'Régulier', color: 'text-primary bg-primary/5 border-primary/20' }
-  : r >= 3  ? { label: 'Actif', color: 'text-blue-600 bg-blue-50 border-blue-200' }
-  : { label: 'Nouveau', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+const niveau = (r) => {
+  const count = r || 0;
+  return count >= 15 ? { label: 'VIP', color: 'text-amber-600 bg-amber-50 border-amber-200' }
+    : count >= 8  ? { label: 'Régulier', color: 'text-primary bg-primary/5 border-primary/20' }
+    : count >= 3  ? { label: 'Actif', color: 'text-blue-600 bg-blue-50 border-blue-200' }
+    : { label: 'Nouveau', color: 'text-gray-500 bg-gray-50 border-gray-200' };
+};
 
 const StatutBadge = ({ s }) => {
   const map = { actif: 'bg-green-50 text-green-700 border-green-200', suspendu: 'bg-red-50 text-red-600 border-red-200', inactif: 'bg-gray-100 text-gray-500 border-gray-200' };
-  return <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${map[s] || 'bg-gray-100 text-gray-500'}`}>{s.charAt(0).toUpperCase() + s.slice(1)}</span>;
+  const val = s || 'actif';
+  return <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${map[val] || 'bg-gray-100 text-gray-500'}`}>{val.charAt(0).toUpperCase() + val.slice(1)}</span>;
 };
 
 const ReservStatut = ({ s }) => {
@@ -52,9 +58,8 @@ const UserCard = ({ u, onClick }) => {
     <button onClick={() => onClick(u)}
       className="w-full bg-white rounded-2xl border border-black/5 shadow-subtle p-4 flex items-center gap-4 text-left hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200"
       style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
-      {/* Avatar */}
       <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${u.statut === 'suspendu' ? 'bg-red-50 text-red-500' : u.statut === 'inactif' ? 'bg-gray-100 text-gray-400' : 'bg-primary/10 text-primary'}`}>
-        {u.initiales}
+        {u.initiales || (u.nom || '').substring(0,2).toUpperCase()}
       </div>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
@@ -62,10 +67,10 @@ const UserCard = ({ u, onClick }) => {
           <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${niv.color}`}>{niv.label}</span>
           <StatutBadge s={u.statut} />
         </div>
-        <p className="text-[11px] text-gray-400 font-medium">{u.quartier} · dernier accès {u.dernierAcces}</p>
+        <p className="text-[11px] text-gray-400 font-medium">{u.quartier || 'Dakar'} · inscrit le {u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—'}</p>
         <div className="flex items-center gap-3 mt-1.5">
-          <span className="text-xs font-bold text-primary">{u.reservations} résa</span>
-          <span className="text-xs text-gray-500 font-semibold">{fmt(u.depenses)}</span>
+          <span className="text-xs font-bold text-primary">{u.reservations || 0} résa</span>
+          <span className="text-xs text-gray-500 font-semibold">{fmt(u.depenses || 0)}</span>
           {u.note && <span className="flex items-center gap-0.5 text-xs font-bold text-amber-500"><IconStarFilled size={10} />{u.note}</span>}
         </div>
       </div>
@@ -74,12 +79,12 @@ const UserCard = ({ u, onClick }) => {
   );
 };
 
-/* ══════════════ PAGE ══════════════ */
+/* ── STATS / CONFIG ── */
 const STATUTS = ['tous', 'actif', 'suspendu', 'inactif'];
 const TRIS = [
   { key: 'reservations', label: 'Réservations' },
   { key: 'depenses', label: 'Dépenses' },
-  { key: 'dateInscription', label: 'Récents' },
+  { key: 'nom', label: 'Nom' },
 ];
 
 export const Utilisateurs = () => {
@@ -87,21 +92,74 @@ export const Utilisateurs = () => {
   const [filtre, setFiltre]   = useState('tous');
   const [tri, setTri]         = useState('reservations');
   const [selected, setSelected] = useState(null);
+  const [selectedFull, setSelectedFull] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
   const [toast, setToast]     = useState(null);
-  const [users, setUsers]     = useState(UTILISATEURS);
+  const [users, setUsers]     = useState([]);
+  const [loading, setLoading] = useState(true);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleSuspend = (u) => {
-    setUsers(prev => prev.map(x => x.id === u.id ? { ...x, statut: x.statut === 'suspendu' ? 'actif' : 'suspendu' } : x));
-    setSelected(null);
-    showToast(u.statut === 'suspendu' ? `${u.nom} réactivé ✓` : `${u.nom} suspendu`);
+  const loadUsers = async () => {
+    try {
+      setLoading(true);
+      const data = await fetchJoueurs();
+      setUsers(data);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur de chargement des utilisateurs");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleDelete = (u) => {
-    setUsers(prev => prev.filter(x => x.id !== u.id));
-    setSelected(null);
-    showToast(`${u.nom} supprimé`);
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
+    if (!selected) {
+      setSelectedFull(null);
+      return;
+    }
+    const loadDetail = async () => {
+      try {
+        setLoadingDetail(true);
+        const detail = await fetchProfileWithHistory(selected.id);
+        setSelectedFull(detail);
+      } catch (err) {
+        console.error(err);
+        showToast("Erreur lors de la récupération des détails");
+      } finally {
+        setLoadingDetail(false);
+      }
+    };
+    loadDetail();
+  }, [selected]);
+
+  const handleSuspend = async (u) => {
+    try {
+      const nextStatut = u.statut === 'suspendu' ? 'actif' : 'suspendu';
+      await updateProfileStatut(u.id, nextStatut);
+      setUsers(prev => prev.map(x => x.id === u.id ? { ...x, statut: nextStatut } : x));
+      setSelected(null);
+      showToast(nextStatut === 'suspendu' ? `${u.nom} suspendu` : `${u.nom} réactivé ✓`);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la mise à jour");
+    }
+  };
+
+  const handleDelete = async (u) => {
+    try {
+      await updateProfileStatut(u.id, 'inactif');
+      setUsers(prev => prev.filter(x => x.id !== u.id));
+      setSelected(null);
+      showToast(`${u.nom} marqué inactif`);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la suppression");
+    }
   };
 
   const filtered = users
@@ -205,93 +263,104 @@ export const Utilisateurs = () => {
       <Sheet open={!!selected} onClose={() => setSelected(null)} title={selected?.nom || ''}>
         {selected && (
           <div>
-            {/* Header profil */}
-            <div className="p-5 bg-gradient-to-br from-primary/5 to-transparent border-b border-gray-100">
-              <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black flex-shrink-0 ${selected.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-primary/10 text-primary'}`}>
-                  {selected.initiales}
-                </div>
-                <div>
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <p className="font-bold text-lg text-primary-dark">{selected.nom}</p>
-                    {niv && <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${niv.color}`}>{niv.label}</span>}
+            {loadingDetail ? (
+              <div className="flex flex-col items-center justify-center py-20 text-gray-400 gap-3">
+                <IconLoader2 className="animate-spin text-primary" size={32} />
+                <p className="text-sm font-semibold">Chargement du profil...</p>
+              </div>
+            ) : selectedFull ? (
+              <div>
+                {/* Header profil */}
+                <div className="p-5 bg-gradient-to-br from-primary/5 to-transparent border-b border-gray-100">
+                  <div className="flex items-center gap-4">
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black flex-shrink-0 ${selectedFull.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-primary/10 text-primary'}`}>
+                      {selectedFull.initiales || (selectedFull.nom || '').substring(0,2).toUpperCase()}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <p className="font-bold text-lg text-primary-dark">{selectedFull.nom}</p>
+                        {niv && <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${niv.color}`}>{niv.label}</span>}
+                      </div>
+                      <StatutBadge s={selectedFull.statut} />
+                      <p className="text-xs text-gray-400 mt-1">Inscrit le {selectedFull.created_at ? new Date(selectedFull.created_at).toLocaleDateString('fr-FR') : '—'}</p>
+                    </div>
                   </div>
-                  <StatutBadge s={selected.statut} />
-                  <p className="text-xs text-gray-400 mt-1">Inscrit le {selected.dateInscription}</p>
                 </div>
-              </div>
-            </div>
 
-            {/* Coordonnées */}
-            <div className="p-5 space-y-2">
-              {[
-                { icon: IconMail,    val: selected.email },
-                { icon: IconPhone,   val: selected.tel },
-                { icon: IconMapPin,  val: selected.quartier },
-                { icon: IconClock,   val: `Dernier accès : ${selected.dernierAcces}` },
-              ].map(({ icon: Icon, val }, i) => (
-                <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
-                  <Icon size={17} className="text-primary flex-shrink-0" />
-                  <span className="text-sm text-gray-700 font-medium">{val}</span>
-                </div>
-              ))}
-            </div>
-
-            {/* Stats joueur */}
-            <div className="px-5 pb-4 grid grid-cols-3 gap-2">
-              <div className="bg-primary/5 rounded-xl p-3 text-center">
-                <p className="text-xl font-black text-primary">{selected.reservations}</p>
-                <p className="text-[10px] text-gray-500 font-semibold">Réservations</p>
-              </div>
-              <div className="bg-green-50 rounded-xl p-3 text-center">
-                <p className="text-sm font-black text-green-600">{selected.depenses > 0 ? (selected.depenses/1000).toFixed(0)+'k' : '—'}</p>
-                <p className="text-[10px] text-gray-500 font-semibold">Dépensé</p>
-              </div>
-              <div className="bg-amber-50 rounded-xl p-3 text-center">
-                <p className="text-xl font-black text-amber-500">{selected.note ?? '—'}</p>
-                <p className="text-[10px] text-gray-500 font-semibold">Note moy.</p>
-              </div>
-            </div>
-
-            {/* Historique */}
-            <div className="px-5 pb-4">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Historique des réservations</p>
-              {selected.historique.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-4">Aucune réservation</p>
-              ) : (
-                <div className="space-y-2">
-                  {selected.historique.map((h, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-bold text-primary-dark truncate">{h.terrain}</p>
-                        <p className="text-[11px] text-gray-400">{h.date} · {h.creneau}</p>
-                      </div>
-                      <div className="text-right flex-shrink-0">
-                        <p className="text-sm font-bold text-primary">{h.montant}</p>
-                        <ReservStatut s={h.statut} />
-                      </div>
+                {/* Coordonnées */}
+                <div className="p-5 space-y-2">
+                  {[
+                    { icon: IconMail,    val: selectedFull.email },
+                    { icon: IconPhone,   val: selectedFull.tel || 'Non renseigné' },
+                    { icon: IconMapPin,  val: selectedFull.quartier || 'Dakar' },
+                    { icon: IconClock,   val: `Dernier accès : ${selectedFull.dernier_acces ? new Date(selectedFull.dernier_acces).toLocaleDateString('fr-FR') : 'Non renseigné'}` },
+                  ].map(({ icon: Icon, val }, i) => (
+                    <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                      <Icon size={17} className="text-primary flex-shrink-0" />
+                      <span className="text-sm text-gray-700 font-medium">{val}</span>
                     </div>
                   ))}
                 </div>
-              )}
-            </div>
 
-            {/* Actions */}
-            <div className="p-5 pt-0 space-y-2 border-t border-gray-100">
-              <button onClick={() => handleSuspend(selected)}
-                className={`w-full flex items-center justify-center gap-2 py-3.5 font-bold rounded-xl min-h-[48px] transition-all ${
-                  selected.statut === 'suspendu'
-                    ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
-                    : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
-                }`}>
-                <IconBan size={18} />
-                {selected.statut === 'suspendu' ? 'Réactiver le compte' : 'Suspendre le compte'}
-              </button>
-              <button onClick={() => handleDelete(selected)}
-                className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-600 font-bold border border-red-200 rounded-xl hover:bg-red-100 min-h-[48px]">
-                <IconTrash size={18} /> Supprimer le compte
-              </button>
-            </div>
+                {/* Stats joueur */}
+                <div className="px-5 pb-4 grid grid-cols-3 gap-2">
+                  <div className="bg-primary/5 rounded-xl p-3 text-center">
+                    <p className="text-xl font-black text-primary">{selectedFull.reservations || 0}</p>
+                    <p className="text-[10px] text-gray-500 font-semibold">Réservations</p>
+                  </div>
+                  <div className="bg-green-50 rounded-xl p-3 text-center">
+                    <p className="text-sm font-black text-green-600">{selectedFull.depenses > 0 ? (selectedFull.depenses/1000).toFixed(0)+'k' : '—'}</p>
+                    <p className="text-[10px] text-gray-500 font-semibold">Dépensé</p>
+                  </div>
+                  <div className="bg-amber-50 rounded-xl p-3 text-center">
+                    <p className="text-xl font-black text-amber-500">{selectedFull.note ?? '—'}</p>
+                    <p className="text-[10px] text-gray-500 font-semibold">Note moy.</p>
+                  </div>
+                </div>
+
+                {/* Historique */}
+                <div className="px-5 pb-4">
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-3">Historique des réservations</p>
+                  {(!selectedFull.historique || selectedFull.historique.length === 0) ? (
+                    <p className="text-sm text-gray-400 text-center py-4">Aucune réservation</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {selectedFull.historique.map((h, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 bg-gray-50 rounded-xl gap-3">
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-primary-dark truncate">{h.terrain}</p>
+                            <p className="text-[11px] text-gray-400">{h.date} · {h.creneau}</p>
+                          </div>
+                          <div className="text-right flex-shrink-0">
+                            <p className="text-sm font-bold text-primary">{h.montant}</p>
+                            <ReservStatut s={h.statut} />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Actions */}
+                <div className="p-5 pt-0 space-y-2 border-t border-gray-100">
+                  <button onClick={() => handleSuspend(selectedFull)}
+                    className={`w-full flex items-center justify-center gap-2 py-3.5 font-bold rounded-xl min-h-[48px] transition-all ${
+                      selectedFull.statut === 'suspendu'
+                        ? 'bg-green-50 text-green-700 border border-green-200 hover:bg-green-100'
+                        : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
+                    }`}>
+                    <IconBan size={18} />
+                    {selectedFull.statut === 'suspendu' ? 'Réactiver le compte' : 'Suspendre le compte'}
+                  </button>
+                  <button onClick={() => handleDelete(selectedFull)}
+                    className="w-full flex items-center justify-center gap-2 py-3.5 bg-red-50 text-red-600 font-bold border border-red-200 rounded-xl hover:bg-red-100 min-h-[48px]">
+                    <IconTrash size={18} /> Supprimer le compte
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-5 text-center text-gray-400">Erreur de chargement.</div>
+            )}
           </div>
         )}
       </Sheet>
