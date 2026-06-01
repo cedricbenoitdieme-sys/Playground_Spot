@@ -1,0 +1,107 @@
+/* ── Entry animations ── */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(24px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes barGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+@keyframes drawLine {
+  from { stroke-dashoffset: 1200; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes pulse-green {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(26,122,74,0.4); }
+  50%       { box-shadow: 0 0 0 8px rgba(26,122,74,0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+@keyframes rotateDot {
+  from { stroke-dashoffset: 380; }
+  to   { stroke-dashoffset: 0; }
+}
+@keyframes scalePop {
+  0%   { transform: scale(0.8); opacity: 0; }
+  70%  { transform: scale(1.05); }
+  100% { transform: scale(1); opacity: 1; }
+}
+@keyframes floatBadge {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+/* ── Staggered card entries ── */
+.gs-card { animation: slideUp 0.45s cubic-bezier(.22,1,.36,1) both; }
+.gs-card:nth-child(1) { animation-delay: 0.05s; }
+.gs-card:nth-child(2) { animation-delay: 0.12s; }
+.gs-card:nth-child(3) { animation-delay: 0.19s; }
+.gs-card:nth-child(4) { animation-delay: 0.26s; }
+
+.gs-section { animation: slideUp 0.5s cubic-bezier(.22,1,.36,1) both; }
+.gs-section:nth-child(1) { animation-delay: 0.1s; }
+.gs-section:nth-child(2) { animation-delay: 0.2s; }
+.gs-section:nth-child(3) { animation-delay: 0.3s; }
+.gs-section:nth-child(4) { animation-delay: 0.4s; }
+
+/* ── KPI value pop ── */
+.gs-kpi-value { animation: scalePop 0.4s cubic-bezier(.22,1,.36,1) both; }
+
+/* ── SVG chart line draw ── */
+.gs-chart-line {
+  stroke-dasharray: 1200;
+  animation: drawLine 1.2s cubic-bezier(.22,1,.36,1) both;
+  animation-delay: 0.3s;
+}
+.gs-chart-area { animation: fadeIn 1.2s ease both; animation-delay: 0.5s; }
+
+/* ── SVG bar grow ── */
+.gs-bar {
+  transform-origin: bottom;
+  animation: barGrow 0.6s cubic-bezier(.22,1,.36,1) both;
+}
+.gs-bar:nth-child(1) { animation-delay: 0.05s; }
+.gs-bar:nth-child(2) { animation-delay: 0.10s; }
+.gs-bar:nth-child(3) { animation-delay: 0.15s; }
+.gs-bar:nth-child(4) { animation-delay: 0.20s; }
+.gs-bar:nth-child(5) { animation-delay: 0.25s; }
+.gs-bar:nth-child(6) { animation-delay: 0.30s; }
+.gs-bar:nth-child(7) { animation-delay: 0.35s; }
+.gs-bar:nth-child(8) { animation-delay: 0.40s; }
+
+/* ── Donut draw ── */
+.gs-donut-seg {
+  animation: rotateDot 1s cubic-bezier(.22,1,.36,1) both;
+}
+.gs-donut-seg:nth-child(2) { animation-delay: 0.1s; }
+.gs-donut-seg:nth-child(3) { animation-delay: 0.4s; }
+.gs-donut-seg:nth-child(4) { animation-delay: 0.7s; }
+
+/* ── Joueur rows ── */
+.gs-joueur {
+  animation: slideUp 0.4s cubic-bezier(.22,1,.36,1) both;
+}
+.gs-joueur:nth-child(1) { animation-delay: 0.05s; }
+.gs-joueur:nth-child(2) { animation-delay: 0.12s; }
+.gs-joueur:nth-child(3) { animation-delay: 0.19s; }
+.gs-joueur:nth-child(4) { animation-delay: 0.26s; }
+.gs-joueur:nth-child(5) { animation-delay: 0.33s; }
+
+/* ── Hot badge float ── */
+.gs-hot-badge { animation: floatBadge 2s ease-in-out infinite; }
+
+/* ── Pulse active KPI ── */
+.gs-pulse { animation: pulse-green 2s ease-in-out infinite; }
+
+/* ── Filter transition ── */
+.gs-fade-key { animation: fadeIn 0.3s ease both; }

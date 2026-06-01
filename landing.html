@@ -1,0 +1,1381 @@
+<!DOCTYPE html>
+<html lang="fr" className="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PlaygroundSpot | Réserve ton terrain de football à Dakar</title>
+    <meta name="description" content="Trouvez et réservez des terrains de football à Dakar en quelques clics. Paiement via Wave et Orange Money.">
+    
+    <!-- Fonts: Space Grotesk & Inter (Self-Hosted Offline) -->
+    <link rel="stylesheet" href="/fonts/fonts.css">
+    
+    <!-- Local Tailwind CSS Compiled via Vite -->
+    <link rel="stylesheet" href="/src/index.css">
+
+    <style>
+        :root {
+            --primary: #1A7A4A;
+            --secondary: #E8DCC8;
+            --dark: #0F2318;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #FAFAFA;
+            color: #1F2937;
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4, h5, h6, .font-display {
+            font-family: 'Space Grotesk', sans-serif;
+        }
+
+        /* Glassmorphism utility */
+        .glass {
+            background: rgba(255, 255, 255, 0.7);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .glass-dark {
+            background: rgba(15, 35, 24, 0.6);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(232, 220, 200, 0.1);
+        }
+
+        /* Scroll Animations */
+        .reveal {
+            opacity: 0;
+            transform: translateY(20px);
+            transition: all 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        /* Hide scrollbar for horizontal scrolling */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        /* Leaflet Mockup Background */
+        .map-pattern {
+            background-image: radial-gradient(rgba(232, 220, 200, 0.1) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+
+        @keyframes floatPhone {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-12px) scale(1.015); }
+        }
+        .animate-float-phone {
+            animation: floatPhone 6s ease-in-out infinite;
+        }
+        .shadow-glow-emerald:hover {
+            box-shadow: 0 25px 60px -5px rgba(26, 122, 74, 0.45) !important;
+        }
+    </style>
+</head>
+<body class="antialiased">
+
+    <!-- Navbar (Glassmorphism) -->
+    <nav class="fixed top-4 left-4 right-4 md:left-8 md:right-8 z-50 glass rounded-3xl px-6 py-4 flex items-center justify-between shadow-subtle transition-all duration-300" id="navbar">
+        <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'}); return false;" class="flex items-center gap-2 cursor-pointer group">
+            <div class="w-10 h-10 bg-primary rounded-xl flex items-center justify-center text-white group-hover:scale-105 transition-transform">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12h.01"/><path d="M10 16a4 4 0 0 0 4 0"/><path d="M10 8a4 4 0 0 0 4 0"/><path d="M16 10a4 4 0 0 0 0 4"/><path d="M8 10a4 4 0 0 0 0 4"/></svg>
+            </div>
+            <span class="font-display font-bold text-xl tracking-tight text-dark">Playground<span class="text-primary">Spot</span></span>
+        </a>
+        <div class="hidden md:flex items-center gap-8 text-sm font-semibold">
+            <a href="#features" class="nav-link-item text-gray-600 hover:text-primary transition-all duration-200 border-b-2 border-transparent pb-1">Fonctionnalités</a>
+            <a href="#how-it-works" class="nav-link-item text-gray-600 hover:text-primary transition-all duration-200 border-b-2 border-transparent pb-1">Comment ça marche</a>
+            <a href="#terrains" class="nav-link-item text-gray-600 hover:text-primary transition-all duration-200 border-b-2 border-transparent pb-1">Terrains</a>
+        </div>
+        <div class="flex items-center gap-3">
+            <a href="#" onclick="goToApp('joueur', 'joueur-home'); return false;" class="hidden sm:block text-sm font-bold text-dark hover:text-primary transition-colors px-4">Connexion</a>
+            <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="hidden sm:block bg-primary text-white text-sm font-bold px-6 py-3 rounded-xl hover:bg-primary-dark transition-all active:scale-[0.98] shadow-glow">Réserver</a>
+            <!-- Mobile Hamburger Menu -->
+            <button id="mobile-menu-btn" class="md:hidden text-dark p-2">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
+        </div>
+    </nav>
+    
+    <!-- Mobile Menu Dropdown -->
+    <div id="mobile-menu" class="fixed top-24 left-4 right-4 bg-white rounded-3xl shadow-2xl z-40 p-6 hidden flex flex-col gap-4 border border-gray-100 origin-top transform scale-95 opacity-0 transition-all duration-200">
+        <a href="#features" class="mobile-nav-link-item text-lg font-bold text-dark p-2 border-b border-gray-50 transition-colors" onclick="toggleMobileMenu()">Fonctionnalités</a>
+        <a href="#how-it-works" class="mobile-nav-link-item text-lg font-bold text-dark p-2 border-b border-gray-50 transition-colors" onclick="toggleMobileMenu()">Comment ça marche</a>
+        <a href="#terrains" class="mobile-nav-link-item text-lg font-bold text-dark p-2 border-b border-gray-50 transition-colors" onclick="toggleMobileMenu()">Terrains</a>
+        <a href="#" onclick="goToApp('joueur', 'joueur-home'); toggleMobileMenu(); return false;" class="text-lg font-bold text-dark p-2 border-b border-gray-50">Connexion</a>
+        <a href="#" onclick="goToApp('joueur', 'discovery'); toggleMobileMenu(); return false;" class="bg-primary text-white text-center font-bold px-6 py-4 mt-2 rounded-xl">Réserver un terrain</a>
+    </div>
+
+    <!-- HERO SECTION -->
+    <section class="relative bg-dark text-white pt-40 pb-24 lg:pt-48 lg:pb-32 px-4 overflow-hidden min-h-[90vh] flex items-center">
+        <!-- Background Image with Overlay for Readability -->
+        <div class="absolute inset-0 z-0">
+            <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80" alt="Gens jouant au football" class="w-full h-full object-cover object-bottom opacity-40 mix-blend-luminosity grayscale-[0.2]" />
+            <div class="absolute inset-0 bg-gradient-to-b from-[#0F2318]/95 via-[#0F2318]/70 to-[#0F2318]"></div>
+        </div>
+
+        <!-- Ambient Glow Elements -->
+        <div class="absolute top-0 right-0 w-[500px] h-[500px] bg-primary/20 rounded-full blur-[100px] pointer-events-none z-0"></div>
+        <div class="absolute bottom-0 left-0 w-[400px] h-[400px] bg-secondary/10 rounded-full blur-[80px] pointer-events-none z-0"></div>
+
+        <div class="max-w-3xl mx-auto relative z-10 flex flex-col items-center justify-center text-center gap-8 w-full pt-10 md:pt-0">
+            
+            <div class="space-y-5 text-center reveal flex flex-col items-center max-w-2xl mx-auto">
+                <div class="inline-flex items-center gap-2 bg-white/10 border border-white/20 rounded-full px-4 py-2 text-xs font-bold uppercase tracking-widest text-secondary backdrop-blur-sm shadow-sm justify-center mx-auto">
+                    <span class="w-2 h-2 rounded-full bg-status-confirmed animate-pulse shadow-[0_0_8px_#10B981]"></span>
+                    Dakar, Sénégal
+                </div>
+                
+                <h1 class="text-4xl sm:text-5xl lg:text-6xl font-display font-bold leading-[1.15] tracking-tight drop-shadow-md text-center mx-auto max-w-2xl">
+                    Fini de chercher un terrain dispo pendant <span class="text-primary-light drop-shadow-lg bg-gradient-to-r from-emerald-400 to-[#E8DCC8] bg-clip-text text-transparent">1h sur WhatsApp</span>
+                </h1>
+                
+                <p class="text-gray-300 text-sm sm:text-base md:text-lg max-w-xl mx-auto drop-shadow leading-relaxed text-center">
+                    Trouve un terrain de foot près de chez toi, réserve ton créneau instantanément et paie via Wave ou Orange Money. Le foot sans prise de tête.
+                </p>
+
+                <div class="flex flex-col sm:flex-row items-center gap-3 justify-center pt-2 w-full max-w-sm mx-auto">
+                    <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="w-full sm:w-auto bg-primary text-white font-bold text-base px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center gap-3 shadow-glow hover:-translate-y-1 hover:shadow-lg transition-all active:scale-[0.98]">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                        Trouver un terrain
+                    </a>
+                    <a href="#how-it-works" onclick="switchTab('gerant')" class="w-full sm:w-auto bg-transparent border-2 border-secondary text-secondary hover:bg-secondary/10 font-bold text-base px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center transition-all active:scale-[0.98]">
+                        Inscrire mon terrain
+                    </a>
+                </div>
+            </div>
+
+            <!-- App UI Mockup -->
+            <div class="relative reveal delay-200 w-full max-w-xs mx-auto mt-4 animate-float-phone">
+                <!-- Decorative blur behind -->
+                <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-primary/20 blur-[80px] rounded-full pointer-events-none"></div>
+                
+                <!-- Main Device/Panel -->
+                <div class="relative z-20 bg-[#0A1810] border-4 border-[#2A3F32] rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden hover:scale-[1.05] active:scale-[0.98] transition-all duration-500 flex flex-col mx-auto max-w-[280px] h-[520px] group/phone cursor-pointer shadow-glow-emerald">
+                    <!-- Invisible Clickable Overlay -->
+                    <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="absolute inset-0 z-[100] block" aria-label="Ouvrir l'application PlaygroundSpot"></a>
+                    
+                    <!-- Top Navigation Bar -->
+                    <div class="px-6 pt-8 pb-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-30 flex justify-between items-center pointer-events-none">
+                        <div class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                        </div>
+                        <span class="text-white font-bold font-display text-lg tracking-wide shadow-sm">Dakar</span>
+                        <div class="w-10 h-10 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+                        </div>
+                    </div>
+
+                    <!-- Map Area (Background) -->
+                    <div class="absolute inset-0 bg-[#122A1D] overflow-hidden">
+                        <!-- Real Map Background Image -->
+                        <div class="absolute inset-0 opacity-60 mix-blend-luminosity grayscale-[0.5]">
+                            <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Map" class="w-full h-full object-cover">
+                        </div>
+                        
+                        <!-- Pulse markers -->
+                        <div class="absolute top-[40%] left-[55%] text-center z-20 cursor-pointer group">
+                            <div class="w-16 h-16 bg-primary/30 rounded-full animate-ping absolute -inset-2"></div>
+                            <div class="w-12 h-12 bg-primary text-white rounded-full flex items-center justify-center relative shadow-[0_0_20px_rgba(26,122,74,0.8)] border-2 border-white/20 transform group-hover:scale-110 transition-transform">
+                                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </div>
+                            <div class="absolute top-14 left-1/2 -translate-x-1/2 bg-white text-dark text-sm font-bold px-4 py-1.5 rounded-full shadow-xl whitespace-nowrap mt-1">
+                                15.000 FCFA
+                            </div>
+                        </div>
+
+                        <div class="absolute top-[25%] left-[25%] text-center z-10 opacity-70 cursor-pointer">
+                            <div class="w-10 h-10 bg-white/10 text-white rounded-full flex items-center justify-center relative shadow-sm border border-white/20 backdrop-blur-md">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </div>
+                        </div>
+
+                        <div class="absolute top-[65%] left-[20%] text-center z-10 cursor-pointer group">
+                            <div class="w-10 h-10 bg-status-cancelled text-white rounded-full flex items-center justify-center relative shadow-sm border border-white/20 transform group-hover:scale-110 transition-transform">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                            </div>
+                            <div class="absolute top-12 left-1/2 -translate-x-1/2 bg-status-cancelled text-white text-[10px] font-bold px-2 py-0.5 rounded-full shadow-lg whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity">
+                                Complet
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bottom Sheet / Card Overlay -->
+                    <div class="absolute bottom-0 left-0 w-full z-30">
+                        <div class="bg-gradient-to-t from-black/80 to-transparent h-32 w-full pointer-events-none absolute bottom-0"></div>
+                        <div class="bg-white rounded-t-[2rem] p-6 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] relative">
+                            <!-- Drag handle -->
+                            <div class="w-12 h-1.5 bg-gray-200 rounded-full mx-auto mb-6"></div>
+                            
+                            <div class="flex gap-4 items-center mb-6">
+                                <div class="w-20 h-20 rounded-2xl overflow-hidden shrink-0 shadow-md">
+                                    <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Terrain" class="w-full h-full object-cover">
+                                </div>
+                                <div class="flex-1">
+                                    <div class="flex items-center gap-2 mb-1">
+                                        <span class="px-2 py-0.5 bg-primary/10 text-primary text-[10px] font-bold uppercase tracking-widest rounded-md">Disponible</span>
+                                        <span class="text-xs text-gray-400 font-medium">18h00</span>
+                                    </div>
+                                    <h3 class="text-dark font-display font-bold text-lg leading-tight">City Foot Almadies</h3>
+                                    <p class="text-gray-500 text-xs mt-1 flex items-center gap-1 font-medium">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                        À 2.5 km
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            <div class="w-full bg-primary text-white font-bold py-4 rounded-xl shadow-glow group-hover/phone:bg-primary-dark transition-colors flex items-center justify-center gap-2">
+                                Réserver
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7"/></svg>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>            </div>
+        </div>
+    </section>
+
+    <!-- PROBLEM SECTION -->
+    <section class="py-24 bg-white px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16 reveal">
+                <span class="text-sm font-bold uppercase tracking-widest text-status-cancelled bg-status-cancelled/10 px-4 py-1.5 rounded-full">Le problème</span>
+                <h2 class="mt-6 text-3xl md:text-4xl font-display font-bold text-dark">L'organisation d'un match à Dakar,<br class="hidden md:block"/> c'est un parcours du combattant.</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Card 1 -->
+                <div class="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:-translate-y-1 transition-transform reveal">
+                    <div class="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-status-cancelled mb-6">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="12" y1="7" x2="12" y2="13"/></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-dark mb-3">Groupes WhatsApp saturés</h3>
+                    <p class="text-gray-500">Passer des heures à envoyer des messages vocaux à 5 gérants différents juste pour trouver un créneau libre à 18h.</p>
+                </div>
+                
+                <!-- Card 2 -->
+                <div class="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:-translate-y-1 transition-transform reveal delay-100">
+                    <div class="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-status-pending mb-6">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-dark mb-3">Galère de paiement</h3>
+                    <p class="text-gray-500">Collecter l'argent en cash au bord du terrain, avec la monnaie qui manque toujours et les retards qui s'accumulent.</p>
+                </div>
+
+                <!-- Card 3 -->
+                <div class="bg-gray-50 rounded-[2rem] p-8 border border-gray-100 hover:-translate-y-1 transition-transform reveal delay-200">
+                    <div class="w-14 h-14 bg-white rounded-2xl shadow-sm flex items-center justify-center text-dark mb-6">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/></svg>
+                    </div>
+                    <h3 class="text-xl font-bold text-dark mb-3">Gestion archaïque</h3>
+                    <p class="text-gray-500">Pour les gérants : un cahier d'écolier raturé pour gérer un business qui brasse des millions, source d'erreurs et de double-réservations.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURES SECTION -->
+    <section id="features" class="py-24 bg-[#FAFAFA] px-4 border-t border-gray-100 scroll-mt-28">
+        <div class="max-w-7xl mx-auto">
+            <div class="mb-16 reveal text-center flex flex-col items-center">
+                <span class="text-sm font-bold uppercase tracking-widest text-primary bg-primary/10 px-4 py-1.5 rounded-full inline-block">La Solution</span>
+                <h2 class="mt-6 text-3xl md:text-4xl font-display font-bold text-dark">Tout ce qu'il faut pour jouer,<br class="hidden md:block"/> dans votre poche.</h2>
+            </div>
+
+            <div class="grid md:grid-cols-2 gap-8">
+                <!-- Feature 1 -->
+                <div class="bg-white rounded-[2rem] p-8 shadow-subtle border border-black/5 flex gap-6 hover:-translate-y-1 hover:shadow-md transition-all group reveal">
+                    <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-dark mb-2">Carte interactive en direct</h3>
+                        <p class="text-gray-500 leading-relaxed">Visualisez tous les terrains de Dakar avec leurs disponibilités en temps réel. Filtrez par quartier, surface ou prix.</p>
+                    </div>
+                </div>
+
+                <!-- Feature 2 -->
+                <div class="bg-white rounded-[2rem] p-8 shadow-subtle border border-black/5 flex gap-6 hover:-translate-y-1 hover:shadow-md transition-all group reveal delay-100">
+                    <div class="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center text-primary shrink-0 group-hover:bg-primary group-hover:text-white transition-colors">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-dark mb-2">Paiement Mobile Money</h3>
+                        <p class="text-gray-500 leading-relaxed">Réservez en 2 clics et payez instantanément via <span class="font-bold text-[#1a56db]">Wave</span> ou <span class="font-bold text-[#ff6600]">Orange Money</span>. Fini la collecte de cash.</p>
+                    </div>
+                </div>
+
+                <!-- Feature 3 -->
+                <div class="bg-white rounded-[2rem] p-8 shadow-subtle border border-black/5 flex gap-6 hover:-translate-y-1 hover:shadow-md transition-all group reveal delay-200">
+                    <div class="w-16 h-16 rounded-2xl bg-secondary/30 flex items-center justify-center text-dark shrink-0 group-hover:bg-secondary group-hover:text-dark transition-colors">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 7V4h16v3M9 20h6M12 4v16"/></svg>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold text-dark mb-2">QR Code d'accès unique</h3>
+                        <p class="text-gray-500 leading-relaxed">Recevez un QR code scannable par le gérant. Votre téléphone est votre ticket d'entrée sur le terrain.</p>
+                    </div>
+                </div>
+
+                <!-- Feature 4 -->
+                <div class="bg-dark rounded-[2rem] p-8 shadow-subtle flex gap-6 hover:-translate-y-1 transition-all group reveal delay-300 relative overflow-hidden">
+                    <div class="absolute right-0 top-0 w-32 h-32 bg-primary/20 blur-2xl rounded-full"></div>
+                    <div class="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center text-secondary shrink-0 backdrop-blur-md">
+                        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+                    </div>
+                    <div class="relative z-10">
+                        <h3 class="text-xl font-bold text-white mb-2">Dashboard Gérant Complet</h3>
+                        <p class="text-gray-400 leading-relaxed">Une interface d'administration ultra-puissante pour gérer le planning, bloquer des créneaux et analyser les revenus.</p>
+                        <span class="inline-block mt-3 text-[10px] font-bold bg-secondary text-dark px-2 py-1 rounded-md uppercase tracking-wide">Inclus</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- HOW IT WORKS SECTION -->
+    <section id="how-it-works" class="py-24 bg-white px-4 scroll-mt-28">
+        <div class="max-w-4xl mx-auto">
+            <div class="text-center mb-12 reveal">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-dark">Comment ça marche ?</h2>
+                <p class="mt-4 text-gray-500">Un processus fluide, que vous soyez sur le terrain ou dans le bureau.</p>
+            </div>
+
+            <!-- Tabs -->
+            <div class="flex p-1 bg-gray-100 rounded-2xl mb-12 max-w-sm mx-auto reveal">
+                <button id="tab-joueur" class="flex-1 py-3 text-sm font-bold rounded-xl transition-all shadow-sm bg-primary text-white" onclick="switchTab('joueur')">
+                    Joueur
+                </button>
+                <button id="tab-gerant" class="flex-1 py-3 text-sm font-bold rounded-xl transition-all text-gray-500 hover:text-dark" onclick="switchTab('gerant')">
+                    Gérant
+                </button>
+            </div>
+
+            <!-- Tab Content: Joueur -->
+            <div id="content-joueur" class="space-y-8 relative before:absolute before:inset-y-0 before:left-[23px] md:before:left-1/2 before:w-0.5 before:bg-gray-100">
+                
+                <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between group reveal">
+                    <div class="hidden md:block w-[45%] text-right pr-12">
+                        <h3 class="text-xl font-bold text-dark">Cherche</h3>
+                        <p class="text-sm text-gray-500 mt-2">Ouvre l'application et découvre les terrains disponibles autour de toi sur la carte interactive.</p>
+                    </div>
+                    <div class="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-primary flex items-center justify-center text-primary font-bold shadow-sm z-10 group-hover:bg-primary group-hover:text-white transition-colors">1</div>
+                    <div class="md:hidden pl-16 pt-2 pb-8">
+                        <h3 class="text-xl font-bold text-dark">Cherche</h3>
+                        <p class="text-sm text-gray-500 mt-2">Ouvre l'application et découvre les terrains disponibles autour de toi sur la carte interactive.</p>
+                    </div>
+                    <div class="hidden md:block w-[45%] pl-12">
+                        <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-sm"><img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Map" class="rounded-xl h-24 w-full object-cover grayscale opacity-50"></div>
+                    </div>
+                </div>
+
+                <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between group reveal">
+                    <!-- Illustration: Payment Widget -->
+                    <div class="hidden md:block w-[45%] pr-12 text-right">
+                        <div class="bg-white rounded-2xl border border-gray-100 shadow-md overflow-hidden">
+                            <!-- Header Widget -->
+                            <div class="bg-[#0F2318] px-5 py-3 flex items-center justify-between">
+                                <span class="text-white text-xs font-bold uppercase tracking-widest">Paiement Sécurisé</span>
+                                <div class="flex items-center gap-1">
+                                    <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+                                    <span class="text-green-400 text-[10px] font-bold">Sécurisé</span>
+                                </div>
+                            </div>
+                            <!-- Slot info -->
+                            <div class="px-5 py-3 border-b border-gray-50">
+                                <div class="flex items-center justify-between">
+                                    <div class="text-left">
+                                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Terrain</p>
+                                        <p class="text-sm font-bold text-[#0F2318]">Arena Plateau</p>
+                                    </div>
+                                    <div class="text-right">
+                                        <p class="text-[10px] text-gray-400 uppercase tracking-wider font-bold">Créneau</p>
+                                        <p class="text-sm font-bold text-[#0F2318]">20:00 — 21:00</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Amount -->
+                            <div class="px-5 py-3 flex items-center justify-between border-b border-gray-50">
+                                <span class="text-xs text-gray-500 font-medium">Total à payer</span>
+                                <span class="text-lg font-bold text-[#1A7A4A]">15.000 FCFA</span>
+                            </div>
+                            <!-- Payment Methods -->
+                            <div class="px-5 py-3">
+                                <p class="text-[10px] text-gray-400 uppercase tracking-wider font-bold mb-2.5">Choisir le mode de paiement</p>
+                                <div class="grid grid-cols-2 gap-2">
+                                    <div class="flex items-center gap-2 bg-[#1a56db]/5 border-2 border-[#1a56db] rounded-xl px-3 py-2.5 cursor-pointer">
+                                        <div class="w-7 h-7 rounded-lg bg-[#1a56db] flex items-center justify-center shrink-0">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
+                                        </div>
+                                        <span class="text-xs font-bold text-[#1a56db]">Wave</span>
+                                    </div>
+                                    <div class="flex items-center gap-2 bg-gray-50 border-2 border-gray-100 rounded-xl px-3 py-2.5 cursor-pointer hover:border-[#ff6600]/40 transition-colors">
+                                        <div class="w-7 h-7 rounded-lg bg-[#ff6600] flex items-center justify-center shrink-0">
+                                            <svg width="14" height="14" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="10"/></svg>
+                                        </div>
+                                        <span class="text-xs font-bold text-gray-500">Orange Money</span>
+                                    </div>
+                                </div>
+                                <div class="mt-3 w-full bg-[#1A7A4A] text-white text-xs font-bold py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm shadow-[#1A7A4A]/30">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                    Confirmer le paiement
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-primary flex items-center justify-center text-primary font-bold shadow-sm z-10 group-hover:bg-primary group-hover:text-white transition-colors">2</div>
+                    <div class="pl-16 md:pl-12 pt-2 pb-8 w-full md:w-[45%]">
+                        <h3 class="text-xl font-bold text-dark">Réserve & Paie</h3>
+                        <p class="text-sm text-gray-500 mt-2">Choisis ton créneau et valide le paiement de manière sécurisée via Wave ou Orange Money.</p>
+                    </div>
+                </div>
+
+                <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between group reveal">
+                    <div class="hidden md:block w-[45%] text-right pr-12">
+                        <h3 class="text-xl font-bold text-dark">Joue</h3>
+                        <p class="text-sm text-gray-500 mt-2">Reçois ton QR Code numérique. Présente-le au gérant du terrain à ton arrivée et profite de ton match.</p>
+                    </div>
+                    <div class="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-primary flex items-center justify-center text-primary font-bold shadow-sm z-10 group-hover:bg-primary group-hover:text-white transition-colors">3</div>
+                    <div class="md:hidden pl-16 pt-2">
+                        <h3 class="text-xl font-bold text-dark">Joue</h3>
+                        <p class="text-sm text-gray-500 mt-2">Reçois ton QR Code numérique. Présente-le au gérant du terrain à ton arrivée et profite de ton match.</p>
+                    </div>
+                    <!-- Illustration: Digital Ticket -->
+                    <div class="hidden md:block w-[45%] pl-12">
+                        <div class="bg-[#0F2318] rounded-2xl overflow-hidden shadow-xl border border-white/5">
+                            <!-- Ticket Header -->
+                            <div class="px-5 pt-5 pb-3 flex items-center justify-between">
+                                <div>
+                                    <p class="text-[#E8DCC8] text-[10px] font-bold uppercase tracking-widest">Ticket Numérique</p>
+                                    <p class="text-white font-bold text-base mt-0.5">Arena Plateau</p>
+                                    <p class="text-white/50 text-xs">Dakar — Plateau</p>
+                                </div>
+                                <div class="bg-[#1A7A4A]/20 border border-[#1A7A4A]/40 px-2.5 py-1 rounded-full flex items-center gap-1.5">
+                                    <div class="w-1.5 h-1.5 rounded-full bg-[#1A7A4A] animate-pulse"></div>
+                                    <span class="text-[#4ade80] text-[10px] font-bold">Validé</span>
+                                </div>
+                            </div>
+                            <!-- Dashed separator -->
+                            <div class="flex items-center px-5 py-1 gap-1">
+                                <div class="flex-1 border-t border-dashed border-white/10"></div>
+                                <div class="w-3 h-3 rounded-full bg-gray-100 shrink-0 -mx-1.5 relative -left-[21px] -right-[21px]"></div>
+                                <div class="flex-1 border-t border-dashed border-white/10"></div>
+                                <div class="w-3 h-3 rounded-full bg-gray-100 shrink-0 relative left-[19px]"></div>
+                            </div>
+                            <!-- Main content: QR + Info -->
+                            <div class="px-5 pb-5 pt-2 flex items-center gap-4">
+                                <!-- QR Code SVG -->
+                                <div class="bg-white p-2.5 rounded-xl shrink-0">
+                                    <svg width="72" height="72" viewBox="0 0 72 72" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                        <!-- Top-left finder -->
+                                        <rect x="4" y="4" width="24" height="24" rx="3" fill="#0F2318"/>
+                                        <rect x="9" y="9" width="14" height="14" rx="1.5" fill="white"/>
+                                        <rect x="13" y="13" width="6" height="6" fill="#0F2318"/>
+                                        <!-- Top-right finder -->
+                                        <rect x="44" y="4" width="24" height="24" rx="3" fill="#0F2318"/>
+                                        <rect x="49" y="9" width="14" height="14" rx="1.5" fill="white"/>
+                                        <rect x="53" y="13" width="6" height="6" fill="#0F2318"/>
+                                        <!-- Bottom-left finder -->
+                                        <rect x="4" y="44" width="24" height="24" rx="3" fill="#0F2318"/>
+                                        <rect x="9" y="49" width="14" height="14" rx="1.5" fill="white"/>
+                                        <rect x="13" y="53" width="6" height="6" fill="#0F2318"/>
+                                        <!-- Data modules -->
+                                        <rect x="32" y="4" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="32" y="14" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="4" y="32" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="14" y="32" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="32" y="32" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="44" y="32" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="54" y="32" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="62" y="32" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="44" y="44" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="54" y="44" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="62" y="44" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="44" y="54" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="54" y="62" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="62" y="54" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="32" y="44" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                        <rect x="32" y="54" width="6" height="6" rx="1" fill="#0F2318"/>
+                                        <rect x="32" y="62" width="6" height="6" rx="1" fill="#1A7A4A"/>
+                                    </svg>
+                                </div>
+                                <!-- Reservation Details -->
+                                <div class="flex flex-col gap-2 flex-1">
+                                    <div>
+                                        <p class="text-white/40 text-[9px] uppercase tracking-widest font-bold">Date</p>
+                                        <p class="text-white text-xs font-bold">Sam. 22 Mai 2026</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-white/40 text-[9px] uppercase tracking-widest font-bold">Créneau</p>
+                                        <p class="text-white text-xs font-bold">20:00 — 21:00</p>
+                                    </div>
+                                    <div>
+                                        <p class="text-white/40 text-[9px] uppercase tracking-widest font-bold">Réf.</p>
+                                        <p class="text-[#E8DCC8] text-xs font-bold tracking-wider">PSPOT-88291</p>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Footer hint -->
+                            <div class="bg-[#1A7A4A]/10 px-5 py-2.5 flex items-center justify-center gap-2 border-t border-white/5">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                                <span class="text-[#4ade80] text-[10px] font-bold">Présente ce QR Code à l'entrée</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Tab Content: Gerant -->
+            <div id="content-gerant" class="hidden">
+                <!-- Inner container with the timeline connector line -->
+                <div class="space-y-8 relative before:absolute before:inset-y-0 before:left-[23px] md:before:left-1/2 before:w-0.5 before:bg-gray-100 pb-8">
+                    
+                    <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between group">
+                        <div class="hidden md:block w-[45%] text-right pr-12">
+                            <h3 class="text-xl font-bold text-dark">Inscris ton infrastructure</h3>
+                            <p class="text-sm text-gray-500 mt-2">Crée ton profil terrain, définis tes tarifs, tes horaires d'ouverture et ajoute tes photos en 5 min.</p>
+                        </div>
+                        <div class="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-dark flex items-center justify-center text-dark font-bold shadow-sm z-10 group-hover:bg-dark group-hover:text-secondary transition-colors">1</div>
+                        <div class="md:hidden pl-16 pt-2 pb-8">
+                            <h3 class="text-xl font-bold text-dark">Inscris ton infrastructure</h3>
+                            <p class="text-sm text-gray-500 mt-2">Crée ton profil terrain, définis tes tarifs, tes horaires d'ouverture et ajoute tes photos en 5 min.</p>
+                        </div>
+                        <div class="hidden md:block w-[45%] pl-12">
+                            <div class="bg-gray-50 p-4 rounded-2xl border border-gray-100 shadow-sm"><img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&q=80" alt="Dashboard Setup" class="rounded-xl h-24 w-full object-cover grayscale-[0.5] opacity-80"></div>
+                        </div>
+                    </div>
+
+                    <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between group">
+                        <!-- Illustration: Planning Calendar Widget -->
+                        <div class="hidden md:block w-[45%] pr-12 text-right">
+                            <div class="bg-white rounded-2xl border border-gray-100 shadow-md overflow-hidden text-left">
+                                <!-- Header -->
+                                <div class="bg-[#0F2318] px-5 py-3 flex items-center justify-between">
+                                    <span class="text-white text-xs font-bold uppercase tracking-widest">Planning — Juin</span>
+                                    <div class="flex items-center gap-2">
+                                        <div class="w-5 h-5 rounded-lg bg-white/10 flex items-center justify-center cursor-pointer hover:bg-white/20">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg>
+                                        </div>
+                                        <div class="w-5 h-5 rounded-lg bg-white/10 flex items-center justify-center cursor-pointer hover:bg-white/20">
+                                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M9 18l6-6-6-6"/></svg>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Day headers -->
+                                <div class="grid grid-cols-6 gap-1 px-3 pt-3 pb-1">
+                                    <div class="text-center text-[9px] font-bold text-gray-400 uppercase">Lun</div>
+                                    <div class="text-center text-[9px] font-bold text-gray-400 uppercase">Mar</div>
+                                    <div class="text-center text-[9px] font-bold text-gray-400 uppercase">Mer</div>
+                                    <div class="text-center text-[9px] font-bold text-gray-400 uppercase">Jeu</div>
+                                    <div class="text-center text-[9px] font-bold text-gray-400 uppercase">Ven</div>
+                                    <div class="text-center text-[9px] font-bold text-gray-400 uppercase">Sam</div>
+                                </div>
+                                <!-- Calendar grid -->
+                                <div class="grid grid-cols-6 gap-1 px-3 pb-3">
+                                    <!-- Row 1 -->
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">2</div>
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">3</div>
+                                    <div class="h-7 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-[10px] font-bold text-red-400">4</div>
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">5</div>
+                                    <div class="h-7 rounded-lg bg-[#0F2318] flex items-center justify-center text-[10px] font-bold text-white">6</div>
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">7</div>
+                                    <!-- Row 2 -->
+                                    <div class="h-7 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-[10px] text-gray-300">9</div>
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">10</div>
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">11</div>
+                                    <div class="h-7 rounded-lg bg-red-50 border border-red-200 flex items-center justify-center text-[10px] font-bold text-red-400">12</div>
+                                    <div class="h-7 rounded-lg bg-[#1A7A4A]/10 border border-[#1A7A4A]/30 flex items-center justify-center text-[10px] font-bold text-[#1A7A4A]">13</div>
+                                    <div class="h-7 rounded-lg bg-gray-50 border border-gray-100 flex items-center justify-center text-[10px] text-gray-300">14</div>
+                                </div>
+                                <!-- Legend -->
+                                <div class="px-4 pb-3 flex items-center gap-3 border-t border-gray-50 pt-2">
+                                    <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded bg-[#1A7A4A]/30 border border-[#1A7A4A]/50"></div><span class="text-[9px] text-gray-400 font-bold">Réservé</span></div>
+                                    <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded bg-red-100 border border-red-200"></div><span class="text-[9px] text-gray-400 font-bold">Bloqué</span></div>
+                                    <div class="flex items-center gap-1.5"><div class="w-2.5 h-2.5 rounded bg-[#0F2318]"></div><span class="text-[9px] text-gray-400 font-bold">Aujourd'hui</span></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-dark flex items-center justify-center text-dark font-bold shadow-sm z-10 group-hover:bg-dark group-hover:text-secondary transition-colors">2</div>
+                        <div class="pl-16 md:pl-12 pt-2 pb-8 w-full md:w-[45%]">
+                            <h3 class="text-xl font-bold text-dark">Gère ton planning</h3>
+                            <p class="text-sm text-gray-500 mt-2">Bloque des créneaux pour l'entretien, accepte des réservations manuellement et automatise le reste.</p>
+                        </div>
+                    </div>
+
+                    <div class="relative flex flex-col md:flex-row items-start md:items-center justify-between group">
+                        <div class="hidden md:block w-[45%] text-right pr-12">
+                            <h3 class="text-xl font-bold text-dark">Suis tes revenus</h3>
+                            <p class="text-sm text-gray-500 mt-2">Tableau de bord complet avec statistiques d'occupation, revenus en temps réel et alertes SMS.</p>
+                        </div>
+                        <div class="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-dark flex items-center justify-center text-dark font-bold shadow-sm z-10 group-hover:bg-dark group-hover:text-secondary transition-colors">3</div>
+                        <div class="md:hidden pl-16 pt-2">
+                            <h3 class="text-xl font-bold text-dark">Suis tes revenus</h3>
+                            <p class="text-sm text-gray-500 mt-2">Tableau de bord complet avec statistiques d'occupation, revenus en temps réel et alertes SMS.</p>
+                        </div>
+                        <!-- Illustration: Revenue Dashboard Widget -->
+                        <div class="hidden md:block w-[45%] pl-12">
+                            <div class="bg-white rounded-2xl border border-gray-100 shadow-md overflow-hidden">
+                                <!-- Header -->
+                                <div class="bg-[#0F2318] px-5 py-3 flex items-center justify-between">
+                                    <span class="text-white text-xs font-bold uppercase tracking-widest">Revenus — Mai 2026</span>
+                                    <span class="text-[#4ade80] text-[10px] font-bold bg-[#1A7A4A]/20 px-2 py-0.5 rounded-full">+18% ce mois</span>
+                                </div>
+                                <!-- KPI Row -->
+                                <div class="grid grid-cols-2 gap-px bg-gray-100">
+                                    <div class="bg-white px-4 py-3">
+                                        <p class="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Revenus nets</p>
+                                        <p class="text-base font-bold text-[#0F2318] mt-0.5">342.500 <span class="text-xs font-normal text-gray-400">FCFA</span></p>
+                                    </div>
+                                    <div class="bg-white px-4 py-3">
+                                        <p class="text-[9px] text-gray-400 uppercase tracking-wider font-bold">Taux d'occupation</p>
+                                        <div class="flex items-center gap-1.5 mt-1">
+                                            <div class="flex-1 bg-gray-100 rounded-full h-1.5">
+                                                <div class="bg-[#1A7A4A] h-1.5 rounded-full" style="width: 76%"></div>
+                                            </div>
+                                            <span class="text-xs font-bold text-[#1A7A4A]">76%</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- Bar Chart -->
+                                <div class="px-4 pt-3 pb-1">
+                                    <p class="text-[9px] text-gray-400 uppercase tracking-wider font-bold mb-2">Réservations / semaine</p>
+                                    <div class="flex items-end justify-between gap-1 h-14">
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#1A7A4A]/20 rounded-t-sm" style="height: 45%"></div>
+                                            <span class="text-[8px] text-gray-400">L</span>
+                                        </div>
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#1A7A4A]/20 rounded-t-sm" style="height: 70%"></div>
+                                            <span class="text-[8px] text-gray-400">M</span>
+                                        </div>
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#1A7A4A]/20 rounded-t-sm" style="height: 55%"></div>
+                                            <span class="text-[8px] text-gray-400">M</span>
+                                        </div>
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#1A7A4A]/20 rounded-t-sm" style="height: 80%"></div>
+                                            <span class="text-[8px] text-gray-400">J</span>
+                                        </div>
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#1A7A4A] rounded-t-sm" style="height: 100%"></div>
+                                            <span class="text-[8px] text-[#1A7A4A] font-bold">V</span>
+                                        </div>
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#E8DCC8] rounded-t-sm border border-[#E8DCC8]" style="height: 90%"></div>
+                                            <span class="text-[8px] text-gray-400">S</span>
+                                        </div>
+                                        <div class="flex flex-col items-center gap-1 flex-1">
+                                            <div class="w-full bg-[#E8DCC8] rounded-t-sm border border-[#E8DCC8]" style="height: 85%"></div>
+                                            <span class="text-[8px] text-gray-400">D</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <!-- SMS Alert -->
+                                <div class="mx-3 mb-3 mt-1 bg-[#1A7A4A]/5 border border-[#1A7A4A]/20 rounded-xl px-3 py-2 flex items-center gap-2.5">
+                                    <div class="w-6 h-6 rounded-lg bg-[#1A7A4A] flex items-center justify-center shrink-0">
+                                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                                    </div>
+                                    <div>
+                                        <p class="text-[9px] text-[#1A7A4A] font-bold uppercase tracking-wider">Alerte SMS reçue</p>
+                                        <p class="text-[10px] text-gray-500">Nouvelle réservation — 20h00 · 15.000 FCFA</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- CTA Button (completely free of pseudo-element line) -->
+                <div class="pt-6 flex justify-center w-full relative z-10">
+                    <button onclick="toggleModal('gerant-modal')" class="w-full sm:w-auto bg-dark text-white font-bold text-lg px-8 py-4 rounded-2xl shadow-glow hover:bg-[#1a3826] hover:-translate-y-0.5 transition-all active:scale-[0.98] cursor-pointer">
+                        Inscrire mon terrain maintenant 🚀
+                    </button>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- FEATURED TERRAINS -->
+    <section id="terrains" class="py-24 bg-dark text-white px-4 relative overflow-hidden scroll-mt-28">
+        <div class="absolute top-0 right-1/4 w-[600px] h-[600px] bg-primary/10 rounded-full blur-[100px] pointer-events-none"></div>
+
+        <div class="max-w-7xl mx-auto relative z-10">
+            <div class="flex flex-col md:flex-row justify-between items-center md:items-end mb-12 reveal text-center md:text-left">
+                <div class="w-full md:w-auto">
+                    <span class="text-sm font-bold uppercase tracking-widest text-secondary bg-secondary/10 px-4 py-1.5 rounded-full inline-block">Dakar City</span>
+                    <h2 class="mt-6 text-3xl md:text-4xl font-display font-bold">Terrains à l'honneur</h2>
+                </div>
+                <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="hidden md:inline-flex items-center gap-2 text-secondary font-bold hover:underline mt-4 md:mt-0">
+                    Voir la carte complète <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7"/></svg>
+                </a>
+            </div>
+
+            <!-- Horizontal Scrollable Container on Mobile -->
+            <div class="flex md:grid md:grid-cols-3 gap-6 overflow-x-auto snap-x snap-mandatory pb-8 no-scrollbar -mx-4 px-4 md:mx-0 md:px-0">
+                
+                <!-- Card 1 -->
+                <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="min-w-[85vw] md:min-w-0 bg-[#162D20] rounded-[2rem] overflow-hidden border border-white/10 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group snap-center cursor-pointer reveal block">
+                    <div class="relative h-48 overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Terrain Plateau" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale-[0.2] group-hover:grayscale-0">
+                        <div class="absolute top-4 right-4 bg-status-confirmed/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="text-xl font-bold font-display">Arena Plateau</h3>
+                                <p class="text-secondary/70 text-sm flex items-center gap-1 mt-1">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Plateau, Dakar
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <span class="text-xs font-bold text-secondary">4.8</span>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
+                            <div>
+                                <p class="text-[10px] text-white/50 uppercase tracking-widest font-bold">À partir de</p>
+                                <p class="text-lg font-bold text-primary-light">20.000 FCFA <span class="text-xs text-white/50 font-normal">/h</span></p>
+                            </div>
+                            <button class="bg-white/10 hover:bg-primary text-white p-3 rounded-xl transition-colors">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- Card 2 -->
+                <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="min-w-[85vw] md:min-w-0 bg-[#162D20] rounded-[2rem] overflow-hidden border border-white/10 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group snap-center cursor-pointer reveal delay-100 block">
+                    <div class="relative h-48 overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1511886929837-354d827aae26?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Terrain Parcelles" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale-[0.2] group-hover:grayscale-0">
+                        <div class="absolute top-4 right-4 bg-status-cancelled text-white text-xs font-bold px-3 py-1 rounded-full">
+                            Complet
+                        </div>
+                    </div>
+                    <div class="p-6">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="text-xl font-bold font-display">City Foot PA</h3>
+                                <p class="text-secondary/70 text-sm flex items-center gap-1 mt-1">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Parcelles Assainies
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <span class="text-xs font-bold text-secondary">4.6</span>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
+                            <div>
+                                <p class="text-[10px] text-white/50 uppercase tracking-widest font-bold">À partir de</p>
+                                <p class="text-lg font-bold text-primary-light">12.500 FCFA <span class="text-xs text-white/50 font-normal">/h</span></p>
+                            </div>
+                            <button class="bg-white/10 hover:bg-white/20 text-white p-3 rounded-xl transition-colors cursor-not-allowed">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </a>
+
+                <!-- Card 3 -->
+                <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="min-w-[85vw] md:min-w-0 bg-[#162D20] rounded-[2rem] overflow-hidden border border-secondary/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group snap-center cursor-pointer reveal delay-200 relative block">
+                    <div class="absolute -top-6 -right-6 w-24 h-24 bg-secondary/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="relative h-48 overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1579952363873-27f3bade9f55?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Terrain Almadies" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale-[0.2] group-hover:grayscale-0">
+                        <div class="absolute top-4 right-4 bg-status-confirmed/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                            <span class="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
+                        </div>
+                        <div class="absolute top-4 left-4 bg-secondary text-dark text-[10px] uppercase tracking-widest font-bold px-3 py-1 rounded-full shadow-lg">
+                            Premium 🌟
+                        </div>
+                    </div>
+                    <div class="p-6 relative z-10">
+                        <div class="flex justify-between items-start mb-2">
+                            <div>
+                                <h3 class="text-xl font-bold font-display">Five Dakar</h3>
+                                <p class="text-secondary/70 text-sm flex items-center gap-1 mt-1">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg> Almadies
+                                </p>
+                            </div>
+                            <div class="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg border border-secondary/20">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <span class="text-xs font-bold text-secondary">4.9</span>
+                            </div>
+                        </div>
+                        <div class="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
+                            <div>
+                                <p class="text-[10px] text-white/50 uppercase tracking-widest font-bold">À partir de</p>
+                                <p class="text-lg font-bold text-secondary">30.000 FCFA <span class="text-xs text-white/50 font-normal">/h</span></p>
+                            </div>
+                            <button class="bg-secondary text-dark hover:bg-white p-3 rounded-xl transition-colors shadow-glow">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7"/></svg>
+                            </button>
+                        </div>
+                    </div>
+                </a>
+
+            </div>
+            
+            <div class="mt-6 text-center md:hidden">
+                <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="inline-flex items-center gap-2 text-secondary font-bold hover:underline">
+                    Voir la carte complète <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M12 5l7 7"/></svg>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- TESTIMONIALS SECTION -->
+    <section class="py-24 bg-[#FAFAFA] px-4">
+        <div class="max-w-7xl mx-auto">
+            <div class="text-center mb-16 reveal">
+                <h2 class="text-3xl md:text-4xl font-display font-bold text-dark">Ce qu'ils en pensent</h2>
+            </div>
+
+            <div class="grid md:grid-cols-3 gap-8">
+                <!-- Testimonial 1 -->
+                <div class="bg-white rounded-3xl p-8 shadow-subtle border border-black/5 reveal">
+                    <div class="flex gap-1 mb-6">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <p class="text-gray-600 italic mb-8 leading-relaxed">"Avant c'était la croix et la bannière pour trouver un terrain le vendredi soir. Maintenant, j'ouvre l'app, je paie par Wave et c'est réglé. Le top !"</p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold">M</div>
+                        <div>
+                            <h4 class="font-bold text-dark">Moussa Diop</h4>
+                            <p class="text-xs text-gray-500">Joueur régulier</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Testimonial 2 -->
+                <div class="bg-dark text-white rounded-3xl p-8 shadow-subtle border border-white/5 relative overflow-hidden reveal delay-100 transform md:-translate-y-4">
+                    <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-primary/20 rounded-full blur-xl pointer-events-none"></div>
+                    <div class="flex gap-1 mb-6 relative z-10">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#E8DCC8" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <p class="text-gray-300 italic mb-8 leading-relaxed relative z-10">"Le dashboard a changé ma vie. Fini le cahier perdu, j'ai une vue claire sur mon planning et mes revenus ont augmenté de 30% grâce au paiement en ligne."</p>
+                    <div class="flex items-center gap-4 relative z-10">
+                        <div class="w-12 h-12 border-2 border-secondary rounded-full flex items-center justify-center text-secondary font-bold">IB</div>
+                        <div>
+                            <h4 class="font-bold text-white">Ibrahima Fall</h4>
+                            <p class="text-xs text-secondary">Gérant, Arena Plateau</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Testimonial 3 -->
+                <div class="bg-white rounded-3xl p-8 shadow-subtle border border-black/5 reveal delay-200">
+                    <div class="flex gap-1 mb-6">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="#F59E0B" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                    </div>
+                    <p class="text-gray-600 italic mb-8 leading-relaxed">"Super appli ! Pouvoir scanner le QR code à l'entrée sans discuter du paiement avec le gardien, c'est vraiment classe et rapide."</p>
+                    <div class="flex items-center gap-4">
+                        <div class="w-12 h-12 bg-primary/20 rounded-full flex items-center justify-center text-primary font-bold">F</div>
+                        <div>
+                            <h4 class="font-bold text-dark">Fatou Sow</h4>
+                            <p class="text-xs text-gray-500">Capitaine équipe féminine</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FINAL CTA -->
+    <section id="cta" class="py-24 bg-dark text-white px-4 relative overflow-hidden scroll-mt-28">
+        <!-- Texture/Pattern -->
+        <div class="absolute inset-0 opacity-10" style="background-image: linear-gradient(#E8DCC8 1px, transparent 1px), linear-gradient(90deg, #E8DCC8 1px, transparent 1px); background-size: 40px 40px;"></div>
+        
+        <div class="max-w-4xl mx-auto text-center relative z-10 reveal">
+            <div class="w-20 h-20 bg-primary/20 rounded-full flex items-center justify-center mx-auto mb-8 border border-primary/30">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+            </div>
+            
+            <h2 class="text-4xl md:text-5xl font-display font-bold mb-6">Ton prochain match <br class="hidden sm:block"/> commence ici.</h2>
+            <p class="text-gray-400 text-lg mb-10 max-w-2xl mx-auto">Rejoins la plus grande communauté de footballeurs de Dakar. Cherche, réserve, joue.</p>
+            
+            <div class="flex flex-col sm:flex-row items-center gap-4 justify-center">
+                <a href="#" onclick="goToApp('joueur', 'discovery'); return false;" class="w-full sm:w-auto bg-primary text-white font-bold text-lg px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center shadow-glow hover:-translate-y-1 hover:shadow-lg transition-all active:scale-[0.98]">
+                    Trouver un terrain
+                </a>
+                <a href="#how-it-works" onclick="switchTab('gerant')" class="w-full sm:w-auto bg-transparent border-2 border-secondary text-secondary hover:bg-secondary/10 font-bold text-lg px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center transition-all active:scale-[0.98]">
+                    Inscrire mon terrain
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="bg-[#0a1810] text-gray-400 py-12 px-4 border-t border-white/5">
+        <div class="max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
+            <div class="md:col-span-1">
+                <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'}); return false;" class="flex items-center gap-2 mb-4 cursor-pointer group w-fit">
+                    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white group-hover:scale-105 transition-transform">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12h.01"/><path d="M10 16a4 4 0 0 0 4 0"/><path d="M10 8a4 4 0 0 0 4 0"/><path d="M16 10a4 4 0 0 0 0 4"/><path d="M8 10a4 4 0 0 0 0 4"/></svg>
+                    </div>
+                    <span class="font-display font-bold text-lg tracking-tight text-white">Playground<span class="text-primary">Spot</span></span>
+                </a>
+                <p class="text-sm">La plateforme n°1 de réservation de terrains de football à Dakar.</p>
+            </div>
+            
+            <div>
+                <h4 class="text-white font-bold mb-4 font-display">Liens rapides</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'}); return false;" class="hover:text-primary transition-colors">Accueil</a></li>
+                    <li><a href="#terrains" class="hover:text-primary transition-colors">Terrains</a></li>
+                    <li><a href="#how-it-works" class="hover:text-primary transition-colors">Comment ça marche</a></li>
+                    <li><a href="#cta" class="hover:text-primary transition-colors">Contact</a></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-white font-bold mb-4 font-display">Légal</h4>
+                <ul class="space-y-2 text-sm">
+                    <li><button onclick="toggleModal('cgu-modal')" class="hover:text-primary transition-colors cursor-pointer text-left">CGU</button></li>
+                    <li><button onclick="toggleModal('privacy-modal')" class="hover:text-primary transition-colors cursor-pointer text-left">Confidentialité</button></li>
+                    <li><button onclick="toggleModal('gerant-modal')" class="hover:text-primary transition-colors cursor-pointer text-left focus:outline-none">Espace Gérant</button></li>
+                </ul>
+            </div>
+
+            <div>
+                <h4 class="text-white font-bold mb-4 font-display">Paiements acceptés</h4>
+                <div class="flex gap-3">
+                    <div class="bg-white px-3 py-1.5 rounded-lg flex items-center justify-center text-[#1a56db] font-bold text-sm tracking-tight">Wave</div>
+                    <div class="bg-black px-3 py-1.5 rounded-lg flex items-center justify-center border border-white/10 text-[#ff6600] font-bold text-xs tracking-tight">Orange Money</div>
+                </div>
+                <div class="mt-6 flex gap-4">
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.6 5.6 4.1 9 4-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.2z"/></svg></a>
+                    <a href="#" class="text-gray-400 hover:text-white transition-colors"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"/><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"/></svg></a>
+                </div>
+            </div>
+        </div>
+        
+        <div class="max-w-7xl mx-auto border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+            <p>&copy; 2026 PlaygroundSpot · Dakar, Sénégal</p>
+            <p>Fait avec fierté au Sénégal 🇸🇳</p>
+        </div>
+    </footer>
+
+    <!-- Modals for Legal Pages -->
+    <div id="cgu-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center">
+        <div class="absolute inset-0 bg-dark/80 backdrop-blur-sm" onclick="toggleModal('cgu-modal')"></div>
+        <div class="relative bg-white w-full max-w-2xl max-h-[85vh] rounded-[2rem] shadow-2xl mx-4 overflow-hidden flex flex-col scale-95 opacity-0 transition-all duration-300" id="cgu-modal-content">
+            <div class="flex items-center justify-between p-6 border-b border-gray-100">
+                <h3 class="font-display font-bold text-2xl text-dark">Conditions Générales d'Utilisation</h3>
+                <button onclick="toggleModal('cgu-modal')" class="p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 md:p-8 overflow-y-auto space-y-6 text-gray-600">
+                <div>
+                    <h4 class="font-bold text-dark mb-2">1. Objet</h4>
+                    <p class="text-sm">Les présentes Conditions Générales d'Utilisation ont pour objet de définir les modalités de mise à disposition des services du site PlaygroundSpot et les conditions d'utilisation par l'Utilisateur.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-dark mb-2">2. Services proposés</h4>
+                    <p class="text-sm">PlaygroundSpot met en relation des joueurs amateurs et des gérants d'infrastructures sportives privées à Dakar. Nous agissons en tant qu'intermédiaire technologique pour faciliter la réservation et le paiement.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-dark mb-2">3. Paiement et Annulation</h4>
+                    <p class="text-sm">Tout paiement effectué via Wave ou Orange Money est définitif. L'annulation d'une réservation dépend des conditions propres fixées par le gérant du terrain concerné.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-dark mb-2">4. Responsabilité</h4>
+                    <p class="text-sm">PlaygroundSpot décline toute responsabilité en cas de blessure ou d'incident survenu sur le lieu de l'infrastructure réservée. Les gérants restent seuls responsables de l'entretien de leurs terrains.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="privacy-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center">
+        <div class="absolute inset-0 bg-dark/80 backdrop-blur-sm" onclick="toggleModal('privacy-modal')"></div>
+        <div class="relative bg-white w-full max-w-2xl max-h-[85vh] rounded-[2rem] shadow-2xl mx-4 overflow-hidden flex flex-col scale-95 opacity-0 transition-all duration-300" id="privacy-modal-content">
+            <div class="flex items-center justify-between p-6 border-b border-gray-100">
+                <h3 class="font-display font-bold text-2xl text-dark">Politique de Confidentialité</h3>
+                <button onclick="toggleModal('privacy-modal')" class="p-2 bg-gray-50 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="p-6 md:p-8 overflow-y-auto space-y-6 text-gray-600">
+                <div>
+                    <h4 class="font-bold text-dark mb-2">1. Collecte des données</h4>
+                    <p class="text-sm">Dans le cadre de votre utilisation de PlaygroundSpot, nous collectons les données strictement nécessaires à la réservation de votre terrain : nom, prénom, numéro de téléphone et données de transaction.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-dark mb-2">2. Traitement des paiements</h4>
+                    <p class="text-sm">Les paiements sont traités par nos partenaires sécurisés (Wave, Orange Money). Nous ne stockons aucune information bancaire ou code secret sur nos serveurs.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-dark mb-2">3. Partage d'informations</h4>
+                    <p class="text-sm">Vos informations de contact sont uniquement partagées avec le gérant du terrain que vous avez réservé afin d'assurer le bon déroulement de votre match.</p>
+                </div>
+                <div>
+                    <h4 class="font-bold text-dark mb-2">4. Vos droits</h4>
+                    <p class="text-sm">Conformément à la réglementation sénégalaise en vigueur (CDP), vous disposez d'un droit d'accès, de rectification et de suppression de vos données personnelles.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Espace Gérant Modal -->
+    <div id="gerant-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center">
+        <div class="absolute inset-0 bg-dark/80 backdrop-blur-sm" onclick="toggleModal('gerant-modal')"></div>
+        <div class="relative bg-white w-full max-w-2xl max-h-[90vh] rounded-[2rem] shadow-2xl mx-4 overflow-hidden flex flex-col scale-95 opacity-0 transition-all duration-300" id="gerant-modal-content">
+            <!-- Modal Header -->
+            <div class="flex items-center justify-between p-6 border-b border-gray-100 bg-[#0F2318] text-white shrink-0">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 bg-primary rounded-lg flex items-center justify-center text-white">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 12h.01"/><path d="M10 16a4 4 0 0 0 4 0"/><path d="M10 8a4 4 0 0 0 4 0"/><path d="M16 10a4 4 0 0 0 0 4"/><path d="M8 10a4 4 0 0 0 0 4"/></svg>
+                    </div>
+                    <h3 class="font-display font-bold text-xl">Espace Gérant Partenaire</h3>
+                </div>
+                <button onclick="toggleModal('gerant-modal')" class="p-2 bg-white/10 hover:bg-white/20 rounded-full text-white/80 transition-colors">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            
+            <div class="p-6 md:p-8 overflow-y-auto space-y-8 text-gray-600">
+                <!-- Top Split Sections -->
+                <div class="grid md:grid-cols-2 gap-6 pb-6 border-b border-gray-100">
+                    <!-- Connexion -->
+                    <div class="bg-gray-50 p-6 rounded-2xl border border-gray-100 flex flex-col justify-between">
+                        <div>
+                            <span class="text-[10px] font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-full uppercase tracking-wider">Déjà Membre ?</span>
+                            <h4 class="font-bold text-dark text-lg mt-3 mb-2">Se connecter</h4>
+                            <p class="text-sm text-gray-500 leading-relaxed mb-4">Accédez à votre tableau de bord interactif pour suivre vos plannings et vos revenus en temps réel.</p>
+                        </div>
+                        <a href="#" onclick="goToApp('gerant', 'gerant-dashboard'); return false;" class="w-full bg-dark text-white font-bold text-sm py-3.5 px-4 rounded-xl flex items-center justify-center gap-2 hover:bg-[#1a3826] transition-all active:scale-[0.98] text-center">
+                            Mon Tableau de Bord 📊
+                        </a>
+                    </div>
+                    
+                    <!-- Avantages -->
+                    <div class="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex flex-col justify-between">
+                        <div>
+                            <span class="text-[10px] font-bold text-[#0F2318] bg-secondary px-2.5 py-1 rounded-full uppercase tracking-wider">Avantages</span>
+                            <h4 class="font-bold text-dark text-lg mt-3 mb-2">Pourquoi nous rejoindre ?</h4>
+                            <ul class="text-sm text-gray-600 space-y-2 mt-2">
+                                <li class="flex items-center gap-2">✨ <span class="font-medium text-dark">Boostez</span> vos réservations</li>
+                                <li class="flex items-center gap-2">💰 <span class="font-medium text-dark">Paiement garanti</span> via Wave/OM</li>
+                                <li class="flex items-center gap-2">📅 <span class="font-medium text-dark">Planning connecté</span> 24h/24</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Registration Form -->
+                <div id="gerant-form-container">
+                    <h4 class="font-display font-bold text-lg text-dark mb-4">Inscrire mon infrastructure (Gratuit)</h4>
+                    <form id="gerant-register-form" onsubmit="handleGerantSubmit(event)" class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Nom Complet</label>
+                                <input type="text" required placeholder="ex: Ibrahima Fall" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Téléphone (WhatsApp)</label>
+                                <input type="tel" required placeholder="ex: 77 123 45 67" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Nom du Complexe</label>
+                                <input type="text" required placeholder="ex: Les Champions Almadies" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Quartier (Dakar)</label>
+                                <input type="text" required placeholder="ex: Almadies" class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-gray-700 uppercase mb-1.5">Nombre de terrains de football</label>
+                            <select class="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all">
+                                <option value="1">1 Terrain</option>
+                                <option value="2">2 Terrains</option>
+                                <option value="3">3 Terrains ou plus</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="w-full bg-primary text-white font-bold py-3.5 rounded-xl hover:bg-primary-dark transition-all active:scale-[0.98] shadow-glow flex items-center justify-center gap-2 cursor-pointer">
+                            Soumettre ma demande d'inscription ⚽
+                        </button>
+                    </form>
+                </div>
+
+                <!-- Success Screen (Hidden by default) -->
+                <div id="gerant-success-container" class="hidden text-center py-8 space-y-6">
+                    <div class="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary animate-bounce">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                    </div>
+                    <div class="space-y-2">
+                        <h4 class="font-display font-bold text-2xl text-dark">Félicitations ! 🇸🇳</h4>
+                        <p class="text-gray-500 max-w-md mx-auto text-sm leading-relaxed">Votre demande d'inscription a bien été reçue. Notre équipe commerciale vous contactera sur votre WhatsApp sous 24 heures pour valider votre espace gérant et configurer votre premier terrain.</p>
+                    </div>
+                    <button onclick="toggleModal('gerant-modal')" class="bg-dark text-white font-bold text-sm px-8 py-3 rounded-xl hover:bg-[#1a3826] transition-all active:scale-[0.98] cursor-pointer">
+                        Fermer la fenêtre
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script>
+        // Navigation dynamique vers le SaaS (évite les bugs en local file://)
+        function goToApp(role, view) {
+            const isLocalFile = window.location.protocol === 'file:';
+            const baseUrl = isLocalFile ? 'http://localhost:5173' : window.location.origin;
+            let url = `${baseUrl}/?role=${role}`;
+            if (view) url += `&view=${view}`;
+            window.location.href = url;
+        }
+
+        // Tab switching logic
+        function switchTab(tabId) {
+            const tabs = ['joueur', 'gerant'];
+            tabs.forEach(t => {
+                const btn = document.getElementById(`tab-${t}`);
+                const content = document.getElementById(`content-${t}`);
+                
+                if (t === tabId) {
+                    btn.classList.add('bg-primary', 'text-white', 'shadow-sm');
+                    btn.classList.remove('text-gray-500', 'hover:text-dark');
+                    content.classList.remove('hidden');
+                } else {
+                    btn.classList.remove('bg-primary', 'text-white', 'shadow-sm');
+                    btn.classList.add('text-gray-500', 'hover:text-dark');
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        // Scroll Reveal Animation (Intersection Observer)
+        document.addEventListener('DOMContentLoaded', () => {
+            const reveals = document.querySelectorAll('.reveal');
+            
+            const revealOptions = {
+                threshold: 0.15,
+                rootMargin: "0px 0px -50px 0px"
+            };
+
+            const revealOnScroll = new IntersectionObserver(function(entries, observer) {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('active');
+                        observer.unobserve(entry.target);
+                    }
+                });
+            }, revealOptions);
+
+            reveals.forEach(reveal => {
+                revealOnScroll.observe(reveal);
+            });
+
+            // Navbar Glassmorphism on scroll
+            const navbar = document.getElementById('navbar');
+            window.addEventListener('scroll', () => {
+                if (window.scrollY > 50) {
+                    navbar.classList.add('shadow-lg', 'bg-white/95');
+                    navbar.classList.remove('glass');
+                } else {
+                    navbar.classList.remove('shadow-lg', 'bg-white/95');
+                    navbar.classList.add('glass');
+                }
+            });
+
+            // Mobile Menu Toggle
+            const mobileMenuBtn = document.getElementById('mobile-menu-btn');
+            mobileMenuBtn.addEventListener('click', toggleMobileMenu);
+
+            // Highlighting actif de la navigation au défilement (Scroll Spy)
+            const sections = document.querySelectorAll('section[id]');
+            const navLinks = document.querySelectorAll('.nav-link-item');
+            const mobileNavLinks = document.querySelectorAll('.mobile-nav-link-item');
+
+            const navObserverOptions = {
+                root: null,
+                threshold: 0.2, // s'active quand 20% de la section est visible
+                rootMargin: "-20% 0px -35% 0px"
+            };
+
+            const navObserver = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const id = entry.target.getAttribute('id');
+                        
+                        // Menu Desktop
+                        navLinks.forEach(link => {
+                            if (link.getAttribute('href') === `#${id}`) {
+                                link.classList.remove('text-gray-600', 'border-transparent');
+                                link.classList.add('text-primary', 'border-primary');
+                            } else {
+                                link.classList.remove('text-primary', 'border-primary');
+                                link.classList.add('text-gray-600', 'border-transparent');
+                            }
+                        });
+
+                        // Menu Mobile
+                        mobileNavLinks.forEach(link => {
+                            if (link.getAttribute('href') === `#${id}`) {
+                                link.classList.remove('text-dark', 'border-gray-50');
+                                link.classList.add('text-primary', 'border-primary/20');
+                            } else {
+                                link.classList.remove('text-primary', 'border-primary/20');
+                                link.classList.add('text-dark', 'border-gray-50');
+                            }
+                        });
+                    }
+                });
+            }, navObserverOptions);
+
+            sections.forEach(section => {
+                navObserver.observe(section);
+            });
+
+            // Supprimer l'état actif quand on remonte tout en haut
+            window.addEventListener('scroll', () => {
+                if (window.scrollY < 100) {
+                    navLinks.forEach(link => {
+                        link.classList.remove('text-primary', 'border-primary');
+                        link.classList.add('text-gray-600', 'border-transparent');
+                    });
+                    mobileNavLinks.forEach(link => {
+                        link.classList.remove('text-primary', 'border-primary/20');
+                        link.classList.add('text-dark', 'border-gray-50');
+                    });
+                }
+            });
+
+            // Détection du protocole file:// et injection d'une bannière d'assistant de développement
+            if (window.location.protocol === 'file:') {
+                const banner = document.createElement('div');
+                banner.className = 'fixed bottom-6 right-6 z-[999] bg-[#0F2318] text-white p-6 rounded-3xl border border-[#E8DCC8]/30 shadow-2xl max-w-sm font-sans';
+                banner.style.boxShadow = '0 20px 40px rgba(0,0,0,0.5)';
+                banner.innerHTML = `
+                    <div class="flex items-start gap-4">
+                        <div class="w-10 h-10 rounded-2xl bg-[#E8DCC8]/10 flex items-center justify-center text-xl shrink-0">
+                            💡
+                        </div>
+                        <div>
+                            <h4 class="font-bold text-sm text-[#E8DCC8] mb-1">Mode Fichier Détecté</h4>
+                            <p class="text-xs text-gray-300 leading-relaxed mb-4">
+                                Pour que la liaison avec le SaaS fonctionne, le serveur local doit être actif. Nous l'avons lancé pour vous sur le port 5173 !
+                            </p>
+                            <a href="http://localhost:5173/landing.html" class="inline-flex items-center gap-2 bg-[#1A7A4A] hover:bg-[#135d37] text-white font-bold text-xs px-4 py-2.5 rounded-xl transition-all shadow-lg shadow-[#1A7A4A]/20">
+                                Ouvrir sur le serveur local 🚀
+                            </a>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(banner);
+            }
+        });
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            const isHidden = menu.classList.contains('hidden');
+            if (isHidden) {
+                menu.classList.remove('hidden');
+                setTimeout(() => {
+                    menu.classList.remove('scale-95', 'opacity-0');
+                    menu.classList.add('scale-100', 'opacity-100');
+                }, 10);
+            } else {
+                menu.classList.remove('scale-100', 'opacity-100');
+                menu.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                    menu.classList.add('hidden');
+                }, 200);
+            }
+        }
+
+        function toggleModal(modalId) {
+            const modal = document.getElementById(modalId);
+            const content = document.getElementById(modalId + '-content');
+            const isHidden = modal.classList.contains('hidden');
+            
+            if (isHidden) {
+                if (modalId === 'gerant-modal') {
+                    document.getElementById('gerant-form-container').classList.remove('hidden');
+                    document.getElementById('gerant-success-container').classList.add('hidden');
+                    const form = document.getElementById('gerant-register-form');
+                    if (form) {
+                        const submitBtn = form.querySelector('button[type="submit"]');
+                        if (submitBtn) {
+                            submitBtn.disabled = false;
+                            submitBtn.innerHTML = `Soumettre ma demande d'inscription ⚽`;
+                        }
+                    }
+                }
+
+                modal.classList.remove('hidden');
+                modal.classList.add('flex');
+                setTimeout(() => {
+                    content.classList.remove('scale-95', 'opacity-0');
+                    content.classList.add('scale-100', 'opacity-100');
+                }, 10);
+                document.body.style.overflow = 'hidden';
+            } else {
+                content.classList.remove('scale-100', 'opacity-100');
+                content.classList.add('scale-95', 'opacity-0');
+                setTimeout(() => {
+                    modal.classList.add('hidden');
+                    modal.classList.remove('flex');
+                    document.body.style.overflow = '';
+                }, 300);
+            }
+        }
+
+        function handleGerantSubmit(event) {
+            event.preventDefault();
+            const submitBtn = event.target.querySelector('button[type="submit"]');
+            
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `
+                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block animate-pulse" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" style="animation: spin 1s linear infinite; width: 1.25rem; height: 1.25rem;">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Traitement en cours...
+            `;
+
+            setTimeout(() => {
+                document.getElementById('gerant-form-container').classList.add('hidden');
+                document.getElementById('gerant-success-container').classList.remove('hidden');
+                event.target.reset();
+            }, 1500);
+        }
+    </script>
+</body>
+</html>
