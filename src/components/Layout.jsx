@@ -4,7 +4,7 @@ import { BottomNav } from './BottomNav';
 
 export const Layout = ({ children, currentView, setView }) => {
   const isDetailView = ['terrain-detail', 'booking-flow', 'reservation-detail'].includes(currentView);
-  const isFullPageView = ['landing', 'login'].includes(currentView);
+  const isFullPageView = ['landing', 'login', 'register'].includes(currentView);
 
   if (isFullPageView) {
     return (

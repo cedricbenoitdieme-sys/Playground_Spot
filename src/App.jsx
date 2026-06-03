@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
 import { StatsGrid } from './components/StatsGrid';
@@ -20,6 +20,7 @@ import { Parametres } from './pages/Parametres';
 // Import new subviews
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 import { GerantDashboard } from './pages/GerantDashboard';
 import { GerantTerrain } from './pages/GerantTerrain';
 import { GerantPlanning } from './pages/GerantPlanning';
@@ -28,35 +29,49 @@ import { JoueurProfile } from './pages/JoueurProfile';
 import { JoueurFavoris } from './pages/JoueurFavoris';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useUser } from './context/UserContext';
+import { signOut } from './services/auth';
 
-import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout } from '@tabler/icons-react';
+import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball } from '@tabler/icons-react';
 
 function App() {
   const path = window.location.pathname;
   const isVerify = path.startsWith('/verify/');
   const verifyToken = isVerify ? path.split('/verify/')[1] : null;
 
-  const { currentUser, setCurrentUser } = useUser();
+  const { currentUser, setCurrentUser, loading } = useUser();
+  const hasRedirectedRef = useRef(false);
   
   const getInitialView = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const viewParam = urlParams.get('view');
     // Allow deep-linking from landing page (e.g. ?role=joueur&view=discovery)
     const validViews = [
-      'landing', 'login',
+      'landing', 'login', 'register',
       'dashboard','reservations','gerants','utilisateurs','parametres','menu',
       'gerant-dashboard','gerant-terrain','gerant-planning','gerant-reservations','gerant-stats','gerant-parametres',
       'joueur-home','joueur-reservations','joueur-favoris','joueur-profile','tickets',
       'discovery','terrain-detail','booking-flow','reservation-detail'
     ];
     if (viewParam && validViews.includes(viewParam)) return viewParam;
-    if (currentUser?.role === 'gerant') return 'gerant-dashboard';
-    if (currentUser?.role === 'joueur') return 'joueur-home';
-    if (currentUser?.role === 'admin') return 'dashboard';
-    return 'landing'; // default unauthenticated
+    return 'landing'; // default - will be updated by useEffect after auth loads
   };
 
   const [view, setView] = useState(getInitialView);
+
+  // ── Synchroniser la vue quand la session est restaurée après un refresh ──
+  useEffect(() => {
+    if (loading || hasRedirectedRef.current) return;
+    if (currentUser) {
+      hasRedirectedRef.current = true;
+      // Si on est encore sur landing/login/register, rediriger vers le bon dashboard
+      const publicViews = ['landing', 'login', 'register'];
+      if (publicViews.includes(view)) {
+        if (currentUser.role === 'admin') setView('dashboard');
+        else if (currentUser.role === 'gerant') setView('gerant-dashboard');
+        else setView('joueur-home');
+      }
+    }
+  }, [currentUser, loading]);
   const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [toast, setToast] = useState(null);
@@ -87,12 +102,32 @@ function App() {
     return <VerifyTicket token={verifyToken} />;
   }
 
+  // ── Écran de chargement premium pendant la restauration de session ──
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#0F2318] flex flex-col items-center justify-center gap-6">
+        <div className="relative">
+          <div className="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center shadow-lg shadow-primary/30 animate-pulse">
+            <IconBallFootball size={36} className="text-white" />
+          </div>
+          <div className="absolute -inset-4 rounded-3xl border-2 border-primary/20 animate-ping" style={{ animationDuration: '1.5s' }}></div>
+        </div>
+        <div className="text-center space-y-2">
+          <p className="text-white font-display font-bold text-lg tracking-tight">PlaygroundSpot</p>
+          <p className="text-white/40 text-xs font-semibold uppercase tracking-widest">Chargement...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Layout currentView={view} setView={setView}>
       {view === 'landing' ? (
         <Landing setView={setView} />
       ) : view === 'login' ? (
         <Login setView={setView} />
+      ) : view === 'register' ? (
+        <Register setView={setView} />
       ) : view === 'dashboard' ? (
         <ProtectedRoute allowedRoles={['admin']} onDenied={handleDenied}>
           <Header title="Tableau de bord Admin" showSearch={true} setView={setView} />
@@ -201,8 +236,10 @@ function App() {
             </div>
 
             <button
-              onClick={() => {
+              onClick={async () => {
                 triggerToast('Déconnexion…');
+                hasRedirectedRef.current = false;
+                try { await signOut(); } catch (_) {}
                 setCurrentUser(null);
                 setView('landing');
               }}

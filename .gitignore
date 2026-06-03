@@ -12,6 +12,13 @@ dist
 dist-ssr
 *.local
 
+# Environment files — JAMAIS commiter les secrets (Règle 10.1)
+.env
+.env.local
+.env.production
+.env.staging
+.env*.local
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

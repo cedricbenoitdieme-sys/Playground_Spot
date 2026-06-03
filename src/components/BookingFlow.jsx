@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { useUser } from '../context/UserContext';
+import { validateAmount } from '../lib/validators';
 import { 
   IconMapPin, 
   IconClock, 
@@ -46,6 +48,7 @@ const PaymentCard = ({ name, selected, onClick, color }) => (
 );
 
 export const BookingFlow = ({ terrain, onBack, onComplete }) => {
+  const { currentUser } = useUser();
   const [step, setStep] = useState(1);
   const [duration, setDuration] = useState(1);
   const [players, setPlayers] = useState(10);
@@ -53,6 +56,8 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [validationError, setValidationError] = useState(null);
 
   // Stable token for this booking session
   const [verifyToken] = useState(() => {
@@ -67,11 +72,28 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const totalPrice = (terrain?.price || 0) * duration;
   const resNumber = verifyToken; // Using the token as resNumber for consistency
 
+  // ── Règle 1.1 — Validation du montant ──
+  const amountCheck = validateAmount(totalPrice);
+
+  // ── Règle 1.3 — Vérifier l'authentification AVANT toute transaction ──
+  if (!currentUser) {
+    return (
+      <div className="flex-1 bg-background flex items-center justify-center px-4">
+        <div className="bg-white p-8 rounded-card shadow-subtle text-center max-w-sm">
+          <p className="text-lg font-bold text-primary-dark mb-4">Connexion requise</p>
+          <p className="text-gray-500 text-sm mb-6">Vous devez être connecté pour effectuer une réservation.</p>
+          <button onClick={onBack} className="btn-primary px-8 h-12">Retour</button>
+        </div>
+      </div>
+    );
+  }
+
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
 
-  const handlePaymentConfirm = () => {
+  const handlePaymentConfirm = (confirmedPhone) => {
     setIsPaymentModalOpen(false);
+    if (confirmedPhone) setPhoneNumber(confirmedPhone);
     nextStep();
   };
 
@@ -226,7 +248,10 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               <PaymentCard name="Sur place" selected={paymentMethod === 'Sur place'} onClick={() => setPaymentMethod('Sur place')} color="#1A7A4A" />
             </div>
             <div className="flex flex-col items-center gap-4 pt-10">
-              <button disabled={!paymentMethod} onClick={() => { if (paymentMethod === 'Sur place') nextStep(); else setIsPaymentModalOpen(true); }} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">Confirmer</button>
+              {!amountCheck.valid && (
+                <p className="text-red-500 text-xs font-bold text-center mb-2">{amountCheck.error}</p>
+              )}
+              <button disabled={!paymentMethod || !amountCheck.valid} onClick={() => { if (paymentMethod === 'Sur place') nextStep(); else setIsPaymentModalOpen(true); }} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">Confirmer</button>
               <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
             </div>
             <PaymentModal isOpen={isPaymentModalOpen} method={paymentMethod} amount={totalPrice} onClose={() => setIsPaymentModalOpen(false)} onConfirm={handlePaymentConfirm} />
@@ -251,17 +276,9 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
             </div>
 
             <div className="flex flex-col gap-3">
-              <div className="relative w-full">
-                <button onClick={() => setShowDownloadOptions(!showDownloadOptions)} className="w-full btn-primary h-14 flex items-center justify-center gap-2">
-                  <IconDownload size={20} /> Télécharger
-                </button>
-                {showDownloadOptions && (
-                  <div className="absolute bottom-full left-0 right-0 mb-2 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden">
-                    <button onClick={() => handleDownload('png')} className="w-full px-4 py-4 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3">PNG</button>
-                    <button onClick={() => handleDownload('pdf')} className="w-full px-4 py-4 text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-3 border-t">PDF</button>
-                  </div>
-                )}
-              </div>
+              <button onClick={() => handleDownload('png')} className="w-full btn-primary h-14 flex items-center justify-center gap-2">
+                <IconDownload size={20} /> Télécharger le ticket
+              </button>
               <button onClick={onComplete} className="w-full py-4 text-gray-400 font-bold hover:text-primary">Voir mes tickets</button>
             </div>
           </div>

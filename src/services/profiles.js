@@ -1,9 +1,44 @@
 import { supabase } from '../lib/supabase';
+import { handleServiceError } from '../lib/errorHandler';
+import { validateUUID } from '../lib/validators';
 
 /**
- * Récupérer tous les profils (admin only — RLS filtre)
+ * ═══════════════════════════════════════════════════════════
+ * PlaygroundSpot — Service Profils Sécurisé
+ * Security Rules: 3.2, 3.3, 5.1, 5.3
+ * ═══════════════════════════════════════════════════════════
  */
-export const fetchProfiles = async ({ role, statut, limit = 100 } = {}) => {
+
+/**
+ * Règle 3.3 — Masquer les données sensibles (email, téléphone).
+ * JAMAIS retourner les emails/téléphones complets sauf pour le propriétaire.
+ * 
+ * @param {object} profile - Le profil complet
+ * @param {string|null} currentUserId - L'ID de l'utilisateur connecté
+ * @param {string|null} currentUserRole - Le rôle de l'utilisateur connecté
+ * @returns {object} - Profil avec données sensibles masquées
+ */
+const maskSensitiveData = (profile, currentUserId = null, currentUserRole = null) => {
+  if (!profile) return profile;
+  
+  // Le propriétaire du profil ou un admin voit tout
+  if (currentUserId === profile.id || currentUserRole === 'admin') {
+    return profile;
+  }
+  
+  // ── Règle 3.3 — Masquage email et tel pour les autres ──
+  return {
+    ...profile,
+    email: profile.email ? `${profile.email.substring(0, 3)}***@${profile.email.split('@')[1] || '***'}` : null,
+    tel: profile.tel ? `${profile.tel.substring(0, 7)}***` : null,
+  };
+};
+
+/**
+ * Récupérer tous les profils (admin only — RLS filtre).
+ * Règle 3.2 — TOUJOURS filtrer les données selon le rôle utilisateur.
+ */
+export const fetchProfiles = async ({ role, statut, limit = 100, currentUserId = null, currentUserRole = null } = {}) => {
   let query = supabase
     .from('profiles')
     .select('*')
@@ -14,17 +49,18 @@ export const fetchProfiles = async ({ role, statut, limit = 100 } = {}) => {
   if (statut) query = query.eq('statut', statut);
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchProfiles');
+  
   return data.map(p => ({
-    ...p,
+    ...maskSensitiveData(p, currentUserId, currentUserRole),
     initiales: p.avatar || getInitiales(p.nom),
   }));
 };
 
 /**
- * Récupérer les gérants avec leurs terrains
+ * Récupérer les gérants avec leurs terrains.
  */
-export const fetchGerants = async () => {
+export const fetchGerants = async ({ currentUserId = null, currentUserRole = null } = {}) => {
   const { data, error } = await supabase
     .from('profiles')
     .select(`
@@ -35,54 +71,70 @@ export const fetchGerants = async () => {
     `)
     .eq('role', 'gerant')
     .order('nom');
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchGerants');
+  
   return data.map(g => ({
-    ...g,
+    ...maskSensitiveData(g, currentUserId, currentUserRole),
     initiales: g.avatar || getInitiales(g.nom),
     terrains: (g.gerant_terrains || []).map(gt => gt.terrains?.nom).filter(Boolean),
   }));
 };
 
 /**
- * Récupérer les joueurs (utilisateurs)
+ * Récupérer les joueurs (utilisateurs).
  */
-export const fetchJoueurs = async () => {
+export const fetchJoueurs = async ({ currentUserId = null, currentUserRole = null } = {}) => {
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('role', 'joueur')
     .order('nom');
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchJoueurs');
+  
   return data.map(j => ({
-    ...j,
+    ...maskSensitiveData(j, currentUserId, currentUserRole),
     initiales: j.avatar || getInitiales(j.nom),
   }));
 };
 
 /**
- * Mettre à jour le statut d'un profil (suspendre, activer, etc.)
+ * Mettre à jour le statut d'un profil (suspendre, activer, etc.).
  */
 export const updateProfileStatut = async (profileId, statut) => {
+  // ── Règle 2.4 — Validation UUID ──
+  const idCheck = validateUUID(profileId);
+  if (!idCheck.valid) throw new Error(idCheck.error);
+  
+  // ── Validation du statut ──
+  const validStatuts = ['actif', 'suspendu', 'inactif', 'en_attente'];
+  if (!validStatuts.includes(statut)) {
+    throw new Error('Statut invalide.');
+  }
+
   const { data, error } = await supabase
     .from('profiles')
     .update({ statut })
     .eq('id', profileId)
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'updateProfileStatut');
   return data;
 };
 
 /**
- * Récupérer un profil avec son historique de réservations
+ * Récupérer un profil avec son historique de réservations.
  */
-export const fetchProfileWithHistory = async (profileId) => {
+export const fetchProfileWithHistory = async (profileId, { currentUserId = null, currentUserRole = null } = {}) => {
+  // ── Règle 2.4 — Validation UUID ──
+  const idCheck = validateUUID(profileId);
+  if (!idCheck.valid) throw new Error(idCheck.error);
+
   const { data: profile, error: profileError } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', profileId)
     .single();
-  if (profileError) throw profileError;
+  if (profileError) throw handleServiceError(profileError, 'fetchProfileWithHistory');
 
   const { data: reservations, error: resError } = await supabase
     .from('reservations')
@@ -94,10 +146,12 @@ export const fetchProfileWithHistory = async (profileId) => {
     .eq('joueur_id', profileId)
     .order('created_at', { ascending: false })
     .limit(20);
-  if (resError) throw resError;
+  if (resError) throw handleServiceError(resError, 'fetchProfileWithHistory:reservations');
 
+  const maskedProfile = maskSensitiveData(profile, currentUserId, currentUserRole);
+  
   return {
-    ...profile,
+    ...maskedProfile,
     initiales: profile.avatar || getInitiales(profile.nom),
     historique: reservations.map(r => ({
       date: new Date(r.date_slot).toLocaleDateString('fr-FR'),

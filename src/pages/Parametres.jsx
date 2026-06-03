@@ -94,6 +94,11 @@ export const Parametres = ({ setView }) => {
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
+  // À propos
+  const [showCGU, setShowCGU] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+
   const handleSaveProfil = (e) => {
     e.preventDefault();
     setProfil(profilForm);
@@ -216,13 +221,13 @@ export const Parametres = ({ setView }) => {
 
         {/* ── À propos ── */}
         <Section title="À propos" icon={IconInfoCircle} delay={0.3}>
-          <Row label="Conditions d'utilisation" onClick={() => {}}>
+          <Row label="Conditions d'utilisation" onClick={() => setShowCGU(true)}>
             <IconChevronRight size={16} className="text-gray-300" />
           </Row>
-          <Row label="Politique de confidentialité" onClick={() => {}}>
+          <Row label="Politique de confidentialité" onClick={() => setShowPrivacy(true)}>
             <IconChevronRight size={16} className="text-gray-300" />
           </Row>
-          <Row label="Support" sub="support@playgroundspot.sn" onClick={() => {}}>
+          <Row label="Support" sub="support@playgroundspot.sn" onClick={() => setShowSupport(true)}>
             <IconChevronRight size={16} className="text-gray-300" />
           </Row>
         </Section>
@@ -322,6 +327,54 @@ export const Parametres = ({ setView }) => {
             Enregistrer
           </button>
         </form>
+      </Sheet>
+
+      {/* Sheet: Conditions d'utilisation */}
+      <Sheet open={showCGU} onClose={() => setShowCGU(false)} title="Conditions Générales d'Utilisation">
+        <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">1. Objet</h4>
+            <p>Les présentes Conditions Générales d'Utilisation ont pour objet de définir les modalités de mise à disposition des services du site PlaygroundSpot et les conditions d'utilisation par l'Utilisateur.</p>
+          </div>
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">2. Services proposés</h4>
+            <p>PlaygroundSpot met en relation des joueurs amateurs et des gérants d'infrastructures sportives privées à Dakar. Nous agissons en tant qu'intermédiaire technologique.</p>
+          </div>
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">3. Paiement et Annulation</h4>
+            <p>Tout paiement effectué via Wave ou Orange Money est définitif. L'annulation d'une réservation dépend des conditions propres fixées par le gérant.</p>
+          </div>
+        </div>
+      </Sheet>
+
+      {/* Sheet: Politique de confidentialité */}
+      <Sheet open={showPrivacy} onClose={() => setShowPrivacy(false)} title="Politique de Confidentialité">
+        <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">1. Collecte des données</h4>
+            <p>Nous collectons les données strictement nécessaires à la réservation de votre terrain : nom, prénom, numéro de téléphone et données de transaction.</p>
+          </div>
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">2. Traitement des paiements</h4>
+            <p>Les paiements sont traités par nos partenaires sécurisés (Wave, Orange Money). Nous ne stockons aucune information bancaire sur nos serveurs.</p>
+          </div>
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">3. Partage d'informations</h4>
+            <p>Vos informations de contact sont uniquement partagées avec le gérant du terrain que vous avez réservé afin d'assurer le bon déroulement de votre match.</p>
+          </div>
+        </div>
+      </Sheet>
+
+      {/* Sheet: Support */}
+      <Sheet open={showSupport} onClose={() => setShowSupport(false)} title="Support Client">
+        <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
+          <p>Besoin d'aide ou d'une assistance pour vos réservations ? Notre équipe support est à votre entière disposition.</p>
+          <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
+            <p className="font-semibold text-gray-800">✉ Email : <a href="mailto:support@playgroundspot.sn" className="text-primary font-bold">support@playgroundspot.sn</a></p>
+            <p className="font-semibold text-gray-800">📞 Téléphone : <span className="text-primary font-bold">+221 77 000 00 00</span></p>
+            <p className="font-semibold text-gray-800">📍 Bureau : <span className="text-primary font-bold">Almadies, Dakar, Sénégal</span></p>
+          </div>
+        </div>
       </Sheet>
 
       {/* Toast */}

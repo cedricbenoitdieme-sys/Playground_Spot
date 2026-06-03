@@ -1,4 +1,5 @@
 import { supabase } from '../lib/supabase';
+import { handleServiceError } from '../lib/errorHandler';
 
 /**
  * Statistiques admin globales
@@ -7,7 +8,9 @@ export const fetchAdminStats = async () => {
   const { data, error } = await supabase.rpc('get_admin_stats');
   if (error) {
     // Fallback : requêtes individuelles si la RPC n'existe pas encore
-    console.warn('RPC get_admin_stats non disponible, fallback queries...', error.message);
+    if (import.meta.env.DEV) {
+      console.warn('RPC get_admin_stats non disponible, fallback queries...');
+    }
     return await fetchAdminStatsFallback();
   }
   return data;
@@ -50,7 +53,7 @@ export const fetchOccupationByQuartier = async () => {
     .from('terrains')
     .select('quartier')
     .eq('statut', 'actif');
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchOccupationByQuartier');
 
   // Grouper par quartier et calculer un taux d'occupation simulé à partir de la DB
   const quartiers = {};
@@ -95,7 +98,7 @@ export const fetchRecentReservations = async (limit = 10) => {
     `)
     .order('created_at', { ascending: false })
     .limit(limit);
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchRecentReservations');
 
   const mapStatut = (s) => ({
     'en_attente': 'En attente',
@@ -151,7 +154,7 @@ export const fetchGerantKpis = async (gerantId, terrainId = null, periode = 'mon
   }
 
   const { data, error } = await query;
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchGerantKpis');
 
   const confirmees = data.filter(r => r.statut === 'confirmee' || r.statut === 'terminee');
   return {
@@ -178,7 +181,7 @@ export const fetchRepartitionPaiements = async (gerantId) => {
     .select('mode, montant, statut, reservation_id, reservations!inner(terrain_id)')
     .in('reservations.terrain_id', terrainIds)
     .eq('statut', 'valide');
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchRepartitionPaiements');
 
   const grouped = {};
   (data || []).forEach(p => {
@@ -211,7 +214,7 @@ export const fetchCreneauxDisponibles = async (terrainId, date) => {
     .eq('date', date)
     .eq('statut', 'disponible')
     .order('heure_debut');
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchCreneauxDisponibles');
   return data;
 };
 
@@ -228,7 +231,7 @@ export const fetchCreneauxByDate = async (terrainId, date) => {
     .eq('terrain_id', terrainId)
     .eq('date', date)
     .order('heure_debut');
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'fetchCreneauxByDate');
   return data;
 };
 
@@ -241,7 +244,7 @@ export const createCreneau = async ({ terrain_id, date, heure_debut, heure_fin, 
     .insert({ terrain_id, date, heure_debut, heure_fin, statut, motif_blocage })
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'createCreneau');
   return data;
 };
 
@@ -255,7 +258,7 @@ export const updateCreneau = async (creneauId, updates) => {
     .eq('id', creneauId)
     .select()
     .single();
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'updateCreneau');
   return data;
 };
 
@@ -267,7 +270,7 @@ export const deleteCreneau = async (creneauId) => {
     .from('creneaux')
     .delete()
     .eq('id', creneauId);
-  if (error) throw error;
+  if (error) throw handleServiceError(error, 'deleteCreneau');
 };
 
 /**

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useUser } from '../context/UserContext';
-import { signIn } from '../services/auth';
+import { getProfile } from '../services/auth';
+import { supabase } from '../lib/supabase';
 import { 
   IconBallFootball, 
   IconMail, 
@@ -10,11 +11,12 @@ import {
 } from '@tabler/icons-react';
 
 export const Login = ({ setView }) => {
-  const { currentUser } = useUser();
+  const { currentUser, setCurrentUser } = useUser();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(true);
 
   // Si déjà connecté, rediriger
   if (currentUser) {
@@ -29,15 +31,42 @@ export const Login = ({ setView }) => {
     setError(null);
 
     try {
-      await signIn({ email: email.trim(), password });
-      // onAuthStateChange dans UserContext mettra à jour currentUser
-      // Petit délai pour laisser le profil se charger
-      setTimeout(() => {
-        setLoading(false);
-      }, 500);
+      // Connexion via Supabase
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({ 
+        email: email.trim(), 
+        password 
+      });
+      if (signInError) throw signInError;
+
+      if (data?.user) {
+        // Gérer le "Se souvenir de moi"
+        // Logique : sessionStorage survit aux refreshs mais est vidé à la fermeture du navigateur.
+        // On l'utilise comme sentinelle : si absent au démarrage ET remember=false → sign out.
+        if (rememberMe) {
+          localStorage.setItem('playgroundspot-remember', 'true');
+        } else {
+          localStorage.setItem('playgroundspot-remember', 'false');
+          sessionStorage.setItem('playgroundspot-session-active', 'true');
+        }
+
+        // Chargement immédiat du profil pour éliminer tout temps d'attente
+        const profile = await getProfile(data.user.id);
+        const userObj = {
+          id: data.user.id,
+          nom: profile.nom,
+          email: profile.email,
+          role: profile.role,
+          quartier: profile.quartier,
+          tel: profile.tel,
+          avatar: profile.avatar || profile.nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          statut: profile.statut,
+        };
+        
+        setCurrentUser(userObj);
+        const dest = profile.role === 'admin' ? 'dashboard' : profile.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
+        setView(dest);
+      }
     } catch (err) {
-      setLoading(false);
-      // Messages d'erreur Supabase traduits
       if (err.message?.includes('Invalid login')) {
         setError('Email ou mot de passe incorrect.');
       } else if (err.message?.includes('Email not confirmed')) {
@@ -45,6 +74,8 @@ export const Login = ({ setView }) => {
       } else {
         setError(err.message || 'Erreur de connexion. Veuillez réessayer.');
       }
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -124,7 +155,12 @@ export const Login = ({ setView }) => {
             {/* Remember & Forgot */}
             <div className="flex items-center justify-between text-[11px] text-gray-400 font-semibold px-1">
               <label className="flex items-center gap-1.5 cursor-pointer">
-                <input type="checkbox" defaultChecked className="rounded border-white/10 bg-transparent text-primary focus:ring-0 cursor-pointer" />
+                <input 
+                  type="checkbox" 
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                  className="rounded border-white/10 bg-transparent text-primary focus:ring-0 cursor-pointer" 
+                />
                 Se souvenir
               </label>
               <span className="hover:text-primary transition-colors cursor-pointer">Mot de passe oublié ?</span>
@@ -155,7 +191,7 @@ export const Login = ({ setView }) => {
             <p className="text-[11px] text-gray-500 font-semibold">
               Pas encore de compte ?{' '}
               <span 
-                onClick={() => setView('landing')} 
+                onClick={() => setView('register')} 
                 className="text-primary hover:underline cursor-pointer font-bold"
               >
                 Créer un compte
