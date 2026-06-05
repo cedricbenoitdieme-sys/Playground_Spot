@@ -2,14 +2,23 @@ import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import rateLimit from 'express-rate-limit';
-import dotenv from 'dotenv';
-
-dotenv.config();
 
 const app = express();
 
-// Middleware
-app.use(cors());
+// Middleware CORS — restreint à l'origine de l'app en production
+const allowedOrigins = process.env.VERCEL_URL
+  ? [`https://${process.env.VERCEL_URL}`, process.env.ALLOWED_ORIGIN].filter(Boolean)
+  : ['http://localhost:5173', 'http://localhost:3000'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Autoriser les requêtes sans origin (appels serveur-à-serveur, Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.some(o => origin.startsWith(o))) return callback(null, true);
+    callback(new Error('Non autorisé par CORS'));
+  },
+  credentials: true,
+}));
 app.use(express.json());
 
 // Supabase Admin Client
@@ -173,6 +182,11 @@ app.get('/api/verify/:token', verifyLimiter, authMiddleware, async (req, res) =>
     console.error("Erreur serveur verify:", error);
     return res.status(500).json({ error: 'Erreur interne du serveur' });
   }
+});
+
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 export default app;
