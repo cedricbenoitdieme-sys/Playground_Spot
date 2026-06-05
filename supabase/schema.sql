@@ -414,6 +414,9 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- ============================================================
 -- VUES utiles
 -- ============================================================
+DROP VIEW IF EXISTS public.v_terrains_details CASCADE;
+DROP VIEW IF EXISTS public.v_reservations_full CASCADE;
+
 CREATE OR REPLACE VIEW public.v_terrains_details AS
 SELECT
   t.*,
