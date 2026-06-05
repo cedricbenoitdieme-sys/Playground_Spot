@@ -302,6 +302,7 @@ ALTER TABLE public.creneaux         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.reservations     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.paiements        ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.avis             ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.scan_logs        ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION public.get_my_role()
 RETURNS TEXT AS $$
@@ -403,6 +404,11 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
   CREATE POLICY "avis_insert_joueur" ON public.avis FOR INSERT WITH CHECK (joueur_id = auth.uid() AND EXISTS (SELECT 1 FROM public.reservations r WHERE r.id = reservation_id AND r.joueur_id = auth.uid() AND r.statut = 'terminee'));
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- SCAN_LOGS policies
+DO $$ BEGIN
+  CREATE POLICY "scan_logs_admin" ON public.scan_logs FOR ALL USING (public.get_my_role() = 'admin');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 -- ============================================================
