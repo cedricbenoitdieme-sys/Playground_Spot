@@ -69,7 +69,12 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
       ctx.fillText(`Date: ${reservation.date}`, 50, 200);
       ctx.fillText(`Heure: ${reservation.slot}`, 50, 240);
       ctx.font = 'bold 35px Inter';
-      ctx.fillText(`CODE: ${reservation.id}`, 50, 320);
+      ctx.fillText(`CODE: ${reservation.qr_token || reservation.id}`, 50, 320);
+      
+      const qrCanvas = document.getElementById('qr-code-canvas');
+      if (qrCanvas) {
+        ctx.drawImage(qrCanvas, 380, 100, 160, 160);
+      }
       
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
@@ -192,7 +197,8 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
               
               <div className="bg-white p-4 rounded-3xl border-2 border-dashed border-gray-100 inline-block mb-6 relative">
                 <QRCodeCanvas 
-                  value={`https://playgroundspot.com/verify/${reservation.id}`} 
+                  id="qr-code-canvas"
+                  value={`${window.location.origin}/verify/${reservation.qr_token || reservation.id}`} 
                   size={150} 
                   includeMargin={true} 
                 />
@@ -201,15 +207,9 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
               <p className="text-xs text-gray-400 font-medium mb-8">N° {reservation.id}</p>
 
               <div className="relative">
-                <button onClick={() => setShowDownloadOptions(!showDownloadOptions)} className="w-full btn-primary h-12 flex items-center justify-center gap-2 mb-3">
+                <button onClick={() => handleDownload('png')} className="w-full btn-primary h-12 flex items-center justify-center gap-2 mb-3">
                   <IconDownload size={18} /> Télécharger
                 </button>
-                {showDownloadOptions && (
-                  <div className="absolute top-full left-0 right-0 bg-white border border-gray-100 rounded-2xl shadow-xl z-20 overflow-hidden">
-                    <button onClick={() => handleDownload('png')} className="w-full px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50">PNG</button>
-                    <button onClick={() => handleDownload('pdf')} className="w-full px-4 py-3 text-sm font-bold text-gray-700 hover:bg-gray-50 border-t">PDF</button>
-                  </div>
-                )}
               </div>
             </div>
           </div>

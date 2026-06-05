@@ -18,6 +18,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
 import { PaymentModal } from './PaymentModal';
+import { createReservation } from '../services/reservations';
 
 const DetailItem = ({ label, value }) => (
   <div>
@@ -59,18 +60,12 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [validationError, setValidationError] = useState(null);
 
-  // Stable token for this booking session
-  const [verifyToken] = useState(() => {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let result = 'PSPOT-';
-    for (let i = 0; i < 6; i++) {
-      result += chars.charAt(Math.floor(Math.random() * chars.length));
-    }
-    return result;
-  });
+  // The real token will be set after successful backend creation
+  const [verifyToken, setVerifyToken] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const totalPrice = (terrain?.price || 0) * duration;
-  const resNumber = verifyToken; // Using the token as resNumber for consistency
+  const resNumber = verifyToken || '...'; // Using the token as resNumber for consistency
 
   // ── Règle 1.1 — Validation du montant ──
   const amountCheck = validateAmount(totalPrice);
@@ -91,10 +86,33 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
 
-  const handlePaymentConfirm = (confirmedPhone) => {
+  const handlePaymentConfirm = async (confirmedPhone) => {
     setIsPaymentModalOpen(false);
     if (confirmedPhone) setPhoneNumber(confirmedPhone);
-    nextStep();
+    
+    setIsSubmitting(true);
+    try {
+      // Pour la démo, on utilise la date d'aujourd'hui, mais en vrai on prendrait une date sélectionnée
+      const date_slot = new Date().toISOString().split('T')[0];
+      
+      const result = await createReservation({
+        terrain_id: terrain?.id || 'd3b2a1a1-1234-5678-9abc-def012345678', // mock fallback si pas d'ID
+        terrain_nom: terrain?.name || 'Terrain',
+        joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || 'Joueur',
+        date_slot,
+        heure_slot: selectedSlot + ':00',
+        montant: totalPrice,
+        duree_heures: duration
+      });
+      
+      setVerifyToken(result.qr_token || result.id);
+      nextStep();
+    } catch (error) {
+      console.error(error);
+      alert("Erreur lors de la réservation : " + error.message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleDownload = (format) => {
@@ -142,6 +160,11 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
       ctx.fillText(`Heure: ${selectedSlot}`, 50, 240);
       ctx.font = 'bold 35px Inter';
       ctx.fillText(`CODE: ${resNumber}`, 50, 320);
+      
+      const qrCanvas = document.getElementById('qr-code-canvas');
+      if (qrCanvas) {
+        ctx.drawImage(qrCanvas, 380, 100, 160, 160);
+      }
       
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
@@ -251,7 +274,9 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               {!amountCheck.valid && (
                 <p className="text-red-500 text-xs font-bold text-center mb-2">{amountCheck.error}</p>
               )}
-              <button disabled={!paymentMethod || !amountCheck.valid} onClick={() => { if (paymentMethod === 'Sur place') nextStep(); else setIsPaymentModalOpen(true); }} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">Confirmer</button>
+              <button disabled={!paymentMethod || isSubmitting} onClick={() => { if (paymentMethod === 'Sur place') handlePaymentConfirm(); else setIsPaymentModalOpen(true); }} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">
+                {isSubmitting ? 'Traitement...' : 'Confirmer le paiement'}
+              </button>
               <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
             </div>
             <PaymentModal isOpen={isPaymentModalOpen} method={paymentMethod} amount={totalPrice} onClose={() => setIsPaymentModalOpen(false)} onConfirm={handlePaymentConfirm} />
@@ -267,7 +292,8 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
             <div className="max-w-xs mx-auto bg-white p-6 rounded-3xl border-2 border-dashed border-gray-100 mb-8 relative">
               <div className="flex justify-center mb-6">
                 <QRCodeCanvas 
-                  value={`https://playgroundspot.com/verify/${verifyToken}`} 
+                  id="qr-code-canvas"
+                  value={`${window.location.origin}/verify/${verifyToken}`} 
                   size={160} 
                   includeMargin={true} 
                 />
