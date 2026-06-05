@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --host",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -12,7 +12,12 @@
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
     "@tabler/icons-react": "^3.44.0",
+    "@yudiel/react-qr-scanner": "^2.6.0",
     "clsx": "^2.1.1",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "jspdf": "^4.2.1",
     "leaflet": "^1.9.4",
     "qrcode.react": "^4.2.0",

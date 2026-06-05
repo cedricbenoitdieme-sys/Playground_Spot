@@ -139,7 +139,8 @@ CREATE TABLE IF NOT EXISTS public.reservations (
   montant       INTEGER NOT NULL CHECK (montant > 0),
   statut        statut_reservation NOT NULL DEFAULT 'en_attente',
   motif_annulation TEXT,
-  ticket_qr     TEXT,
+  qr_token      TEXT UNIQUE NOT NULL,
+  scan_at       TIMESTAMPTZ DEFAULT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -148,8 +149,21 @@ CREATE TABLE IF NOT EXISTS public.reservations (
 CREATE INDEX IF NOT EXISTS idx_reservations_joueur    ON public.reservations(joueur_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_terrain   ON public.reservations(terrain_id);
 CREATE INDEX IF NOT EXISTS idx_reservations_statut    ON public.reservations(statut);
+CREATE INDEX IF NOT EXISTS idx_reservations_qr_token  ON public.reservations(qr_token);
 CREATE INDEX IF NOT EXISTS idx_reservations_date      ON public.reservations(date_slot);
 CREATE INDEX IF NOT EXISTS idx_creneaux_terrain_date  ON public.creneaux(terrain_id, date);
+
+-- ============================================================
+-- TABLE : scan_logs
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.scan_logs (
+  id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  token           TEXT NOT NULL,
+  ip_address      TEXT,
+  statut_retourne TEXT NOT NULL,
+  scanned_by      UUID REFERENCES public.profiles(id) ON DELETE SET NULL,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 -- ============================================================
 -- TABLE : paiements

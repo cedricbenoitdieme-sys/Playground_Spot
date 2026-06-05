@@ -12,7 +12,7 @@ import {
 
 export const Login = ({ setView }) => {
   const { currentUser, setCurrentUser } = useUser();
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(() => localStorage.getItem('playgroundspot-saved-email') || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -44,8 +44,10 @@ export const Login = ({ setView }) => {
         // On l'utilise comme sentinelle : si absent au démarrage ET remember=false → sign out.
         if (rememberMe) {
           localStorage.setItem('playgroundspot-remember', 'true');
+          localStorage.setItem('playgroundspot-saved-email', email.trim());
         } else {
           localStorage.setItem('playgroundspot-remember', 'false');
+          localStorage.removeItem('playgroundspot-saved-email');
           sessionStorage.setItem('playgroundspot-session-active', 'true');
         }
 
@@ -80,7 +82,7 @@ export const Login = ({ setView }) => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans select-none">
+    <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
       
       {/* Decorative Floating Glowing Background Circles */}
       <div className="absolute top-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-primary/20 blur-[100px] pointer-events-none"></div>

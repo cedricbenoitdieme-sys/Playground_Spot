@@ -11,41 +11,7 @@ import {
   IconWallet
 } from '@tabler/icons-react';
 
-const MOCK_TICKETS = {
-  'PSPOT-A7X3K2': {
-    statut: 'valide',
-    joueur: 'Moussa Diallo',
-    terrain: 'Terrain Les Champions',
-    quartier: 'Almadies',
-    date: '15/01/2025',
-    creneau: '18h00 – 19h00',
-    nbJoueurs: 10,
-    montant: '12 500 FCFA',
-    scanAt: null
-  },
-  'PSPOT-B3K9M1': {
-    statut: 'utilise',
-    joueur: 'Ibrahima Sow',
-    terrain: 'Terrain Médina Star',
-    quartier: 'Médina',
-    date: '15/01/2025',
-    creneau: '16h00 – 17h00',
-    nbJoueurs: 6,
-    montant: '8 000 FCFA',
-    scanAt: '15/01/2025 à 15h52'
-  },
-  'PSPOT-C1X4P8': {
-    statut: 'annule',
-    joueur: 'Cheikh Ndiaye',
-    terrain: 'Terrain Yoff Paradise',
-    quartier: 'Yoff',
-    date: '15/01/2025',
-    creneau: '20h00 – 21h00',
-    nbJoueurs: 14,
-    montant: '15 000 FCFA',
-    scanAt: null
-  }
-};
+import { supabase } from '../lib/supabase';
 
 export const VerifyTicket = ({ token }) => {
   const [loading, setLoading] = useState(true);
@@ -53,18 +19,36 @@ export const VerifyTicket = ({ token }) => {
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    // Simuler un appel API
-    const timer = setTimeout(() => {
-      const foundTicket = MOCK_TICKETS[token];
-      if (foundTicket) {
-        setTicket(foundTicket);
-      } else {
+    const verifyToken = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const baseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+        const res = await fetch(`${baseUrl}/api/verify/${token}`, {
+          headers: {
+            'Authorization': `Bearer ${session?.access_token}`
+          }
+        });
+        
+        if (!res.ok) {
+          setError(true);
+        } else {
+          const data = await res.json();
+          if (data.statut === 'invalide') {
+            setError(true);
+          } else {
+            setTicket(data);
+          }
+        }
+      } catch (err) {
+        console.error("Erreur de vérification:", err);
         setError(true);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    }, 1500);
+    };
 
-    return () => clearTimeout(timer);
+    verifyToken();
   }, [token]);
 
   const markAsUsed = () => {

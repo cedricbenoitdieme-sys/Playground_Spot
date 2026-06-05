@@ -27,11 +27,12 @@ import { GerantPlanning } from './pages/GerantPlanning';
 import { JoueurHome } from './pages/JoueurHome';
 import { JoueurProfile } from './pages/JoueurProfile';
 import { JoueurFavoris } from './pages/JoueurFavoris';
+import { ScanTicket } from './pages/ScanTicket';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useUser } from './context/UserContext';
 import { signOut } from './services/auth';
 
-import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball } from '@tabler/icons-react';
+import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball, IconScan } from '@tabler/icons-react';
 
 function App() {
   const path = window.location.pathname;
@@ -50,7 +51,7 @@ function App() {
       'dashboard','reservations','gerants','utilisateurs','parametres','menu',
       'gerant-dashboard','gerant-terrain','gerant-planning','gerant-reservations','gerant-stats','gerant-parametres',
       'joueur-home','joueur-reservations','joueur-favoris','joueur-profile','tickets',
-      'discovery','terrain-detail','booking-flow','reservation-detail'
+      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan'
     ];
     if (viewParam && validViews.includes(viewParam)) return viewParam;
     return 'landing'; // default - will be updated by useEffect after auth loads
@@ -60,7 +61,10 @@ function App() {
 
   // ── Synchroniser la vue quand la session est restaurée après un refresh ──
   useEffect(() => {
-    if (loading || hasRedirectedRef.current) return;
+    // Ne pas rediriger tant que l'auth n'est pas complètement chargée
+    if (loading) return;
+    if (hasRedirectedRef.current) return;
+    
     if (currentUser) {
       hasRedirectedRef.current = true;
       // Si on est encore sur landing/login/register, rediriger vers le bon dashboard
@@ -71,7 +75,8 @@ function App() {
         else setView('joueur-home');
       }
     }
-  }, [currentUser, loading]);
+  }, [currentUser, loading, view]);
+
   const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [toast, setToast] = useState(null);
@@ -83,6 +88,7 @@ function App() {
   };
 
   const handleDenied = () => {
+    if (loading) return; // Sécurité additionnelle avant redirect
     if (!currentUser) {
       setView('landing');
       triggerToast('Veuillez vous connecter pour accéder à cette page');
@@ -208,6 +214,7 @@ function App() {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-1"
                 style={{ animation: 'slideUp 0.4s 0.05s cubic-bezier(.22,1,.36,1) both' }}>Navigation Administration</p>
               {[
+                { id: 'scan', label: 'Scanner un Ticket', sub: 'Validation QR Code joueur', icon: IconScan },
                 { id: 'gerants', label: 'Gérants', sub: 'CRUD, suspensions, approbation', icon: IconUsersGroup },
                 { id: 'utilisateurs', label: 'Utilisateurs', sub: 'Liste joueurs, historique, blocage', icon: IconUsers },
                 { id: 'parametres', label: 'Paramètres', sub: 'Sécurité, commission, notifications', icon: IconSettings },

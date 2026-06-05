@@ -98,7 +98,7 @@ export const Register = ({ setView }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden font-sans select-none">
+    <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden font-sans">
 
       {/* Background glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-primary/20 blur-[100px] pointer-events-none" />

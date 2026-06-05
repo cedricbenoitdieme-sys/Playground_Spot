@@ -130,7 +130,7 @@ export const createReservation = async ({
         montant,
         duree_heures,
         statut: 'en_attente',
-        ticket_qr: `PS-${Date.now().toString(36).toUpperCase()}`
+        qr_token: `PS-${Date.now().toString(36).toUpperCase()}`
       })
       .select()
       .single();

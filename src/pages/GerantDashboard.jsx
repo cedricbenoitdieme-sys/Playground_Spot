@@ -11,7 +11,8 @@ import {
   IconX,
   IconWallet,
   IconBallFootball,
-  IconActivity
+  IconActivity,
+  IconScan
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 
@@ -90,9 +91,18 @@ export const GerantDashboard = () => {
           <h2 className="text-xl md:text-2xl font-display font-bold">Tableau de bord Terrain</h2>
           <p className="text-xs text-white/60 flex items-center gap-1"><IconMapPin size={12} className="text-primary" /> {currentUser.terrain}</p>
         </div>
-        <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full uppercase tracking-wider">
-          Gérant Connecté
-        </span>
+        <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3">
+          <button 
+            onClick={() => window.location.search = '?view=scan'} 
+            className="flex items-center gap-2 bg-primary hover:bg-primary-dark text-white text-sm font-bold px-5 py-2.5 rounded-full transition-all shadow-lg shadow-primary/20"
+          >
+            <IconScan size={18} />
+            Scanner un Ticket
+          </button>
+          <span className="text-[10px] font-bold text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full uppercase tracking-wider hidden md:inline-block">
+            Gérant Connecté
+          </span>
+        </div>
       </div>
 
       {/* Grid Stats */}
