@@ -125,16 +125,25 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
   const headerInfo = getHeaderInfo();
 
   return (
-    <header className="relative flex-shrink-0 flex items-center justify-between px-6 py-6 lg:px-8 z-50 bg-transparent border-none">
-      <div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
-          <h1 className="text-2xl lg:text-3xl text-primary-dark tracking-tight font-display font-bold">{headerInfo.title}</h1>
-          <span className="text-[9px] font-black tracking-widest text-primary bg-primary/5 border border-primary/20 px-2.5 py-0.5 rounded-full uppercase">
-            {headerInfo.badge}
-          </span>
-          <PlanBadge displayPlan={displayPlan} />
+    <header className="sticky top-0 lg:relative flex-shrink-0 flex items-center justify-between px-4 py-4 lg:px-8 lg:py-6 z-40 bg-[#F4F6F4]/90 backdrop-blur-md lg:bg-transparent border-b border-gray-100 lg:border-none shadow-sm lg:shadow-none transition-all">
+      <div className="flex items-center gap-3">
+        {/* Brand Icon for Mobile Parity */}
+        <div 
+          onClick={() => { if (setView) setView('landing'); }}
+          className="w-10 h-10 rounded-2xl bg-primary flex items-center justify-center text-white shadow-md shadow-primary/20 cursor-pointer hover:scale-105 active:scale-95 transition-transform shrink-0"
+        >
+          <IconBallFootball size={22} />
         </div>
-        <div className="flex items-center flex-wrap gap-2 text-sm text-gray-500 font-medium mt-1">
+
+        <div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <h1 className="text-xl lg:text-3xl text-primary-dark tracking-tight font-display font-bold">{headerInfo.title}</h1>
+            <span className="text-[9px] font-black tracking-widest text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded-full uppercase">
+              {headerInfo.badge}
+            </span>
+            <PlanBadge displayPlan={displayPlan} />
+          </div>
+          <div className="flex items-center flex-wrap gap-2 text-xs lg:text-sm text-gray-500 font-medium mt-0.5">
           <span>{headerInfo.sub}</span>
           {['admin', 'super_admin'].includes(currentUser.role) && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/5 text-primary text-xs font-mono font-bold border border-primary/10 tabular-nums shadow-sm select-none">
@@ -147,6 +156,7 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
           )}
         </div>
       </div>
+    </div>
 
       <div className="flex items-center gap-4">
         {/* Search - Hidden on small mobile */}
