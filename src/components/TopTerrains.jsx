@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchTopTerrains } from '../services/terrains';
+import { TerrainImage } from './TerrainImage';
 import { formatAmountAbbreviated } from '../services/stats';
 import { IconTrophy, IconChevronRight, IconX, IconTrendingUp, IconUsers, IconLoader2 } from '@tabler/icons-react';
 
@@ -50,10 +51,12 @@ export const TopTerrains = () => {
           }}
         >
           <div className="relative flex-shrink-0">
-            <img 
-              src={terrain.image || terrain.image_url} 
+            <TerrainImage 
+              terrainId={terrain.id}
+              fallbackUrl={terrain.image || terrain.image_url}
               alt={terrain.name || terrain.nom} 
               className="w-12 h-12 rounded-lg object-cover grayscale-[0.2] group-hover:grayscale-0 transition-all"
+              iconSize={20}
             />
             <div className="absolute -top-1.5 -left-1.5 w-5 h-5 bg-secondary text-white rounded-full flex items-center justify-center text-[10px] font-bold shadow-sm border border-white">
               {index + 1}
@@ -78,11 +81,11 @@ export const TopTerrains = () => {
 
       {/* Modal Performance Terrain */}
       {selectedTerrain && createPortal(
-        <div className="fixed inset-0 lg:left-64 z-[9999]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setSelectedTerrain(null)}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar">
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md transition-opacity" onClick={() => setSelectedTerrain(null)}></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar z-10">
             <div className="h-32 relative">
-               <img src={selectedTerrain.image || selectedTerrain.image_url} alt={selectedTerrain.name || selectedTerrain.nom} className="w-full h-full object-cover" />
+               <TerrainImage terrainId={selectedTerrain.id} fallbackUrl={selectedTerrain.image || selectedTerrain.image_url} alt={selectedTerrain.name || selectedTerrain.nom} iconSize={28} className="w-full h-full" />
                <div className="absolute inset-0 bg-gradient-to-t from-primary-dark/90 to-transparent"></div>
                <button onClick={() => setSelectedTerrain(null)} className="absolute top-4 right-4 text-white/50 hover:text-white bg-black/20 p-2 rounded-full backdrop-blur-md cursor-pointer">
                  <IconX size={20} />

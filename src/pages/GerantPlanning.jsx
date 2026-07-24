@@ -1,7 +1,9 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { CustomSelect } from '../components/CustomSelect';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
+import { CustomAlertModal } from '../components/CustomAlertModal';
 import { 
   IconCalendar, 
   IconCheck, 
@@ -26,6 +28,25 @@ export const GerantPlanning = () => {
   const { currentUser } = useUser();
   const [terrain, setTerrain] = useState(null);
   const [loadingTerrain, setLoadingTerrain] = useState(true);
+  const [alertConfig, setAlertConfig] = useState(null);
+
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
+
+  const showConfirm = (title, message, onConfirm) => {
+    setAlertConfig({
+      isOpen: true,
+      title,
+      message,
+      type: 'confirm',
+      onConfirm: () => {
+        setAlertConfig(null);
+        onConfirm();
+      },
+      onClose: () => setAlertConfig(null)
+    });
+  };
   const [slots, setSlots] = useState([]);
   const [loadingSlots, setLoadingSlots] = useState(false);
   
@@ -44,6 +65,7 @@ export const GerantPlanning = () => {
   const [actionLoading, setActionLoading] = useState(false);
 
   // Bulk generation state
+  const [isGenerating, setIsGenerating] = useState(false);
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
   const [bulkStartDate, setBulkStartDate] = useState(() => {
     const d = new Date();
@@ -214,7 +236,7 @@ export const GerantPlanning = () => {
       setNewSlotReason('');
       await fetchSlots();
     } catch (err) {
-      alert(`Erreur lors de la création du créneau : ${err.message}`);
+      showAlert("Erreur de création", `Erreur lors de la création du créneau : ${err.message}`, "error");
     } finally {
       setActionLoading(false);
     }
@@ -236,30 +258,35 @@ export const GerantPlanning = () => {
       setSelectedSlotForEdit(null);
       await fetchSlots();
     } catch (err) {
-      alert(`Erreur lors de la modification : ${err.message}`);
+      showAlert("Erreur de modification", `Erreur lors de la modification : ${err.message}`, "error");
     } finally {
       setActionLoading(false);
     }
   };
 
   // Delete existing slot
-  const handleDeleteSlot = async (id) => {
-    if (!window.confirm('Voulez-vous vraiment supprimer ce créneau ?')) return;
-    try {
-      setActionLoading(true);
-      const { error } = await supabase
-        .from('creneaux')
-        .delete()
-        .eq('id', id);
+  const handleDeleteSlot = (id) => {
+    showConfirm(
+      "Suppression du créneau",
+      "Voulez-vous vraiment supprimer ce créneau ?",
+      async () => {
+        try {
+          setActionLoading(true);
+          const { error } = await supabase
+            .from('creneaux')
+            .delete()
+            .eq('id', id);
 
-      if (error) throw error;
-      setSelectedSlotForEdit(null);
-      await fetchSlots();
-    } catch (err) {
-      alert(`Erreur lors de la suppression : ${err.message}`);
-    } finally {
-      setActionLoading(false);
-    }
+          if (error) throw error;
+          setSelectedSlotForEdit(null);
+          await fetchSlots();
+        } catch (err) {
+          showAlert("Erreur de suppression", `Erreur lors de la suppression : ${err.message}`, "error");
+        } finally {
+          setActionLoading(false);
+        }
+      }
+    );
   };
 
   // Bulk slot generation RPC
@@ -273,7 +300,7 @@ export const GerantPlanning = () => {
       .map(Number);
 
     if (daysArray.length === 0) {
-      alert('Veuillez sélectionner au moins un jour de la semaine.');
+      showAlert("Sélection requise", "Veuillez sélectionner au moins un jour de la semaine.", "info");
       return;
     }
 
@@ -292,11 +319,11 @@ export const GerantPlanning = () => {
 
       if (error) throw error;
 
-      alert(`Succès ! ${data} créneau(x) ont été générés.`);
+      showAlert("Génération réussie", `Succès ! ${data} créneau(x) ont été générés.`, "success");
       setShowBulkGenerate(false);
       await fetchSlots();
     } catch (err) {
-      alert(`Erreur lors de la génération en masse : ${err.message}`);
+      showAlert("Erreur de génération", `Erreur lors de la génération en masse : ${err.message}`, "error");
     } finally {
       setIsGenerating(false);
     }
@@ -468,9 +495,9 @@ export const GerantPlanning = () => {
 
       {/* Modal - Add custom Slot */}
       {showAddSlot && createPortal(
-        <div className="fixed inset-0 lg:left-64 z-[9999]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setShowAddSlot(false)}></div>
-          <form onSubmit={handleAddCustomSlot} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar">
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md transition-opacity" onClick={() => setShowAddSlot(false)}></div>
+          <form onSubmit={handleAddCustomSlot} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar z-10">
             <button type="button" onClick={() => setShowAddSlot(false)} className="absolute top-4 right-4 text-gray-400 hover:text-primary-dark p-2 bg-gray-50 hover:bg-gray-100 rounded-full cursor-pointer">
               <IconX size={20} />
             </button>
@@ -557,9 +584,9 @@ export const GerantPlanning = () => {
 
       {/* Modal - Slot Edit / Details option */}
       {selectedSlotForEdit && createPortal(
-        <div className="fixed inset-0 lg:left-64 z-[9999]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setSelectedSlotForEdit(null)}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar">
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md transition-opacity" onClick={() => setSelectedSlotForEdit(null)}></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar z-10">
             <button onClick={() => setSelectedSlotForEdit(null)} className="absolute top-4 right-4 text-gray-400 hover:text-primary-dark p-2 bg-gray-50 hover:bg-gray-100 rounded-full cursor-pointer">
               <IconX size={20} />
             </button>
@@ -633,9 +660,9 @@ export const GerantPlanning = () => {
 
       {/* Modal - Bulk Generate Slots */}
       {showBulkGenerate && createPortal(
-        <div className="fixed inset-0 lg:left-64 z-[9999]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setShowBulkGenerate(false)}></div>
-          <form onSubmit={handleBulkGenerate} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-lg mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar">
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md transition-opacity" onClick={() => setShowBulkGenerate(false)}></div>
+          <form onSubmit={handleBulkGenerate} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-lg mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar z-10">
             <button type="button" onClick={() => setShowBulkGenerate(false)} className="absolute top-4 right-4 text-gray-400 hover:text-primary-dark p-2 bg-gray-50 hover:bg-gray-100 rounded-full cursor-pointer">
               <IconX size={20} />
             </button>
@@ -720,15 +747,18 @@ export const GerantPlanning = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Durée du créneau</label>
-                  <select 
-                    value={bulkDuration}
-                    onChange={(e) => setBulkDuration(e.target.value)}
-                    className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20 font-bold text-primary-dark"
-                  >
-                    <option value="1 hour">1 heure</option>
-                    <option value="1.5 hours">1h30</option>
-                    <option value="2 hours">2 heures</option>
-                  </select>
+                  <div className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus-within:ring-2 ring-primary/20 font-bold text-primary-dark min-h-[48px] flex items-center">
+                    <CustomSelect
+                      value={bulkDuration}
+                      onChange={(val) => setBulkDuration(val)}
+                      options={[
+                        { label: "1 heure", value: "1 hour" },
+                        { label: "1h30", value: "1.5 hours" },
+                        { label: "2 heures", value: "2 hours" }
+                      ]}
+                      theme="light"
+                    />
+                  </div>
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Prix personnalisé (FCFA)</label>
@@ -754,6 +784,7 @@ export const GerantPlanning = () => {
           </form>
         </div>
       , document.body)}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
     </div>
   );
 };

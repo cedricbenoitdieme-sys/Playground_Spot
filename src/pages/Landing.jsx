@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { CustomSelect } from '../components/CustomSelect';
 import { useUser } from '../context/UserContext';
 import { 
   IconBallFootball, 
@@ -107,6 +108,12 @@ export const Landing = ({ setView }) => {
   const [gerantQuartier, setGerantQuartier] = useState('');
   const [gerantTerrains, setGerantTerrains] = useState('1');
 
+  // Simulator State (AHA Moment & Investment Bias)
+  const [simStep, setSimStep] = useState(1); // 1: quartier, 2: slot, 3: captain_name, 4: ticket
+  const [simQuartier, setSimQuartier] = useState('Almadies');
+  const [simSlot, setSimSlot] = useState('18:00');
+  const [simName, setSimName] = useState('');
+
   // Scroll effect for Navbar
   useEffect(() => {
     const handleScroll = () => {
@@ -122,7 +129,7 @@ export const Landing = ({ setView }) => {
 
   const handleGoToApp = (role, targetView) => {
     if (currentUser) {
-      setView(targetView || (currentUser.role === 'admin' ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home'));
+      setView(targetView || (['admin', 'super_admin'].includes(currentUser.role) ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home'));
       return;
     }
     // En production, on redirige vers la page de connexion
@@ -328,6 +335,8 @@ export const Landing = ({ setView }) => {
             <p className="text-gray-300 text-sm sm:text-base md:text-lg max-w-xl drop-shadow animate-slide-up-medium leading-relaxed text-center mx-auto">
               Trouve un terrain de foot près de chez toi, réserve ton créneau instantanément et paie via Wave ou Orange Money. Le foot sans prise de tête.
             </p>
+            
+
 
             <div className="flex flex-col sm:flex-row items-center gap-3 justify-center w-full max-w-sm pt-2 animate-slide-up-fast mx-auto">
               <button 
@@ -370,72 +379,164 @@ export const Landing = ({ setView }) => {
             </div>
           </div>
 
-          {/* App UI Mockup (Dakar Sandbox phone frame) */}
-          <div className="relative w-full max-w-xs mx-auto mt-4 animate-slide-up-extra-slow animate-float-phone">
+          {/* Dakar Interactive Booking Simulator (AHA Moment & Investment Bias) */}
+          <div className="relative w-full max-w-sm mx-auto mt-8 animate-slide-up-extra-slow">
             {/* Decorative blur behind */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-primary/20 blur-[80px] rounded-full pointer-events-none"></div>
             
-            {/* Main Device/Panel */}
-            <div 
-              onClick={() => handleGoToApp('joueur', 'discovery')}
-              className="relative z-20 bg-[#0A1810] border-4 border-[#2A3F32] rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden hover:scale-[1.05] active:scale-[0.98] transition-all duration-500 flex flex-col mx-auto max-w-[280px] h-[520px] group/phone cursor-pointer shadow-glow-emerald"
-            >
-              {/* Top Navigation Bar */}
-              <div className="px-6 pt-8 pb-4 bg-gradient-to-b from-black/80 to-transparent absolute top-0 w-full z-30 flex justify-between items-center pointer-events-none">
-                <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <IconChevronRight className="rotate-180 text-white" size={16} />
-                </div>
-                <span className="text-white font-bold font-display text-sm tracking-wide shadow-sm">Dakar</span>
-                <div className="w-8 h-8 rounded-full bg-black/40 backdrop-blur-md flex items-center justify-center border border-white/10">
-                  <IconBallFootball className="text-white" size={16} />
-                </div>
+            {/* Phone Container */}
+            <div className="relative z-20 bg-[#0A1810] border-4 border-[#2A3F32] rounded-[3rem] shadow-[0_20px_50px_rgba(0,0,0,0.6)] overflow-hidden transition-all duration-500 flex flex-col mx-auto max-w-[280px] h-[520px] shadow-glow-emerald text-left">
+              {/* Dynamic Status / Progress Bar */}
+              <div className="px-6 pt-8 pb-3 bg-black/40 flex justify-between items-center text-white/50 text-[10px] font-bold uppercase tracking-widest border-b border-white/5 shrink-0 pointer-events-none">
+                <span>Simulateur Dakar</span>
+                <span className="text-primary font-black">Étape {simStep}/4</span>
               </div>
 
-              {/* Map Area */}
-              <div className="absolute inset-0 bg-[#122A1D] overflow-hidden">
-                <div className="absolute inset-0 opacity-60 mix-blend-luminosity grayscale-[0.5]">
-                  <img src="https://images.unsplash.com/photo-1524661135-423995f22d0b?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80" alt="Map mockup" className="w-full h-full object-cover" />
-                </div>
-                
-                {/* Pulse marker */}
-                <div className="absolute top-[40%] left-[55%] text-center z-20">
-                  <div className="w-12 h-12 bg-primary/30 rounded-full animate-ping absolute -inset-1.5"></div>
-                  <div className="w-9 h-9 bg-primary text-white rounded-full flex items-center justify-center relative shadow-[0_0_15px_rgba(26,122,74,0.8)] border border-white/20">
-                    <IconBallFootball size={18} />
-                  </div>
-                  <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-white text-[#0F2318] text-[10px] font-bold px-3 py-1 rounded-full shadow-xl whitespace-nowrap">
-                    15.000 FCFA
-                  </div>
-                </div>
-              </div>
-
-              {/* Bottom Sheet Card */}
-              <div className="absolute bottom-0 left-0 w-full z-30">
-                <div className="bg-gradient-to-t from-black/80 to-transparent h-24 w-full pointer-events-none absolute bottom-0"></div>
-                <div className="bg-white rounded-t-[2rem] p-5 shadow-[0_-10px_40px_rgba(0,0,0,0.2)] relative">
-                  <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-4"></div>
-                  
-                  <div className="flex gap-3 items-center mb-4">
-                    <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 shadow-md">
-                      <img src="https://images.unsplash.com/photo-1543351611-58f69d7c1781?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80" alt="Terrain pitch" className="w-full h-full object-cover" />
+              {/* Screen Body */}
+              <div className="flex-1 p-5 flex flex-col justify-between overflow-y-auto no-scrollbar bg-[#0f2318]/90">
+                {simStep === 1 && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-[#E8DCC8] font-display font-bold text-xs mb-1">Étape 1 : Choisissez votre quartier</h4>
+                      <p className="text-[10px] text-gray-400">Où souhaitez-vous réserver aujourd'hui ?</p>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5 mb-0.5">
-                        <span className="px-2 py-0.5 bg-primary/10 text-primary text-[8px] font-bold uppercase tracking-widest rounded">Disponible</span>
-                        <span className="text-[10px] text-gray-400 font-semibold">18:00</span>
+                    <div className="space-y-2 my-auto">
+                      {['Almadies', 'Mermoz', 'Plateau'].map(q => (
+                        <button 
+                          key={q}
+                          onClick={() => { setSimQuartier(q); setSimStep(2); }}
+                          className="w-full bg-white/5 hover:bg-primary/10 border border-white/10 hover:border-primary text-white text-[11px] font-bold py-3 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-between"
+                        >
+                          <span>{q}</span>
+                          <span className="text-[9px] text-primary">Sélectionner →</span>
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-[9px] text-gray-500 text-center italic">Plus de 55 terrains homologués à Dakar.</p>
+                  </div>
+                )}
+
+                {simStep === 2 && (
+                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300 flex-1 flex flex-col justify-between">
+                    <div>
+                      <h4 className="text-[#E8DCC8] font-display font-bold text-xs mb-1">Étape 2 : Choisissez votre créneau</h4>
+                      <p className="text-[10px] text-gray-400">Créneaux disponibles aujourd'hui.</p>
+                    </div>
+                    <div className="space-y-2 my-auto">
+                      {['18:00', '20:00', '22:00'].map(t => (
+                        <button 
+                          key={t}
+                          onClick={() => { setSimSlot(t); setSimStep(3); }}
+                          className="w-full bg-white/5 hover:bg-primary/10 border border-white/10 hover:border-primary text-white text-[11px] font-bold py-3 px-4 rounded-xl transition-all cursor-pointer flex items-center justify-between"
+                        >
+                          <span>{t}</span>
+                          <span className="text-[9px] text-primary">Dispo ✓</span>
+                        </button>
+                      ))}
+                    </div>
+                    <button 
+                      onClick={() => setSimStep(1)}
+                      className="text-[9px] text-gray-400 hover:text-white transition-colors cursor-pointer text-center block mt-2"
+                    >
+                      ← Retour au quartier
+                    </button>
+                  </div>
+                )}
+
+                {simStep === 3 && (
+                  <form 
+                    onSubmit={(e) => { e.preventDefault(); if (simName.trim()) setSimStep(4); }}
+                    className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300 flex-1 flex flex-col justify-between"
+                  >
+                    <div>
+                      <h4 className="text-[#E8DCC8] font-display font-bold text-xs mb-1">Étape 3 : Qui mène l'équipe ?</h4>
+                      <p className="text-[10px] text-gray-400">Entrez votre nom complet pour personnaliser votre ticket.</p>
+                    </div>
+                    <div className="my-auto space-y-3">
+                      <input 
+                        type="text" 
+                        required
+                        value={simName}
+                        onChange={(e) => setSimName(e.target.value)}
+                        placeholder="Prénom Nom"
+                        className="w-full bg-[#0A1810]/80 border border-white/10 focus:border-primary rounded-xl px-4 py-3 text-[11px] text-white placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <button 
+                        type="submit"
+                        className="w-full btn-primary py-3 rounded-xl font-bold text-xs cursor-pointer shadow-glow"
+                      >
+                        Générer mon ticket ⚡
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => setSimStep(2)}
+                        className="w-full text-center text-[9px] text-gray-400 hover:text-white transition-colors cursor-pointer"
+                      >
+                        ← Retour à l'heure
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {simStep === 4 && (
+                  <div className="space-y-4 animate-in zoom-in-95 duration-300 flex-1 flex flex-col justify-between">
+                    <div>
+                      <span className="px-2 py-0.5 bg-secondary text-white text-[8px] font-bold uppercase tracking-widest rounded-full">Prêt</span>
+                      <h4 className="text-[#E8DCC8] font-display font-bold text-xs mt-2">Votre Ticket de Capitaine ! 🏆</h4>
+                    </div>
+                    
+                    {/* Ticket visual */}
+                    <div className="bg-white p-4 rounded-2xl text-gray-800 space-y-3 shadow-lg relative border-l-4 border-primary">
+                      <div className="border-b border-gray-100 pb-2">
+                        <p className="text-[8px] text-gray-400 uppercase font-black">Complexe Soccer Club</p>
+                        <p className="text-xs font-bold text-primary-dark">{simQuartier} Pitch</p>
                       </div>
-                      <h3 className="text-[#0F2318] font-display font-bold text-sm truncate leading-tight">City Foot Almadies</h3>
-                      <p className="text-gray-500 text-[10px] flex items-center gap-0.5 font-medium">
-                        <IconMapPin size={10} /> À 2.5 km
-                      </p>
+                      
+                      <div className="grid grid-cols-2 gap-2 text-[9px]">
+                        <div>
+                          <p className="text-gray-400 uppercase font-bold text-[8px]">Capitaine</p>
+                          <p className="font-bold truncate text-[#0F2318]">{simName}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-400 uppercase font-bold text-[8px]">Horaire</p>
+                          <p className="font-bold text-[#0F2318]">{simSlot}</p>
+                        </div>
+                      </div>
+
+                      <div className="bg-neutral-100 p-2 rounded-xl flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <p className="text-[7px] text-gray-400 font-bold uppercase tracking-widest">Code de validation</p>
+                          <p className="font-mono text-[8px] font-bold text-primary-dark">DKR-CAPT-{simSlot.replace(':','')}</p>
+                        </div>
+                        <div className="w-8 h-8 bg-neutral-800 rounded flex items-center justify-center text-white text-[9px] font-black shrink-0">QR</div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <button 
+                        onClick={() => {
+                          setView('register');
+                        }}
+                        className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-all text-xs cursor-pointer shadow-glow text-center block animate-pulse"
+                      >
+                        Bloquer ce créneau réel ⚽
+                      </button>
+                      <button 
+                        onClick={() => {
+                          setSimStep(1);
+                          setSimQuartier('Almadies');
+                          setSimSlot('18:00');
+                          setSimName('');
+                        }}
+                        className="w-full text-center text-[9px] text-gray-500 hover:text-white transition-colors cursor-pointer"
+                      >
+                        Recommencer la simulation
+                      </button>
                     </div>
                   </div>
-                  
-                  <div className="w-full bg-primary text-white font-bold py-3.5 rounded-xl shadow-glow group-hover/phone:bg-primary-dark transition-colors flex items-center justify-center gap-1.5 text-xs">
-                    Réserver
-                    <IconChevronRight size={14} />
-                  </div>
-                </div>
+                )}
               </div>
             </div>
           </div>
@@ -509,7 +610,7 @@ export const Landing = ({ setView }) => {
               </div>
               <div>
                 <h3 className="text-xl font-bold text-[#0F2318] mb-2">Paiement Mobile Money</h3>
-                <p className="text-gray-500 text-sm leading-relaxed">Réservez en 2 clics et payez instantanément via <span className="font-bold text-[#1a56db]">Wave</span> ou <span className="font-bold text-[#ff6600]">Orange Money</span>. Fini la collecte de cash.</p>
+                <p className="text-gray-500 text-sm leading-relaxed">Réservez en 2 clics et payez instantanément via <span className="font-bold text-[#1a56db]">Wave (propulsé par Unitech Pay)</span> ou <span className="font-bold text-[#ff6600]">Orange Money</span>. Fini la collecte de cash.</p>
               </div>
             </div>
 
@@ -600,12 +701,12 @@ export const Landing = ({ setView }) => {
                       <div className="text-xs font-bold">Arena Plateau</div>
                       <div className="text-xs text-primary font-bold">15.000 FCFA</div>
                     </div>
-                    <div className="p-3 bg-gray-50 flex gap-2">
-                      <div className="flex-1 bg-white border border-[#1a56db] rounded-lg p-2 flex items-center justify-center gap-1">
-                        <span className="text-[#1a56db] text-[10px] font-bold">Wave</span>
+                    <div className="p-3 bg-gray-50 flex gap-1.5">
+                      <div className="flex-1 bg-white border border-[#1a56db] rounded-lg p-1.5 flex items-center justify-center">
+                        <span className="text-[#1a56db] text-[9px] font-bold">Wave</span>
                       </div>
-                      <div className="flex-1 bg-white border border-gray-200 rounded-lg p-2 flex items-center justify-center">
-                        <span className="text-gray-400 text-[10px] font-bold">Orange Money</span>
+                      <div className="flex-1 bg-white border border-gray-200 rounded-lg p-1.5 flex items-center justify-center">
+                        <span className="text-gray-400 text-[9px] font-bold">OM</span>
                       </div>
                     </div>
                   </div>
@@ -613,7 +714,7 @@ export const Landing = ({ setView }) => {
                 <div className="absolute left-0 md:left-1/2 -translate-x-0 md:-translate-x-1/2 w-12 h-12 rounded-2xl bg-white border-2 border-primary flex items-center justify-center text-primary font-bold shadow-sm z-10 group-hover:bg-primary group-hover:text-white transition-colors">2</div>
                 <div className="pl-16 md:pl-12 pt-2 pb-8 w-full md:w-[45%]">
                   <h3 className="text-xl font-bold text-[#0F2318]">Réserve & Paie</h3>
-                  <p className="text-sm text-gray-500 mt-2">Choisis ton créneau et valide le paiement de manière sécurisée via Wave ou Orange Money.</p>
+                  <p className="text-sm text-gray-500 mt-2">Choisis ton créneau et valide le paiement de manière sécurisée via Wave (grâce à Unitech Pay) ou Orange Money.</p>
                 </div>
               </div>
 
@@ -947,7 +1048,7 @@ export const Landing = ({ setView }) => {
 
           <div>
             <h4 className="text-white font-bold mb-4 font-display">Paiements acceptés</h4>
-            <div className="flex gap-3">
+            <div className="flex flex-wrap gap-3">
               <div className="bg-white px-3 py-1.5 rounded-lg flex items-center justify-center text-[#1a56db] font-bold text-sm tracking-tight">Wave</div>
               <div className="bg-black px-3 py-1.5 rounded-lg flex items-center justify-center border border-white/10 text-[#ff6600] font-bold text-xs tracking-tight">Orange Money</div>
             </div>
@@ -987,7 +1088,7 @@ export const Landing = ({ setView }) => {
               </div>
               <div>
                 <h4 className="font-bold text-[#0F2318] mb-2">3. Paiement et Annulation</h4>
-                <p className="leading-relaxed">Tout paiement effectué via Wave ou Orange Money est définitif. L'annulation d'une réservation dépend des conditions propres fixées par le gérant du terrain concerné.</p>
+                <p className="leading-relaxed">Tout paiement (dont les paiements Wave possibles grâce à Unitech Pay) est définitif. L'annulation d'une réservation dépend des conditions propres fixées par le gérant du terrain concerné.</p>
               </div>
               <div>
                 <h4 className="font-bold text-[#0F2318] mb-2">4. Responsabilité</h4>
@@ -1012,11 +1113,11 @@ export const Landing = ({ setView }) => {
             <div className="p-6 md:p-8 overflow-y-auto space-y-6 text-gray-600 text-sm">
               <div>
                 <h4 className="font-bold text-[#0F2318] mb-2">1. Collecte des données</h4>
-                <p className="leading-relaxed">Dans le cadre de votre utilisation de PlaygroundSpot, nous collectons les données strictement nécessaires à la réservation de votre terrain : nom, prénom, numéro de téléphone et données de transaction.</p>
+                <p className="leading-relaxed">Dans le cadre de votre utilisation de PlaygroundSpot, nous collectons les données strictly nécessaires à la réservation de votre terrain : nom, prénom, numéro de téléphone et données de transaction.</p>
               </div>
               <div>
                 <h4 className="font-bold text-[#0F2318] mb-2">2. Traitement des paiements</h4>
-                <p className="leading-relaxed">Les paiements sont traités par nos partenaires sécurisés (Wave, Orange Money). Nous ne stockons aucune information bancaire ou code secret sur nos serveurs.</p>
+                <p className="leading-relaxed">Les paiements, notamment les règlements par Wave qui sont rendus possibles grâce à notre partenaire Unitech Pay, sont traités de manière sécurisée. Nous ne stockons aucune information bancaire ou code secret sur nos serveurs.</p>
               </div>
               <div>
                 <h4 className="font-bold text-[#0F2318] mb-2">3. Partage d'informations</h4>
@@ -1067,16 +1168,15 @@ export const Landing = ({ setView }) => {
                   </button>
                 </div>
                 
-                {/* Avantages list */}
-                <div className="bg-primary/5 p-6 rounded-2xl border border-primary/10 flex flex-col justify-between shadow-subtle">
+                {/* Configuration Clé en main (Offre Irrésistible Gérant) */}
+                <div className="bg-[#1A7A4A]/10 p-6 rounded-2xl border border-primary/20 flex flex-col justify-between shadow-subtle">
                   <div>
-                    <span className="text-[10px] font-bold text-[#0F2318] bg-[#E8DCC8] px-2.5 py-1 rounded-full uppercase tracking-wider">Avantages</span>
-                    <h4 className="font-bold text-[#0F2318] text-lg mt-3 mb-2">Pourquoi nous rejoindre ?</h4>
-                    <ul className="text-xs text-gray-600 space-y-2 mt-2 font-medium">
-                      <li className="flex items-center gap-2">✨ <span className="font-semibold text-[#0F2318]">Boostez</span> vos réservations</li>
-                      <li className="flex items-center gap-2">💰 <span className="font-semibold text-[#0F2318]">Paiement garanti</span> via Wave/OM</li>
-                      <li className="flex items-center gap-2">📅 <span className="font-semibold text-[#0F2318]">Planning connecté</span> 24h/24</li>
-                    </ul>
+                    <span className="text-[10px] font-bold text-white bg-secondary px-2.5 py-1 rounded-full uppercase tracking-wider">Offre Clé en Main</span>
+                    <h4 className="font-bold text-[#0F2318] text-lg mt-3 mb-2">Zéro Saisie : On fait tout !</h4>
+                    <p className="text-xs text-gray-600 leading-relaxed mb-3 font-medium">
+                      Pas le temps de remplir le formulaire ? Envoyez-nous une simple photo de votre planning papier ou un vocal WhatsApp au +221 77 000 00 00.
+                    </p>
+                    <p className="text-[11px] text-gray-500 font-semibold italic">Notre équipe configure et publie vos terrains sous 2 heures gratuitement.</p>
                   </div>
                 </div>
               </div>
@@ -1138,15 +1238,18 @@ export const Landing = ({ setView }) => {
 
                     <div>
                       <label className="block text-xs font-bold text-gray-700 uppercase mb-1.5">Nombre de terrains de football</label>
-                      <select 
-                        value={gerantTerrains}
-                        onChange={(e) => setGerantTerrains(e.target.value)}
-                        className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all bg-white"
-                      >
-                        <option value="1">1 Terrain</option>
-                        <option value="2">2 Terrains</option>
-                        <option value="3">3 Terrains ou plus</option>
-                      </select>
+                      <div className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus-within:bg-white focus-within:ring-2 focus-within:ring-primary/20 transition-all bg-white min-h-[48px] flex items-center">
+                        <CustomSelect
+                          value={gerantTerrains}
+                          onChange={(val) => setGerantTerrains(val)}
+                          options={[
+                            { label: "1 Terrain", value: "1" },
+                            { label: "2 Terrains", value: "2" },
+                            { label: "3 Terrains ou plus", value: "3" }
+                          ]}
+                          theme="light"
+                        />
+                      </div>
                     </div>
 
                     <button 

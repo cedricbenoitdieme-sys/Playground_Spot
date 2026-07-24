@@ -5,7 +5,7 @@
 html, body {
   margin: 0;
   padding: 0;
-  background-color: #0f4c2a !important; /* app main pitch color */
+  background-color: #0F2318;
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
@@ -15,7 +15,7 @@ html, body {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
-  background-color: #0f4c2a; /* app main pitch color */
+  background-color: #F4F6F4;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   box-sizing: border-box;
@@ -213,4 +213,21 @@ html, body {
 
 /* ── Filter transition ── */
 .gs-fade-key { animation: fadeIn 0.3s ease both; }
+
+/* ── Shimmer Animation for Skeletons ── */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #f3f4f6 25%, #e5e7eb 50%, #f3f4f6 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s infinite linear;
+}
+
 

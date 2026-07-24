@@ -102,7 +102,7 @@ export const handleServiceError = (error, context = 'unknown') => {
   }
 
   // Erreur spécifique au login Supabase — on la laisse passer telle quelle
-  if (message.includes('invalid login') || message.includes('email not confirmed')) {
+  if (message.includes('invalid') || message.includes('credentials') || message.includes('incorrect') || message.includes('email not confirmed')) {
     return new SafeError(error.message, { code: 'AUTH_ERROR', statusCode: 401, details: error.message });
   }
 
@@ -140,6 +140,20 @@ export const withRetry = async (fn, { maxRetries = 3, baseDelay = 1000, context 
   }
   
   throw handleServiceError(lastError, context);
+};
+
+/**
+ * Empêche un appel réseau de bloquer l'UI indéfiniment (ex: spinner de login qui tourne à l'infini).
+ * @param {Promise} promise - La promesse à borner dans le temps
+ * @param {number} ms - Délai maximum en ms avant l'échec forcé
+ */
+export const withTimeout = (promise, ms = 10000) => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new SafeError(GENERIC_MESSAGES.network, { code: 'TIMEOUT', statusCode: 504 })), ms)
+    ),
+  ]);
 };
 
 /**

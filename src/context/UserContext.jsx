@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { getProfile } from '../services/auth';
+import { withRetry } from '../lib/errorHandler';
+import * as amplitude from '@amplitude/unified';
 
 /**
  * ═══════════════════════════════════════════════════════════
@@ -24,6 +26,15 @@ export const UserProvider = ({ children }) => {
   const profileLoadedRef = useRef(false);
   const initDoneRef = useRef(false);
 
+  // Amplitude User Tracking
+  useEffect(() => {
+    if (currentUser) {
+      amplitude.setUserId(currentUser.id);
+    } else {
+      amplitude.setUserId(undefined);
+    }
+  }, [currentUser]);
+
   // ── Helper pour construire l'objet user ──
   const buildUser = (userId, profile) => ({
     id: userId,
@@ -36,12 +47,10 @@ export const UserProvider = ({ children }) => {
     statut: profile.statut,
   });
 
-  // ── Fin du loading (sécurisée contre les double-appels) ──
+  // ── Fin du loading (sécurisée) ──
   const finishLoading = () => {
-    if (!initDoneRef.current) {
-      initDoneRef.current = true;
-      setLoading(false);
-    }
+    initDoneRef.current = true;
+    setLoading(false);
   };
 
   // ── Règle 2.3 — Vérifier le statut du profil ──
@@ -65,6 +74,42 @@ export const UserProvider = ({ children }) => {
 
     const initAuth = async () => {
       try {
+        // ── Récupérer la session existante ──
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+        
+        if (sessionError) {
+          if (import.meta.env.DEV) {
+            console.error('[Auth] Erreur getSession:', sessionError.message);
+          }
+          if (!profileLoadedRef.current) {
+            setCurrentUser(null);
+          }
+          finishLoading();
+          return;
+        }
+
+        // Si aucune session n'existe, pas besoin de valider le JWT
+        if (!session) {
+          if (!profileLoadedRef.current) {
+            setCurrentUser(null);
+          }
+          finishLoading();
+          return;
+        }
+
+        // Enforce "Se souvenir de moi" : si remember est false et que session-active est absent,
+        // on déconnecte l'utilisateur (le navigateur a été fermé).
+        const remember = localStorage.getItem('playgroundspot-remember');
+        const sessionActive = sessionStorage.getItem('playgroundspot-session-active');
+        if (remember === 'false' && sessionActive !== 'true') {
+          try { await supabase.auth.signOut(); } catch (_) {}
+          if (!profileLoadedRef.current) {
+            setCurrentUser(null);
+          }
+          finishLoading();
+          return;
+        }
+
         // ── Règle 2.1 — Utiliser getUser() pour valider le JWT côté serveur ──
         const { data: { user }, error } = await supabase.auth.getUser();
         
@@ -72,60 +117,58 @@ export const UserProvider = ({ children }) => {
           if (import.meta.env.DEV) {
             console.error('[Auth] Erreur getUser:', error.message);
           }
+          if (!profileLoadedRef.current) {
+            setCurrentUser(null);
+            try { await supabase.auth.signOut(); } catch (_) {}
+          }
           finishLoading();
           return;
         }
 
-        if (user) {
-          // ── Logique "Se souvenir de moi" ──
-          const remember = localStorage.getItem('playgroundspot-remember');
-          const sessionActive = sessionStorage.getItem('playgroundspot-session-active');
-          
-          // Si on avait décoché "Se souvenir" (remember === 'false')
-          // Et qu'il n'y a plus de sentinelle de session (le navigateur a été fermé)
-          if (remember === 'false' && !sessionActive) {
-            if (import.meta.env.DEV) console.info('[Auth] Option "Se souvenir" désactivée, auto-logout.');
-            await supabase.auth.signOut();
-            setCurrentUser(null);
-            finishLoading();
-            return;
-          }
-          
-          // Sinon, on remet/maintient la sentinelle pour ce tab
-          sessionStorage.setItem('playgroundspot-session-active', 'true');
-
+        if (user && session) {
           try {
-            const profile = await getProfile(user.id);
+            // Utilisation de withRetry pour résoudre la race condition avec le trigger DB
+            const profile = await withRetry(() => getProfile(user.id), { maxRetries: 2, baseDelay: 500, context: 'initAuth' });
             
             // ── Règle 2.3 — Vérifier que le compte est actif ──
             if (!isProfileActive(profile)) {
               if (import.meta.env.DEV) {
                 console.warn('[Auth] Compte suspendu/inactif, déconnexion');
               }
-              setCurrentUser(null);
-              try { await supabase.auth.signOut(); } catch (_) {}
+              if (!profileLoadedRef.current) {
+                setCurrentUser(null);
+                try { await supabase.auth.signOut(); } catch (_) {}
+              }
               finishLoading();
               return;
             }
             
-            profileLoadedRef.current = true;
-            setCurrentUser(buildUser(user.id, profile));
+            // Si l'utilisateur n'a pas été écrasé par un login plus rapide
+            if (!profileLoadedRef.current) {
+              profileLoadedRef.current = true;
+              setCurrentUser(buildUser(user.id, profile));
+            }
           } catch (profileErr) {
             if (import.meta.env.DEV) {
               console.error('[Auth] Erreur chargement profil:', profileErr.message);
             }
-            setCurrentUser(null);
-            try { await supabase.auth.signOut(); } catch (_) {}
+            if (!profileLoadedRef.current) {
+              setCurrentUser(null);
+              try { await supabase.auth.signOut(); } catch (_) {}
+            }
           }
         } else {
-          // Pas de session = pas connecté
-          setCurrentUser(null);
+          if (!profileLoadedRef.current) {
+            setCurrentUser(null);
+          }
         }
       } catch (err) {
         if (import.meta.env.DEV) {
           console.error('[Auth] Erreur initialisation:', err.message);
         }
-        setCurrentUser(null);
+        if (!profileLoadedRef.current) {
+          setCurrentUser(null);
+        }
       } finally {
         finishLoading();
       }
@@ -136,11 +179,15 @@ export const UserProvider = ({ children }) => {
     // ── Écouter les changements d'état d'auth (login, logout, token refresh) ──
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
+        // Éviter de traiter les événements pendant la phase d'initialisation (gérée par initAuth)
+        if (!initDoneRef.current) return;
+
         if (event === 'SIGNED_IN' && session?.user) {
-          // Si le profil a déjà été chargé (par Login.jsx ou initAuth), on skip
+          // Si le profil a déjà été chargé (par Login.jsx), on skip
           if (profileLoadedRef.current) return;
           try {
-            const profile = await getProfile(session.user.id);
+            // Utilisation de withRetry pour attendre que le trigger DB ait fini
+            const profile = await withRetry(() => getProfile(session.user.id), { maxRetries: 2, baseDelay: 500, context: 'onAuthStateChange' });
             
             // ── Règle 2.3 — Vérifier statut ──
             if (!isProfileActive(profile)) {
@@ -155,6 +202,7 @@ export const UserProvider = ({ children }) => {
             if (import.meta.env.DEV) {
               console.error('[Auth] Erreur profil (onAuthStateChange):', err.message);
             }
+            
             setCurrentUser(null);
             try { await supabase.auth.signOut(); } catch (_) {}
           }
@@ -182,8 +230,10 @@ export const UserProvider = ({ children }) => {
     setCurrentUser(user);
   };
 
+  const [displayPlan, setDisplayPlan] = useState(null);
+
   return (
-    <UserContext.Provider value={{ currentUser, setCurrentUser: handleSetCurrentUser, loading }}>
+    <UserContext.Provider value={{ currentUser, setCurrentUser: handleSetCurrentUser, loading, profileLoadedRef, displayPlan, setDisplayPlan }}>
       {children}
     </UserContext.Provider>
   );

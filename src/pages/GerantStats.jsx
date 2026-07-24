@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown, IconLoader2 } from '@tabler/icons-react';
+import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown, IconLoader2, IconFileTypePdf, IconDownload } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
-import { fetchGerantKpis, fetchRepartitionPaiements } from '../services/stats';
+import { fetchGerantKpis, fetchRepartitionPaiements, fetchRevenusParJour, fetchReservationsParCreneau, fetchTopJoueurs } from '../services/stats';
+import { exportCSV, exportPDFReport } from '../utils/exportReports';
 import { supabase } from '../lib/supabase';
-import { GERANT_KPIS, GERANT_TERRAINS, REVENUS_PAR_JOUR, RESERVATIONS_PAR_CRENEAU, REPARTITION_PAIEMENT, TOP_JOUEURS } from '../data/mockData';
 import './gerantStats.css';
 
 /* ── Animated counter hook ── */
@@ -40,9 +40,9 @@ const maxVal = (arr) => Math.max(...arr);
 const Sheet = ({ open, onClose, title, children }) => {
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 lg:left-64 z-[9999]">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 outline-none focus:outline-none">
+    <div className="fixed inset-0 z-[9999]">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-md transition-opacity" onClick={onClose} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 outline-none focus:outline-none z-10">
         <div className="flex items-start justify-between p-6 border-b border-gray-50 gap-4">
           <h3 className="font-display font-bold text-lg text-primary-dark flex-1 min-w-0 truncate whitespace-normal break-words leading-tight mt-0.5">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-full bg-gray-50 hover:bg-gray-100 transition-colors cursor-pointer text-gray-400 hover:text-primary-dark shrink-0"><IconX size={18} /></button>
@@ -74,6 +74,15 @@ const StatCard = ({ icon: Icon, label, value, sub, accent, onClick }) => (
 const RevenusChart = ({ data, terrainId }) => {
   const [tooltip, setTooltip] = useState(null);
   const W = 560, H = 170, pad = { t: 16, r: 16, b: 36, l: 56 };
+
+  if (data.length < 2) {
+    return (
+      <div className="h-[170px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
+        Pas encore assez de réservations sur cette période pour afficher un graphique.
+      </div>
+    );
+  }
+
   const vals = data.map(d => terrainId === 'all' ? d.all : d.montant);
   const max = Math.max(...vals) * 1.15;
   const toY = (v) => pad.t + (1 - v / max) * (H - pad.t - pad.b);
@@ -119,6 +128,15 @@ const RevenusChart = ({ data, terrainId }) => {
 /* ── Graphique créneaux ── */
 const CreneauChart = ({ data, onBarClick }) => {
   const W = 560, H = 160, pad = { t: 20, r: 16, b: 36, l: 32 };
+
+  if (data.length === 0) {
+    return (
+      <div className="h-[160px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
+        Aucune réservation sur cette période.
+      </div>
+    );
+  }
+
   const mv = maxVal(data.map(d => d.nb));
   const bw = Math.floor((W - pad.l - pad.r) / data.length) - 8;
   const toH = v => (v / mv) * (H - pad.t - pad.b);
@@ -148,6 +166,9 @@ const CreneauChart = ({ data, onBarClick }) => {
 
 /* ── Donut paiements ── */
 const DonutChart = ({ data, onSliceClick }) => {
+  if (data.length === 0) {
+    return <p className="text-sm text-gray-400 text-center py-6">Aucun paiement enregistré sur cette période.</p>;
+  }
   const R = 56, cx = 72, cy = 72, sw = 20;
   const circ = 2 * Math.PI * R;
   let off = 0;
@@ -203,10 +224,14 @@ export const GerantStats = () => {
   const [toast, setToast]           = useState(null);
   const [animKey, setAnimKey]       = useState(0);
 
-  const [kpi, setKpi]               = useState({ revenus: 0, reservations: 0, tauxOccupation: 0, noteMoyenne: 4.8 });
+  const [kpi, setKpi]               = useState({ revenus: 0, reservations: 0, tauxOccupation: 0, noteMoyenne: null, parStatut: null, noteDistribution: null });
   const [terrains, setTerrains]     = useState([{ id: 'all', label: 'Tous les terrains' }]);
-  const [repartPay, setRepartPay]   = useState(REPARTITION_PAIEMENT);
+  const [repartPay, setRepartPay]   = useState([]);
+  const [revenusParJour, setRevenusParJour] = useState([]);
+  const [reservationsParCreneau, setReservationsParCreneau] = useState([]);
+  const [topJoueurs, setTopJoueurs] = useState([]);
   const [loading, setLoading]       = useState(true);
+  const [statsError, setStatsError] = useState(null);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -233,28 +258,29 @@ export const GerantStats = () => {
     loadTerrains();
   }, [currentUser]);
 
-  // Load KPIs and payment methods
+  // Load KPIs, paiements, graphiques et top joueurs — toutes des données réelles
   useEffect(() => {
     if (!currentUser?.id) return;
     const loadStats = async () => {
       try {
         setLoading(true);
+        setStatsError(null);
         const tId = terrain === 'all' ? null : terrain;
-        const liveKpi = await fetchGerantKpis(currentUser.id, tId, periode);
-        setKpi({
-          ...liveKpi,
-          noteMoyenne: liveKpi.noteMoyenne || 4.8
-        });
-
-        const livePay = await fetchRepartitionPaiements(currentUser.id);
-        if (livePay && livePay.length > 0) {
-          setRepartPay(livePay);
-        }
+        const [liveKpi, livePay, liveRevenus, liveCreneaux, liveTop] = await Promise.all([
+          fetchGerantKpis(currentUser.id, tId, periode),
+          fetchRepartitionPaiements(currentUser.id),
+          fetchRevenusParJour(currentUser.id, tId, periode),
+          fetchReservationsParCreneau(currentUser.id, tId, periode),
+          fetchTopJoueurs(currentUser.id, tId, periode),
+        ]);
+        setKpi(liveKpi);
+        setRepartPay(livePay || []);
+        setRevenusParJour(liveRevenus || []);
+        setReservationsParCreneau(liveCreneaux || []);
+        setTopJoueurs(liveTop || []);
       } catch (err) {
         console.error("Error loading statistics:", err);
-        // Safe fallback mock in case RPC / DB is empty during testing
-        const kpiByTerrain = GERANT_KPIS[terrain] || GERANT_KPIS['all'];
-        setKpi(kpiByTerrain[periode] || kpiByTerrain['month']);
+        setStatsError(err.userMessage || err.message || 'Impossible de charger les statistiques.');
       } finally {
         setLoading(false);
       }
@@ -268,20 +294,88 @@ export const GerantStats = () => {
   const changeTerrain = (id) => { setTerrain(id); setDD(false); setAnimKey(k => k + 1); };
   const changePeriode = (key) => { setPeriode(key); setAnimKey(k => k + 1); };
 
+  /* Meilleur jour / pic-creux dérivés des données réelles déjà chargées (pas de requête supplémentaire) */
+  const meilleurJour = revenusParJour.length > 0
+    ? revenusParJour.reduce((best, d) => (d.montant > best.montant ? d : best))
+    : null;
+  const picCreneau = reservationsParCreneau.length > 0
+    ? reservationsParCreneau.reduce((best, d) => (d.nb > best.nb ? d : best))
+    : null;
+  const creuxCreneau = reservationsParCreneau.length > 0
+    ? reservationsParCreneau.reduce((worst, d) => (d.nb < worst.nb ? d : worst))
+    : null;
+
   /* Animated KPI numbers */
   const animRevenus      = useCounter(kpi.revenus);
   const animReservations = useCounter(kpi.reservations);
   const animOccupation   = useCounter(kpi.tauxOccupation);
-  const animNote         = useCounter(Math.round(kpi.noteMoyenne * 10));
+  const animNote         = useCounter(Math.round((kpi.noteMoyenne || 0) * 10));
+
+  const handleExportCSV = () => {
+    const headers = ['Joueur / Client', 'Terrain', 'Montant FCFA', 'Date Slot / Activité', 'Statut'];
+    const rows = (topJoueurs || []).map(j => [
+      j.nom,
+      j.terrain_nom || terrainLabel,
+      (j.montant || 0).toLocaleString('fr-FR'),
+      j.date_slot || 'N/A',
+      j.statut || 'Terminée'
+    ]);
+    exportCSV(`rapport_financier_gerant_${periode}_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+  };
+
+  const handleExportPDF = () => {
+    const periodLabel = PERIODES.find(p => p.key === periode)?.label || periode;
+    exportPDFReport({
+      title: 'Rapport Financier & Statistiques Gérant',
+      subtitle: `Terrain: ${terrainLabel} | Période: ${periodLabel}`,
+      metadata: [
+        { label: 'Revenus Totaux', value: `${kpi.revenus.toLocaleString('fr-FR')} FCFA` },
+        { label: 'Réservations Validées', value: `${kpi.reservations} réservation(s)` },
+        { label: 'Taux d\'Occupation', value: `${kpi.tauxOccupation}%` },
+        { label: 'Note Moyenne Avis', value: `${kpi.noteMoyenne || 4.8}/5 ⭐` }
+      ],
+      headers: ['Nom du Joueur', 'Terrain', 'Montant FCFA', 'Date Slot / Activité', 'Statut'],
+      rows: (topJoueurs || []).map(j => [
+        j.nom,
+        j.terrain_nom || terrainLabel,
+        (j.montant || 0).toLocaleString('fr-FR') + ' FCFA',
+        j.date_slot || 'Mois en cours',
+        j.statut || 'Confirmé'
+      ]),
+      summaryFooter: `Total Revenus Période (${periodLabel}) : ${kpi.revenus.toLocaleString('fr-FR')} FCFA`
+    });
+  };
 
   return (
     <div className="flex-1 overflow-y-auto overflow-x-hidden pb-28 lg:pb-12">
 
-      {/* Header animé */}
-      <div className="px-5 lg:px-8 pt-6 pb-3" style={{ animation: 'slideUp 0.5s cubic-bezier(.22,1,.36,1) both' }}>
-        <h1 className="text-2xl font-display font-bold text-primary-dark tracking-tight">Statistiques</h1>
-        <p className="text-xs text-gray-400 font-medium mt-0.5">Vue analytique gérant</p>
+      {/* Header animé avec boutons d'export */}
+      <div className="px-5 lg:px-8 pt-6 pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-4" style={{ animation: 'slideUp 0.5s cubic-bezier(.22,1,.36,1) both' }}>
+        <div>
+          <h1 className="text-2xl font-display font-bold text-primary-dark tracking-tight">Statistiques & Revenus</h1>
+          <p className="text-xs text-gray-400 font-medium mt-0.5">Vue analytique gérant et bilan financier</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleExportCSV}
+            className="px-3.5 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-subtle cursor-pointer"
+          >
+            <IconDownload size={15} /> Export CSV
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="px-3.5 py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-subtle cursor-pointer"
+          >
+            <IconFileTypePdf size={15} /> Rapport PDF 📄
+          </button>
+        </div>
       </div>
+
+      {statsError && (
+        <div className="mx-5 lg:mx-8 mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-2xl text-sm font-semibold">
+          {statsError}
+        </div>
+      )}
 
       {/* Filtres */}
       <div className="px-5 lg:px-8 mb-5 flex flex-wrap gap-3 items-center">
@@ -317,40 +411,39 @@ export const GerantStats = () => {
         {/* KPIs animés */}
         <div className="grid grid-cols-2 gap-3">
           <div className="gs-card">
-            <StatCard icon={IconTrendingUp} label="Revenus" value={fmtCompact(animRevenus)} sub="+12.5% vs préc." accent="#1A7A4A"
+            <StatCard icon={IconTrendingUp} label="Revenus" value={fmtCompact(animRevenus)} sub={`${revenusParJour.length} jour(s) avec revenus`} accent="#1A7A4A"
               onClick={() => setKpiSheet({ title: 'Détail Revenus', content: [
                 { label: 'Revenus totaux', value: fmt(kpi.revenus) },
-                { label: 'Variation', value: '+12.5%' },
-                { label: 'Meilleur jour', value: 'Vendredi 17/05' },
-                { label: 'Revenu moyen/jour', value: fmt(Math.round(kpi.revenus / 30)) },
+                { label: 'Meilleur jour', value: meilleurJour ? `${meilleurJour.jour} — ${fmt(meilleurJour.montant)}` : 'Aucune donnée' },
+                { label: 'Revenu moyen/jour', value: revenusParJour.length > 0 ? fmt(Math.round(kpi.revenus / revenusParJour.length)) : fmt(0) },
               ]})} />
           </div>
           <div className="gs-card">
-            <StatCard icon={IconCalendarEvent} label="Réservations" value={animReservations} sub="confirmées" accent="#2563EB"
+            <StatCard icon={IconCalendarEvent} label="Réservations" value={animReservations} sub="toutes confondues" accent="#2563EB"
               onClick={() => setKpiSheet({ title: 'Détail Réservations', content: [
                 { label: 'Total', value: kpi.reservations },
-                { label: 'Confirmées', value: Math.round(kpi.reservations * 0.78) },
-                { label: 'Annulées', value: Math.round(kpi.reservations * 0.08) },
-                { label: 'En attente', value: Math.round(kpi.reservations * 0.14) },
+                { label: 'Confirmées', value: kpi.parStatut?.confirmee ?? 0 },
+                { label: 'Terminées', value: kpi.parStatut?.terminee ?? 0 },
+                { label: 'Annulées', value: kpi.parStatut?.annulee ?? 0 },
+                { label: 'En attente', value: kpi.parStatut?.en_attente ?? 0 },
               ]})} />
           </div>
           <div className="gs-card">
             <StatCard icon={IconPercentage} label="Occupation" value={`${animOccupation}%`} sub="taux moyen" accent="#F97316"
               onClick={() => setKpiSheet({ title: "Taux d'occupation", content: [
                 { label: 'Moyen', value: `${kpi.tauxOccupation}%` },
-                { label: 'Pic (18h-22h)', value: '94%' },
-                { label: 'Creux (08h-12h)', value: '42%' },
-                { label: 'Objectif mensuel', value: '85%' },
+                { label: 'Créneau le plus demandé', value: picCreneau ? `${picCreneau.heure} (${picCreneau.nb} résa.)` : 'Aucune donnée' },
+                { label: 'Créneau le moins demandé', value: creuxCreneau ? `${creuxCreneau.heure} (${creuxCreneau.nb} résa.)` : 'Aucune donnée' },
               ]})} />
           </div>
           <div className="gs-card">
-            <StatCard icon={IconStarFilled} label="Note" value={(animNote / 10).toFixed(1) + ' ★'} sub="basée sur les avis" accent="#FBBF24"
-              onClick={() => setKpiSheet({ title: 'Note Moyenne', content: [
+            <StatCard icon={IconStarFilled} label="Note" value={kpi.noteMoyenne ? (animNote / 10).toFixed(1) + ' ★' : '—'} sub="basée sur les avis" accent="#FBBF24"
+              onClick={() => setKpiSheet({ title: 'Note Moyenne', content: kpi.noteMoyenne ? [
                 { label: 'Note globale', value: `${kpi.noteMoyenne}/5` },
-                { label: '5 étoiles', value: '61%' },
-                { label: '4 étoiles', value: '28%' },
-                { label: 'Inférieur à 3', value: '11%' },
-              ]})} />
+                { label: '5 étoiles', value: `${kpi.noteDistribution?.cinq ?? 0}%` },
+                { label: '4 étoiles', value: `${kpi.noteDistribution?.quatre ?? 0}%` },
+                { label: '3 étoiles ou moins', value: `${kpi.noteDistribution?.troisOuMoins ?? 0}%` },
+              ] : [{ label: 'Aucun avis pour le moment', value: '—' }] })} />
           </div>
         </div>
 
@@ -363,7 +456,7 @@ export const GerantStats = () => {
             </div>
             <span className="text-[11px] bg-primary/10 text-primary font-bold px-3 py-1 rounded-full">FCFA</span>
           </div>
-          <RevenusChart data={REVENUS_PAR_JOUR} terrainId={terrain} />
+          <RevenusChart data={revenusParJour} terrainId={terrain} />
         </div>
 
         {/* Créneaux */}
@@ -373,9 +466,11 @@ export const GerantStats = () => {
               <h3 className="font-bold text-primary-dark">Réservations par créneau</h3>
               <p className="text-[11px] text-gray-400 mt-0.5">Cliquez sur une barre pour voir le détail</p>
             </div>
-            <span className="text-[11px] bg-orange-50 text-orange-500 font-bold px-3 py-1 rounded-full">🔥 18h</span>
+            {picCreneau && (
+              <span className="text-[11px] bg-orange-50 text-orange-500 font-bold px-3 py-1 rounded-full">🔥 {picCreneau.heure}</span>
+            )}
           </div>
-          <CreneauChart data={RESERVATIONS_PAR_CRENEAU} onBarClick={(d) => setCreSheet(d)} />
+          <CreneauChart data={reservationsParCreneau} onBarClick={(d) => setCreSheet(d)} />
         </div>
 
         {/* Paiements + Top joueurs */}
@@ -389,8 +484,11 @@ export const GerantStats = () => {
           {/* Top joueurs */}
           <div className="bg-white rounded-2xl border border-black/5 shadow-subtle p-5">
             <h3 className="font-bold text-primary-dark mb-4">Top joueurs fidèles</h3>
+            {topJoueurs.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-6">Aucune réservation sur cette période.</p>
+            )}
             <div className="space-y-2">
-              {TOP_JOUEURS.map((j, i) => (
+              {topJoueurs.map((j, i) => (
                 <button key={j.id} onClick={() => setJouSheet(j)}
                   className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 active:bg-gray-100 transition-colors min-h-[56px] text-left">
                   <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black flex-shrink-0 ${i===0?'bg-yellow-400 text-yellow-900':i===1?'bg-gray-300 text-gray-700':i===2?'bg-orange-300 text-orange-900':'bg-gray-100 text-gray-500'}`}>{i+1}</span>

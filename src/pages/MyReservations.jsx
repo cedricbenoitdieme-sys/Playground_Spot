@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useUser } from '../context/UserContext';
+import { fetchReservations } from '../services/reservations';
 import { 
   IconCalendar, 
   IconMapPin, 
@@ -6,49 +8,56 @@ import {
   IconChevronRight, 
   IconTicket,
   IconDotsVertical,
-  IconCheck
+  IconCheck,
+  IconLoader2
 } from '@tabler/icons-react';
+import { ReservationsSkeleton } from '../components/Skeletons';
+import { TerrainImage } from '../components/TerrainImage';
 
-const MOCK_USER_RESERVATIONS = [
-  {
-    id: 'PS-88234',
-    terrain: 'Five Dakar Almadies',
-    image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=400',
-    date: '20/05/2026',
-    slot: '18:00 - 19:00',
-    amount: '15 000 FCFA',
-    status: 'À venir',
-    statusColor: 'bg-primary/10 text-primary border-primary/20'
-  },
-  {
-    id: 'PS-77123',
-    terrain: 'City Sport Plateau',
-    image: 'https://images.unsplash.com/photo-1529900748604-07564a03e7a6?auto=format&fit=crop&q=80&w=400',
-    date: '12/05/2026',
-    slot: '19:00 - 20:00',
-    amount: '12 500 FCFA',
-    status: 'Passée',
-    statusColor: 'bg-gray-100 text-gray-500 border-gray-200'
-  },
-  {
-    id: 'PS-66456',
-    terrain: 'Parcelles Arena',
-    image: 'https://images.unsplash.com/photo-1551958219-acbc608c6377?auto=format&fit=crop&q=80&w=400',
-    date: '05/05/2026',
-    slot: '20:00 - 21:00',
-    amount: '10 000 FCFA',
-    status: 'Annulée',
-    statusColor: 'bg-red-50 text-red-500 border-red-100'
+const getStatusColor = (status) => {
+  switch (status) {
+    case 'Confirmée':
+    case 'confirmee':
+    case 'À venir': return 'bg-primary/10 text-primary border-primary/20';
+    case 'Passée':
+    case 'Terminée':
+    case 'terminee': return 'bg-gray-100 text-gray-500 border-gray-200';
+    case 'Annulée':
+    case 'annulee': return 'bg-red-50 text-red-500 border-red-100';
+    default: return 'bg-yellow-50 text-yellow-600 border-yellow-200';
   }
-];
+};
 
 export const MyReservations = ({ onSelect }) => {
+  const { currentUser } = useUser();
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('À venir');
 
-  const filtered = MOCK_USER_RESERVATIONS.filter(res => {
-    if (activeTab === 'À venir') return res.status === 'À venir';
-    if (activeTab === 'Passées') return res.status === 'Passée';
-    if (activeTab === 'Annulées') return res.status === 'Annulée';
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const params = {};
+        if (currentUser && currentUser.role === 'joueur') {
+          params.joueurId = currentUser.id;
+        }
+        const data = await fetchReservations(params);
+        setReservations(data);
+      } catch (err) {
+        console.error('Erreur chargement reservations:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [currentUser]);
+
+  const filtered = reservations.filter(res => {
+    const s = res.status;
+    if (activeTab === 'À venir') return s === 'Confirmée' || s === 'En attente' || s === 'À venir';
+    if (activeTab === 'Passées') return s === 'Terminée' || s === 'Passée';
+    if (activeTab === 'Annulées') return s === 'Annulée';
     return true;
   });
 
@@ -57,11 +66,11 @@ export const MyReservations = ({ onSelect }) => {
     // If Cancelled, it's a special red state.
     if (status === 'Annulée') {
       return (
-        <div className="flex items-center gap-2 mt-4 opacity-70">
-           <div className="flex-1 h-1 bg-red-200 rounded-full"></div>
-           <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Réservation Annulée</span>
-           <div className="flex-1 h-1 bg-red-200 rounded-full"></div>
-        </div>
+         <div className="flex items-center gap-2 mt-4 opacity-70">
+            <div className="flex-1 h-1 bg-red-200 rounded-full"></div>
+            <span className="text-[10px] font-bold text-red-500 uppercase tracking-widest">Réservation Annulée</span>
+            <div className="flex-1 h-1 bg-red-200 rounded-full"></div>
+         </div>
       );
     }
 
@@ -94,6 +103,11 @@ export const MyReservations = ({ onSelect }) => {
       </div>
     );
   };
+
+  if (loading) {
+    return <ReservationsSkeleton />;
+  }
+
 
   return (
     <div className="flex-1 space-y-6 pb-12 overflow-y-auto px-6 lg:px-8 py-6">
@@ -130,25 +144,25 @@ export const MyReservations = ({ onSelect }) => {
             >
               <div className="flex gap-4 p-5">
                 <div className="w-24 h-24 rounded-2xl overflow-hidden flex-shrink-0 relative">
-                  <img src={res.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={res.terrain} />
+                  <TerrainImage terrainId={res.terrain_id} fallbackUrl={res.terrain_image || res.image || res.image_url} alt={res.terrain} iconSize={20} className="w-full h-full group-hover:scale-110 transition-transform duration-500" />
                   <div className="absolute inset-0 bg-primary-dark/10 group-hover:bg-transparent transition-colors"></div>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex justify-between items-start mb-1">
-                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${res.statusColor}`}>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getStatusColor(res.status)}`}>
                       {res.status}
                     </span>
-                    <p className="text-[10px] font-bold text-gray-300">#{res.id}</p>
+                    <p className="text-[10px] font-bold text-gray-300">#{res.id.slice(0, 8)}</p>
                   </div>
                   <h3 className="font-bold text-primary-dark truncate mb-2 text-lg">{res.terrain}</h3>
                   <div className="space-y-1">
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
                       <IconCalendar size={14} className="text-primary" />
-                      {res.date}
+                      {res.date_slot ? new Date(res.date_slot).toLocaleDateString('fr-FR') : res.date}
                     </div>
                     <div className="flex items-center gap-1.5 text-xs text-gray-500 font-medium">
                       <IconClock size={14} className="text-primary" />
-                      {res.slot}
+                      {res.heure_slot ? res.heure_slot.slice(0, 5) : res.slot}
                     </div>
                   </div>
                 </div>

@@ -36,7 +36,7 @@ DO $$ BEGIN
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
-  CREATE TYPE mode_paiement AS ENUM ('wave', 'orange_money', 'sur_place', 'carte');
+  CREATE TYPE mode_paiement AS ENUM ('wave', 'orange_money', 'sur_place', 'carte', 'pay_unitech');
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 DO $$ BEGIN
@@ -139,7 +139,7 @@ CREATE TABLE IF NOT EXISTS public.reservations (
   montant       INTEGER NOT NULL CHECK (montant > 0),
   statut        statut_reservation NOT NULL DEFAULT 'en_attente',
   motif_annulation TEXT,
-  qr_token      TEXT UNIQUE NOT NULL,
+  qr_token      UUID UNIQUE NOT NULL DEFAULT gen_random_uuid(),
   scan_at       TIMESTAMPTZ DEFAULT NULL,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -272,14 +272,24 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, nom, email, role)
+  INSERT INTO public.profiles (id, nom, email, role, quartier, tel)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'nom', split_part(NEW.email, '@', 1)),
     NEW.email,
-    COALESCE((NEW.raw_user_meta_data->>'role')::role_utilisateur, 'joueur')
+    CASE COALESCE(NEW.raw_user_meta_data->>'role', '')
+      WHEN 'admin' THEN 'admin'::public.role_utilisateur
+      WHEN 'gerant' THEN 'gerant'::public.role_utilisateur
+      ELSE 'joueur'::public.role_utilisateur
+    END,
+    NEW.raw_user_meta_data->>'quartier',
+    NEW.raw_user_meta_data->>'tel'
   )
-  ON CONFLICT (id) DO NOTHING;
+  ON CONFLICT (id) DO UPDATE SET
+    nom = EXCLUDED.nom,
+    role = EXCLUDED.role,
+    quartier = EXCLUDED.quartier,
+    tel = EXCLUDED.tel;
   RETURN NEW;
 END;
 -- SECURITY DEFINER justifié : cette fonction doit insérer dans public.profiles
@@ -327,6 +337,20 @@ DO $$ BEGIN
           AND statut = (SELECT statut FROM public.profiles WHERE id = auth.uid())
         )
       END
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "profiles_insert_admin" ON public.profiles FOR INSERT
+    WITH CHECK (
+      public.get_my_role() = 'admin'
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "profiles_insert_self" ON public.profiles FOR INSERT
+    WITH CHECK (
+      auth.uid() = id AND role = 'joueur'
     );
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
@@ -701,11 +725,11 @@ BEGIN
     v_resource_id := COALESCE(NEW.id, OLD.id);
     IF TG_OP = 'INSERT' THEN
       v_action := 'create_terrain';
-      v_new_state := jsonb_build_object('nom', NEW.nom, 'adresse', NEW.adresse, 'tarif_horaire', NEW.tarif_horaire);
+      v_new_state := jsonb_build_object('nom', NEW.nom, 'adresse', NEW.adresse, 'tarif_horaire', NEW.price);
     ELSIF TG_OP = 'UPDATE' THEN
       v_action := 'update_terrain';
-      v_old_state := jsonb_build_object('nom', OLD.nom, 'tarif_horaire', OLD.tarif_horaire);
-      v_new_state := jsonb_build_object('nom', NEW.nom, 'tarif_horaire', NEW.tarif_horaire);
+      v_old_state := jsonb_build_object('nom', OLD.nom, 'tarif_horaire', OLD.price);
+      v_new_state := jsonb_build_object('nom', NEW.nom, 'tarif_horaire', NEW.price);
     END IF;
   ELSIF TG_TABLE_NAME = 'paiements' THEN
     v_resource_type := 'paiement';
@@ -747,6 +771,105 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 DO $$ BEGIN
   CREATE TRIGGER trg_audit_paiements AFTER UPDATE ON public.paiements FOR EACH ROW EXECUTE FUNCTION public.process_audit_log();
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================
+-- TABLE : tickets
+-- ============================================================
+CREATE TABLE IF NOT EXISTS public.tickets (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  booking_id  UUID REFERENCES public.reservations(id) ON DELETE CASCADE,
+  token       UUID UNIQUE DEFAULT gen_random_uuid(),
+  status      TEXT DEFAULT 'valid' CHECK (status IN ('valid', 'used', 'expired')),
+  used_at     TIMESTAMPTZ,
+  used_by     UUID REFERENCES public.profiles(id),
+  created_at  TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Activation RLS
+ALTER TABLE public.tickets ENABLE ROW LEVEL SECURITY;
+
+-- Policies RLS
+DO $$ BEGIN
+  CREATE POLICY "joueur_own_tickets" ON public.tickets
+    FOR SELECT USING (
+      booking_id IN (
+        SELECT id FROM public.reservations WHERE joueur_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "gerant_tickets" ON public.tickets
+    FOR SELECT USING (
+      booking_id IN (
+        SELECT r.id FROM public.reservations r
+        JOIN public.terrains t ON r.terrain_id = t.id
+        WHERE t.gerant_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "admin_all_tickets" ON public.tickets
+    FOR ALL USING (
+      EXISTS (
+        SELECT 1 FROM public.profiles
+        WHERE id = auth.uid() and role = 'admin'
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY "joueur_insert_tickets" ON public.tickets
+    FOR INSERT WITH CHECK (
+      booking_id IN (
+        SELECT id FROM public.reservations WHERE joueur_id = auth.uid()
+      )
+    );
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+-- ============================================================
+-- FONCTION : Validation d'un ticket (Dakar QR Code scan)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.validate_ticket(p_token UUID)
+RETURNS JSON
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_ticket public.tickets%ROWTYPE;
+BEGIN
+  -- Vérification d'autorisation
+  IF public.get_my_role() NOT IN ('admin', 'gerant') THEN
+    RETURN json_build_object('success', false, 'message', 'Non autorisé');
+  END IF;
+
+  SELECT * INTO v_ticket
+  FROM public.tickets
+  WHERE token = p_token
+  FOR UPDATE;
+
+  IF NOT FOUND THEN
+    RETURN json_build_object('success', false, 'message', 'Ticket introuvable');
+  END IF;
+
+  IF v_ticket.status = 'used' THEN
+    RETURN json_build_object('success', false, 'message', 'Ticket déjà utilisé', 'used_at', v_ticket.used_at);
+  END IF;
+
+  IF v_ticket.status = 'expired' THEN
+    RETURN json_build_object('success', false, 'message', 'Ticket expiré');
+  END IF;
+
+  UPDATE public.tickets
+  SET status = 'used', used_at = NOW(), used_by = auth.uid()
+  WHERE token = p_token;
+
+  RETURN json_build_object('success', true, 'message', 'Ticket validé', 'booking_id', v_ticket.booking_id);
+END;
+$$;
+
+
 
 
 

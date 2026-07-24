@@ -1,24 +1,37 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { IconBell, IconSearch, IconX, IconCheck, IconHome } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
+import { PlanBadge } from './PlanBadge';
 
-export const Header = ({ title: passedTitle, showSearch = false, setView }) => {
-  const { currentUser } = useUser();
+export const Header = ({ title: passedTitle, showSearch = false, setView, displayPlan: passedDisplayPlan }) => {
+  const { currentUser, displayPlan: contextDisplayPlan } = useUser();
+  const displayPlan = passedDisplayPlan !== undefined ? passedDisplayPlan : contextDisplayPlan;
   const [search, setSearch] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: "Nouvelle réservation confirmée", time: "Il y a 5 min", read: false },
-    { id: 2, text: "Moussa a annulé sa réservation", time: "Il y a 1 heure", read: false },
-    { id: 3, text: "Revenus hebdomadaires mis à jour", time: "Hier", read: false }
-  ]);
+  const [notifications, setNotifications] = useState([]);
   const [toast, setToast] = useState(null);
 
   const notifRef = useRef(null);
 
-  const today = new Date().toLocaleDateString('fr-FR', { 
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const today = currentTime.toLocaleDateString('fr-FR', { 
     day: '2-digit', 
     month: '2-digit', 
     year: 'numeric' 
+  });
+
+  const timeString = currentTime.toLocaleTimeString('fr-FR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit'
   });
 
   // Fermer le dropdown si on clique en dehors
@@ -31,6 +44,33 @@ export const Header = ({ title: passedTitle, showSearch = false, setView }) => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Ajouter le rapport hebdomadaire aux notifications pour les gérants / admins
+  useEffect(() => {
+    if (currentUser?.role === 'admin' || currentUser?.role === 'gerant') {
+      const lastMonday = new Date();
+      const day = lastMonday.getDay();
+      const diff = lastMonday.getDate() - day + (day === 0 ? -6 : 1);
+      lastMonday.setDate(diff);
+      const lastMondayStr = lastMonday.toLocaleDateString('fr-FR');
+
+      // Éviter de dupliquer la notification
+      setNotifications(prev => {
+        if (prev.some(n => n.id === 'weekly-report-notif')) return prev;
+        return [
+          {
+            id: 'weekly-report-notif',
+            text: `Le rapport hebdomadaire (${lastMondayStr}) est disponible.`,
+            time: "Rapport PDF",
+            read: false,
+            isReport: true,
+            downloadUrl: `${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000')}/api/reports/weekly`
+          },
+          ...prev
+        ];
+      });
+    }
+  }, [currentUser]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -52,7 +92,7 @@ export const Header = ({ title: passedTitle, showSearch = false, setView }) => {
 
   const handleProfileClick = () => {
     if (!setView) return;
-    if (currentUser.role === 'admin') setView('parametres');
+    if (['admin', 'super_admin'].includes(currentUser.role)) setView('parametres');
     else if (currentUser.role === 'gerant') setView('gerant-parametres');
     else setView('joueur-profile');
   };
@@ -60,15 +100,16 @@ export const Header = ({ title: passedTitle, showSearch = false, setView }) => {
   const getHeaderInfo = () => {
     switch (currentUser.role) {
       case 'admin':
+      case 'super_admin':
         return {
-          title: passedTitle || "Tableau de bord Admin",
+          title: passedTitle || "Tableau de bord Super Admin",
           sub: "Aujourd'hui, " + today,
-          badge: "ADMIN PLATFORM"
+          badge: "SUPER ADMIN"
         };
       case 'gerant':
         return {
-          title: `Bonjour ${currentUser.nom.split(' ')[0]} 👋`,
-          sub: currentUser.terrain,
+          title: passedTitle || `Bonjour ${currentUser.nom.split(' ')[0]} 👋`,
+          sub: currentUser.quartier ? `Quartier ${currentUser.quartier}` : '',
           badge: "GÉRANT TERRAIN"
         };
       case 'joueur':
@@ -86,13 +127,25 @@ export const Header = ({ title: passedTitle, showSearch = false, setView }) => {
   return (
     <header className="relative flex-shrink-0 flex items-center justify-between px-6 py-6 lg:px-8 z-50 bg-transparent border-none">
       <div>
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
           <h1 className="text-2xl lg:text-3xl text-primary-dark tracking-tight font-display font-bold">{headerInfo.title}</h1>
           <span className="text-[9px] font-black tracking-widest text-primary bg-primary/5 border border-primary/20 px-2.5 py-0.5 rounded-full uppercase">
             {headerInfo.badge}
           </span>
+          <PlanBadge displayPlan={displayPlan} />
         </div>
-        <p className="text-sm text-gray-500 font-medium mt-1">{headerInfo.sub}</p>
+        <div className="flex items-center flex-wrap gap-2 text-sm text-gray-500 font-medium mt-1">
+          <span>{headerInfo.sub}</span>
+          {['admin', 'super_admin'].includes(currentUser.role) && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/5 text-primary text-xs font-mono font-bold border border-primary/10 tabular-nums shadow-sm select-none">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+              </span>
+              <span>{timeString}</span>
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="flex items-center gap-4">
@@ -147,9 +200,20 @@ export const Header = ({ title: passedTitle, showSearch = false, setView }) => {
                   notifications.map((n) => (
                     <div key={n.id} className={`p-4 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors flex items-start gap-3 ${!n.read ? 'bg-primary/5' : ''}`}>
                       <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-secondary' : 'bg-transparent'}`}></div>
-                      <div>
+                      <div className="flex-1 min-w-0">
                         <p className={`text-sm ${!n.read ? 'font-bold text-primary-dark' : 'text-gray-600'}`}>{n.text}</p>
                         <p className="text-xs text-gray-400 mt-1">{n.time}</p>
+                        {n.isReport && (
+                          <a 
+                            href={n.downloadUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            download
+                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-bold rounded-lg mt-2.5 hover:bg-primary hover:text-white transition-all duration-300"
+                          >
+                            Télécharger le PDF 📥
+                          </a>
+                        )}
                       </div>
                     </div>
                   ))

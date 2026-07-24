@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { validateAmount } from '../lib/validators';
 import { 
@@ -18,7 +19,33 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
 import { PaymentModal } from './PaymentModal';
-import { createReservation } from '../services/reservations';
+import { CustomAlertModal } from './CustomAlertModal';
+import { createReservation, createPaiement } from '../services/reservations';
+import waveLogo from '../assets/wave.png';
+import orangeMoneyLogo from '../assets/orange_money.png';
+import * as amplitude from '@amplitude/unified';
+
+const IconCaptainArmband = ({ size = 24, className = "" }) => (
+  <svg 
+    width={size} 
+    height={size} 
+    viewBox="0 0 24 24" 
+    fill="none" 
+    xmlns="http://www.w3.org/2000/svg" 
+    className={className}
+  >
+    <rect x="3" y="6" width="18" height="12" rx="2" fill="currentColor" />
+    <line x1="3" y1="9" x2="21" y2="9" stroke="#E8DCC8" strokeWidth="1.5" />
+    <line x1="3" y1="15" x2="21" y2="15" stroke="#E8DCC8" strokeWidth="1.5" />
+    <path 
+      d="M14 10.5C13.5 10 12.8 9.7 12 9.7C10.5 9.7 9.5 10.7 9.5 12C9.5 13.3 10.5 14.3 12 14.3C12.8 14.3 13.5 14 14 13.5" 
+      stroke="white" 
+      strokeWidth="2" 
+      strokeLinecap="round" 
+      strokeLinejoin="round" 
+    />
+  </svg>
+);
 
 const DetailItem = ({ label, value }) => (
   <div>
@@ -27,15 +54,15 @@ const DetailItem = ({ label, value }) => (
   </div>
 );
 
-const PaymentCard = ({ name, selected, onClick, color }) => (
+const PaymentCard = ({ name, selected, onClick, icon }) => (
   <button 
     onClick={onClick}
     className={`relative p-6 rounded-card border-2 transition-all text-center group h-32 flex flex-col items-center justify-center gap-3 ${
       selected ? 'border-primary bg-primary/5 shadow-md scale-105' : 'border-gray-100 bg-white hover:border-primary/20'
     }`}
   >
-    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-xl`} style={{ backgroundColor: color }}>
-      {name[0]}
+    <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden">
+      {icon}
     </div>
     <span className={`font-bold transition-colors ${selected ? 'text-primary' : 'text-gray-500 group-hover:text-primary-dark'}`}>
       {name}
@@ -59,10 +86,29 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [validationError, setValidationError] = useState(null);
+  const [bookedSlots, setBookedSlots] = useState([]);
+  const qrCanvasRef = useRef(null);
 
   // The real token will be set after successful backend creation
   const [verifyToken, setVerifyToken] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [toast, setToast] = useState(null);
+  const [wantedSlots, setWantedSlots] = useState([]);
+  const wantedSlotsRef = useRef([]);
+  const [alertConfig, setAlertConfig] = useState(null);
+
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  };
+
+  useEffect(() => {
+    wantedSlotsRef.current = wantedSlots;
+  }, [wantedSlots]);
 
   const totalPrice = (terrain?.price || 0) * duration;
   const resNumber = verifyToken || '...'; // Using the token as resNumber for consistency
@@ -83,6 +129,83 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
     );
   }
 
+  // ── Règle Anti-Double Réservation : Récupération des créneaux occupés ──
+  useEffect(() => {
+    const fetchBookedSlots = async () => {
+      if (!terrain?.id) return;
+      const today = new Date().toISOString().split('T')[0];
+      try {
+        const { data, error } = await supabase
+          .from('reservations')
+          .select('heure_slot')
+          .eq('terrain_id', terrain.id)
+          .eq('date_slot', today)
+          .in('statut', ['en_attente', 'confirmee', 'terminee']);
+          
+        if (data && !error) {
+          // On extrait l'heure au format 'HH:mm'
+          const booked = data.map(r => r.heure_slot.slice(0, 5));
+          setBookedSlots(booked);
+        }
+      } catch (err) {
+        console.error('Erreur récupération slots occupés:', err);
+      }
+    };
+
+    fetchBookedSlots();
+
+    // ── Temps Réel : Notification de libération de créneau ──
+    if (!terrain?.id) return;
+    const today = new Date().toISOString().split('T')[0];
+
+    const channel = supabase
+      .channel(`reservations_flow_${terrain.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'reservations',
+          filter: `terrain_id=eq.${terrain.id}`
+        },
+        (payload) => {
+          const isToday = payload.new?.date_slot === today || payload.old?.date_slot === today;
+          if (!isToday) return;
+
+          const oldStatus = payload.old?.statut;
+          const newStatus = payload.new?.statut;
+          const timeSlot = (payload.new?.heure_slot || payload.old?.heure_slot)?.slice(0, 5);
+
+          if (!timeSlot) return;
+
+          const isNowFree = newStatus === 'annulee' || payload.eventType === 'DELETE';
+
+          if (isNowFree) {
+            setBookedSlots(prev => prev.filter(t => t !== timeSlot));
+
+            if (wantedSlotsRef.current.includes(timeSlot)) {
+              showToast(`🎉 Le créneau de ${timeSlot} que vous vouliez s'est libéré !`);
+              setWantedSlots(prev => prev.filter(t => t !== timeSlot));
+            } else {
+              showToast(`💡 Le créneau de ${timeSlot} vient de se libérer !`);
+            }
+          } else if (['en_attente', 'confirmee', 'terminee'].includes(newStatus)) {
+            setBookedSlots(prev => {
+              if (!prev.includes(timeSlot)) {
+                return [...prev, timeSlot];
+              }
+              return prev;
+            });
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [terrain]);
+
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
 
@@ -96,20 +219,80 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
       const date_slot = new Date().toISOString().split('T')[0];
       
       const result = await createReservation({
-        terrain_id: terrain?.id || 'd3b2a1a1-1234-5678-9abc-def012345678', // mock fallback si pas d'ID
+        terrain_id: terrain?.id,
         terrain_nom: terrain?.name || 'Terrain',
-        joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || 'Joueur',
+        joueur_id: currentUser?.id,
+        joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || currentUser?.nom || 'Joueur',
         date_slot,
         heure_slot: selectedSlot + ':00',
         montant: totalPrice,
         duree_heures: duration
       });
       
+      const paymentModeMap = {
+        'Wave': 'wave',
+        'Orange Money': 'orange_money',
+        'Pay Unitech': 'pay_unitech',
+        'Sur place': 'sur_place'
+      };
+
+      const paymentResult = await createPaiement({
+        reservation_id: result.id,
+        montant: totalPrice,
+        mode: paymentModeMap[paymentMethod] || 'sur_place',
+        numero_tel: confirmedPhone || null
+      });
+
+      // Amplitude Event: Reservation Created
+      amplitude.track('Réservation Effectuée', {
+        terrain: terrain?.name,
+        montant: totalPrice,
+        duree: duration,
+        moyenPaiement: paymentMethod
+      });
+
+      // Paiement mobile réel (Wave / Orange Money) — uniquement si le paiement en BDD est valide
+      const isMobilePayment = paymentMethod === 'Wave' || paymentMethod === 'Orange Money';
+      const isMockPayment = String(paymentResult.id).startsWith('mock-');
+
+      if (isMobilePayment && !isMockPayment) {
+        try {
+          const initRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/payments/initiate`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              paiement_id: paymentResult.id,
+              customer: {
+                name: currentUser?.user_metadata?.nom || currentUser?.nom || 'Joueur',
+                phone: confirmedPhone,
+                email: currentUser?.email || ''
+              }
+            })
+          });
+          if (initRes.ok) {
+            const initData = await initRes.json();
+            if (initData.payment_url) {
+              window.location.href = initData.payment_url;
+              return;
+            } else {
+              throw new Error("L'API de paiement n'a pas renvoyé de lien.");
+            }
+          } else {
+            const errData = await initRes.json().catch(() => ({}));
+            throw new Error(errData.error || "Impossible d'initier la transaction.");
+          }
+        } catch (e) {
+          console.error('Erreur initiation paiement:', e);
+          showAlert("Erreur de paiement", e.message, "error");
+          return;
+        }
+      }
+      
       setVerifyToken(result.qr_token || result.id);
       nextStep();
     } catch (error) {
       console.error(error);
-      alert("Erreur lors de la réservation : " + error.message);
+      showAlert("Erreur de réservation", error.message, "error");
     } finally {
       setIsSubmitting(false);
     }
@@ -145,26 +328,81 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
     } else {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      canvas.width = 600;
-      canvas.height = 400;
-      ctx.fillStyle = '#F8F7F2';
-      ctx.fillRect(0, 0, 600, 400);
-      ctx.fillStyle = '#1A7A4A';
-      ctx.font = 'bold 30px Inter';
-      ctx.fillText('PLAYGROUNDSPOT', 50, 60);
-      ctx.fillStyle = '#0F2318';
-      ctx.font = '20px Inter';
-      ctx.fillText(`Terrain: ${terrain?.name}`, 50, 120);
-      ctx.fillText(`Lieu: ${terrain?.quartier}`, 50, 160);
-      ctx.fillText(`Date: 15 Mai 2026`, 50, 200);
-      ctx.fillText(`Heure: ${selectedSlot}`, 50, 240);
-      ctx.font = 'bold 35px Inter';
-      ctx.fillText(`CODE: ${resNumber}`, 50, 320);
+      canvas.width = 400;
+      canvas.height = 700;
       
-      const qrCanvas = document.getElementById('qr-code-canvas');
+      // Fond Sable
+      ctx.fillStyle = '#E8DCC8';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Carte blanche
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.roundRect(20, 20, 360, 660, 24);
+      ctx.fill();
+
+      // Header vert
+      ctx.fillStyle = '#1A7A4A';
+      ctx.beginPath();
+      ctx.roundRect(20, 20, 360, 100, [24, 24, 0, 0]);
+      ctx.fill();
+
+      ctx.fillStyle = '#ffffff';
+      ctx.font = '900 24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('PLAYGROUNDSPOT', 200, 75);
+
+      // QR Code
+      const qrCanvas = document.getElementById(`qr-canvas-${verifyToken}`) || qrCanvasRef.current;
       if (qrCanvas) {
-        ctx.drawImage(qrCanvas, 380, 100, 160, 160);
+        ctx.drawImage(qrCanvas, 100, 150, 200, 200);
       }
+
+      // Ligne de séparation pointillée
+      ctx.strokeStyle = '#E8DCC8';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.setLineDash([8, 8]);
+      ctx.moveTo(40, 400);
+      ctx.lineTo(360, 400);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // Section Infos
+      ctx.textAlign = 'left';
+      ctx.fillStyle = '#0F2318';
+      ctx.font = '800 18px sans-serif';
+      ctx.fillText('DÉTAILS DU MATCH', 40, 450);
+
+      // Lignes de détails
+      const drawRow = (label, value, y) => {
+        ctx.textAlign = 'left';
+        ctx.fillStyle = '#888888';
+        ctx.font = '600 15px sans-serif';
+        ctx.fillText(label, 40, y);
+
+        ctx.textAlign = 'right';
+        ctx.fillStyle = '#0F2318';
+        ctx.font = '800 15px sans-serif';
+        ctx.fillText(value, 360, y);
+      };
+
+      drawRow('Terrain', terrain?.name || 'Inconnu', 490);
+      drawRow('Lieu', terrain?.quartier || 'Dakar', 530);
+      // Pour l'instant, c'est la date de démo dans ce composant
+      drawRow('Date', '15 Mai 2026', 570);
+      drawRow('Heure', selectedSlot || '--:--', 610);
+
+      // Footer avec le code
+      ctx.fillStyle = '#F4F4F4';
+      ctx.beginPath();
+      ctx.roundRect(20, 620, 360, 60, [0, 0, 24, 24]);
+      ctx.fill();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#1A7A4A';
+      ctx.font = '800 16px monospace';
+      ctx.fillText(resNumber, 200, 655);
       
       const link = document.createElement('a');
       link.href = canvas.toDataURL('image/png');
@@ -224,11 +462,35 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               <div className="bg-white p-6 rounded-card shadow-subtle border border-black/5">
                 <h3 className="text-sm font-bold text-primary-dark uppercase tracking-wider mb-4">Créneaux</h3>
                 <div className="grid grid-cols-3 gap-2">
-                  {['08:00', '10:00', '12:00', '16:00', '18:00', '20:00', '21:00', '22:00', '23:00'].map(t => (
-                    <button key={t} onClick={() => setSelectedSlot(t)} className={`py-3 rounded-xl font-bold text-xs border-2 transition-all ${selectedSlot === t ? 'bg-secondary border-secondary text-white shadow-lg' : 'bg-white border-gray-100 text-gray-700'}`}>
-                      {t}
-                    </button>
-                  ))}
+                  {['08:00', '10:00', '12:00', '16:00', '18:00', '20:00', '21:00', '22:00', '23:00'].map(t => {
+                    const isBooked = bookedSlots.includes(t);
+                    return (
+                      <button 
+                        key={t} 
+                        onClick={() => {
+                          if (isBooked) {
+                            if (!wantedSlots.includes(t)) {
+                              setWantedSlots(prev => [...prev, t]);
+                              showToast(`🔔 Vous serez notifié si le créneau de ${t} se libère !`);
+                            } else {
+                              showToast(`🔔 Déjà abonné aux alertes pour le créneau de ${t}.`);
+                            }
+                          } else {
+                            setSelectedSlot(t);
+                          }
+                        }}
+                        className={`py-3 rounded-xl font-bold text-xs border-2 transition-all ${
+                          isBooked 
+                            ? 'bg-gray-100 border-gray-100 text-gray-400 opacity-50 cursor-pointer line-through' 
+                            : selectedSlot === t 
+                              ? 'bg-secondary border-secondary text-white shadow-lg' 
+                              : 'bg-white border-gray-100 text-gray-700 hover:border-secondary/30'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             </div>
@@ -265,16 +527,25 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
         {step === 3 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <h2 className="text-2xl font-bold text-primary-dark text-center mb-8">Paiement</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <PaymentCard name="Wave" selected={paymentMethod === 'Wave'} onClick={() => setPaymentMethod('Wave')} color="#1DB954" />
-              <PaymentCard name="Orange Money" selected={paymentMethod === 'Orange Money'} onClick={() => setPaymentMethod('Orange Money')} color="#FF6600" />
-              <PaymentCard name="Sur place" selected={paymentMethod === 'Sur place'} onClick={() => setPaymentMethod('Sur place')} color="#1A7A4A" />
+            <div className="grid grid-cols-2 gap-6 max-w-md mx-auto">
+              <PaymentCard 
+                name="Wave" 
+                selected={paymentMethod === 'Wave'} 
+                onClick={() => setPaymentMethod('Wave')} 
+                icon={<img src={waveLogo} alt="Wave Logo" className="w-full h-full object-cover" />} 
+              />
+              <PaymentCard 
+                name="Orange Money" 
+                selected={paymentMethod === 'Orange Money'} 
+                onClick={() => setPaymentMethod('Orange Money')} 
+                icon={<img src={orangeMoneyLogo} alt="Orange Money Logo" className="w-full h-full object-cover" />} 
+              />
             </div>
             <div className="flex flex-col items-center gap-4 pt-10">
               {!amountCheck.valid && (
                 <p className="text-red-500 text-xs font-bold text-center mb-2">{amountCheck.error}</p>
               )}
-              <button disabled={!paymentMethod || isSubmitting} onClick={() => { if (paymentMethod === 'Sur place') handlePaymentConfirm(); else setIsPaymentModalOpen(true); }} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">
+              <button disabled={!paymentMethod || isSubmitting} onClick={() => setIsPaymentModalOpen(true)} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">
                 {isSubmitting ? 'Traitement...' : 'Confirmer le paiement'}
               </button>
               <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
@@ -285,14 +556,25 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
         {step === 4 && (
           <div className="bg-white p-8 rounded-card shadow-subtle border border-black/5 text-center animate-in zoom-in duration-500">
-            <IconCircleCheckFilled size={60} className="text-primary mx-auto mb-6" />
-            <h2 className="text-3xl font-display font-bold text-primary-dark mb-2">Réservation Terminée !</h2>
-            <p className="text-gray-500 font-medium mb-8">Votre ticket est prêt et disponible dans votre portefeuille.</p>
+            <div className="flex justify-center mb-6 relative">
+              <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center animate-pulse">
+                <IconCaptainArmband size={44} className="text-primary" />
+              </div>
+              <div className="absolute -top-1 left-[54%] bg-secondary text-white text-[10px] font-bold px-2 py-0.5 rounded-full uppercase tracking-widest shadow-md">
+                Capitaine
+              </div>
+            </div>
+            <h2 className="text-3xl font-display font-bold text-primary-dark mb-2">Bien joué, Capitaine ! ⚽</h2>
+            <p className="text-gray-500 font-medium mb-8">
+              Brassard enfilé, terrain réservé. Sans vous, pas de match !<br />
+              Votre ticket est prêt et disponible dans votre portefeuille.
+            </p>
             
             <div className="max-w-xs mx-auto bg-white p-6 rounded-3xl border-2 border-dashed border-gray-100 mb-8 relative">
               <div className="flex justify-center mb-6">
                 <QRCodeCanvas 
-                  id="qr-code-canvas"
+                  id={`qr-canvas-${verifyToken}`}
+                  ref={qrCanvasRef}
                   value={`${window.location.origin}/verify/${verifyToken}`} 
                   size={160} 
                   includeMargin={true} 
@@ -310,6 +592,14 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
           </div>
         )}
       </div>
+      {/* Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-36 lg:bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-300 z-[9999]">
+          <IconCircleCheckFilled size={18} className="text-secondary" />
+          <span className="text-sm font-medium">{toast}</span>
+        </div>
+      )}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
     </div>
   );
 };

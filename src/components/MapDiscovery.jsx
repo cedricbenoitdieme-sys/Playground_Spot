@@ -2,7 +2,10 @@ import React from 'react';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { IconBallFootball } from '@tabler/icons-react';
+import { TerrainImage } from './TerrainImage';
+// Un <Popup> Leaflet ne monte son contenu qu'à l'ouverture, donc la
+// résolution d'URL signée dans TerrainImage reste naturellement paresseuse
+// ici (pas de N requêtes au chargement de la carte).
 
 // Custom Marker Icon Creator
 const createCustomIcon = (isSelected = false) => {
@@ -47,11 +50,7 @@ export const MapDiscovery = ({ terrains, onSelect }) => {
           >
             <Popup className="custom-popup">
               <div className="p-2 min-w-[180px]">
-                <img 
-                  src={terrain.image} 
-                  alt={terrain.name} 
-                  className="w-full h-24 object-cover rounded-lg mb-2"
-                />
+                <TerrainImage terrainId={terrain.id} fallbackUrl={terrain.image || terrain.image_url} alt={terrain.name} className="w-full h-24 rounded-lg mb-2" />
                 <h3 className="font-bold text-primary-dark text-sm mb-1">{terrain.name}</h3>
                 <div className="flex items-center justify-between mt-2">
                   <span className="text-primary font-bold text-xs">{terrain.price.toLocaleString('fr-FR')} FCFA</span>

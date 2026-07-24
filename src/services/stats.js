@@ -157,12 +157,178 @@ export const fetchGerantKpis = async (gerantId, terrainId = null, periode = 'mon
   if (error) throw handleServiceError(error, 'fetchGerantKpis');
 
   const confirmees = data.filter(r => r.statut === 'confirmee' || r.statut === 'terminee');
+  const parStatut = {
+    confirmee: data.filter(r => r.statut === 'confirmee').length,
+    terminee: data.filter(r => r.statut === 'terminee').length,
+    annulee: data.filter(r => r.statut === 'annulee').length,
+    en_attente: data.filter(r => r.statut === 'en_attente').length,
+  };
+
+  // Note moyenne + distribution réelles (avis sur les terrains du gérant, tous statuts confondus)
+  const terrainIdsForAvis = terrainId ? [terrainId] : await fetchGerantTerrainIds(gerantId);
+  let noteMoyenne = null;
+  let noteDistribution = { cinq: 0, quatre: 0, troisOuMoins: 0 };
+  if (terrainIdsForAvis.length) {
+    const { data: avisData } = await supabase.from('avis').select('note').in('terrain_id', terrainIdsForAvis);
+    if (avisData && avisData.length > 0) {
+      noteMoyenne = Math.round((avisData.reduce((s, a) => s + a.note, 0) / avisData.length) * 10) / 10;
+      noteDistribution = {
+        cinq: Math.round((avisData.filter(a => a.note === 5).length / avisData.length) * 100),
+        quatre: Math.round((avisData.filter(a => a.note === 4).length / avisData.length) * 100),
+        troisOuMoins: Math.round((avisData.filter(a => a.note <= 3).length / avisData.length) * 100),
+      };
+    }
+  }
+
   return {
     revenus: confirmees.reduce((sum, r) => sum + (r.montant || 0), 0),
     reservations: data.length,
     tauxOccupation: data.length > 0 ? Math.round((confirmees.length / data.length) * 100) : 0,
-    noteMoyenne: null, // sera enrichi par un appel séparé si besoin
+    noteMoyenne,
+    parStatut,
+    noteDistribution,
   };
+};
+
+/**
+ * Helper interne : IDs des terrains d'un gérant.
+ */
+const fetchGerantTerrainIds = async (gerantId) => {
+  const { data } = await supabase.from('terrains').select('id').eq('gerant_id', gerantId);
+  return (data || []).map(t => t.id);
+};
+
+/**
+ * Résout la date de début d'une période gérant ('week'|'month'|'quarter').
+ */
+const resolveDateDebut = (periode) => {
+  const now = new Date();
+  switch (periode) {
+    case 'week': { const d = new Date(now); d.setDate(now.getDate() - 7); return d; }
+    case 'quarter': { const d = new Date(now); d.setMonth(now.getMonth() - 3); return d; }
+    case 'month':
+    default: return new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+};
+
+const mapStatutLabel = (s) => ({
+  en_attente: 'En attente',
+  confirmee: 'Confirmée',
+  terminee: 'Terminée',
+  annulee: 'Annulée',
+}[s] || s);
+
+/**
+ * Revenus par jour (7 derniers jours / mois / trimestre) pour le graphique gérant.
+ * `montant` = revenus du terrain sélectionné, `all` = revenus tous terrains du gérant confondus.
+ */
+export const fetchRevenusParJour = async (gerantId, terrainId = null, periode = 'month') => {
+  const terrainIds = await fetchGerantTerrainIds(gerantId);
+  if (!terrainIds.length) return [];
+
+  const { data, error } = await supabase
+    .from('reservations')
+    .select('date_slot, montant, terrain_id')
+    .in('terrain_id', terrainIds)
+    .gte('date_slot', resolveDateDebut(periode).toISOString().split('T')[0])
+    .in('statut', ['confirmee', 'terminee']);
+  if (error) throw handleServiceError(error, 'fetchRevenusParJour');
+
+  const byDate = {};
+  (data || []).forEach(r => {
+    if (!byDate[r.date_slot]) byDate[r.date_slot] = { all: 0, montant: 0 };
+    byDate[r.date_slot].all += r.montant || 0;
+    if (!terrainId || r.terrain_id === terrainId) byDate[r.date_slot].montant += r.montant || 0;
+  });
+
+  return Object.keys(byDate).sort().map(dateStr => {
+    const d = new Date(dateStr);
+    return {
+      jour: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`,
+      montant: byDate[dateStr].montant,
+      all: byDate[dateStr].all,
+    };
+  });
+};
+
+/**
+ * Réservations groupées par heure de créneau, pour le graphique "créneaux" gérant.
+ */
+export const fetchReservationsParCreneau = async (gerantId, terrainId = null, periode = 'month') => {
+  const terrainIds = await fetchGerantTerrainIds(gerantId);
+  if (!terrainIds.length) return [];
+
+  let query = supabase
+    .from('reservations')
+    .select('id, heure_slot, montant, statut, joueur_nom, terrain_nom, terrain_id')
+    .in('terrain_id', terrainIds)
+    .gte('date_slot', resolveDateDebut(periode).toISOString().split('T')[0]);
+  if (terrainId) query = query.eq('terrain_id', terrainId);
+
+  const { data, error } = await query;
+  if (error) throw handleServiceError(error, 'fetchReservationsParCreneau');
+
+  const byHeure = {};
+  (data || []).forEach(r => {
+    const heure = `${r.heure_slot?.slice(0, 2)}h`;
+    if (!byHeure[heure]) byHeure[heure] = [];
+    byHeure[heure].push({
+      id: r.id,
+      joueur: r.joueur_nom,
+      terrain: r.terrain_nom,
+      montant: `${r.montant?.toLocaleString('fr-FR')} FCFA`,
+      statut: mapStatutLabel(r.statut),
+    });
+  });
+
+  return Object.keys(byHeure).sort().map(heure => ({
+    heure,
+    nb: byHeure[heure].length,
+    reservations: byHeure[heure],
+  }));
+};
+
+/**
+ * Classement des joueurs les plus fidèles sur les terrains du gérant.
+ */
+export const fetchTopJoueurs = async (gerantId, terrainId = null, periode = 'month', limit = 5) => {
+  const terrainIds = await fetchGerantTerrainIds(gerantId);
+  if (!terrainIds.length) return [];
+
+  let query = supabase
+    .from('reservations')
+    .select('joueur_id, joueur_nom, terrain_nom, montant, statut, date_slot')
+    .in('terrain_id', terrainIds)
+    .gte('date_slot', resolveDateDebut(periode).toISOString().split('T')[0])
+    .in('statut', ['confirmee', 'terminee']);
+  if (terrainId) query = query.eq('terrain_id', terrainId);
+
+  const { data, error } = await query;
+  if (error) throw handleServiceError(error, 'fetchTopJoueurs');
+
+  const byJoueur = {};
+  (data || []).forEach(r => {
+    if (!byJoueur[r.joueur_id]) {
+      byJoueur[r.joueur_id] = { id: r.joueur_id, nom: r.joueur_nom, reservations: 0, montant: 0, historique: [] };
+    }
+    byJoueur[r.joueur_id].reservations += 1;
+    byJoueur[r.joueur_id].montant += r.montant || 0;
+    byJoueur[r.joueur_id].historique.push({
+      date: new Date(r.date_slot).toLocaleDateString('fr-FR'),
+      terrain: r.terrain_nom,
+      montant: `${r.montant?.toLocaleString('fr-FR')} FCFA`,
+      statut: mapStatutLabel(r.statut),
+    });
+  });
+
+  return Object.values(byJoueur)
+    .map(j => ({
+      ...j,
+      initiales: (j.nom || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+      historique: j.historique.sort((a, b) => new Date(b.date.split('/').reverse().join('-')) - new Date(a.date.split('/').reverse().join('-'))),
+    }))
+    .sort((a, b) => b.reservations - a.reservations)
+    .slice(0, limit);
 };
 
 /**
@@ -191,8 +357,8 @@ export const fetchRepartitionPaiements = async (gerantId) => {
   });
 
   const total = Object.values(grouped).reduce((s, g) => s + g.montant, 1);
-  const colors = { wave: '#2563EB', orange_money: '#F97316', sur_place: '#1A7A4A', carte: '#8B5CF6' };
-  const labels = { wave: 'Wave', orange_money: 'Orange Money', sur_place: 'Sur place', carte: 'Carte' };
+  const colors = { wave: '#2563EB', orange_money: '#F97316', sur_place: '#1A7A4A', carte: '#8B5CF6', pay_unitech: '#6366F1' };
+  const labels = { wave: 'Wave', orange_money: 'Orange Money', sur_place: 'Sur place', carte: 'Carte', pay_unitech: 'Pay Unitech' };
 
   return Object.entries(grouped).map(([mode, stats]) => ({
     label: labels[mode] || mode,

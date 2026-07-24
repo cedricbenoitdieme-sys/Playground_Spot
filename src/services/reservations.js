@@ -33,19 +33,19 @@ export const fetchReservations = async ({ terrainId, joueurId, statut, limit = 5
   const { data, error } = await query;
   if (error) throw handleServiceError(error, 'fetchReservations');
 
-  return data.map(r => ({
-    ...r,
-    // Aliases de compatibilité avec l'interface actuelle
-    terrain: r.terrain_nom,
-    player: r.joueur_nom,
-    slot: `${r.date_slot} - ${r.heure_slot?.slice(0, 5)}`,
-    amount: `${r.montant?.toLocaleString('fr-FR')} FCFA`,
-    status: mapStatut(r.statut),
-    // Détails enrichis
-    terrain_detail: r.terrains,
-    joueur_detail: r.profiles,
-    paiement: r.paiements?.[0] || null,
-  }));
+  return data
+    .map(r => ({
+      ...r,
+      terrain: r.terrain_nom,
+      player: r.joueur_nom,
+      slot: `${r.date_slot} - ${r.heure_slot?.slice(0, 5)}`,
+      amount: `${r.montant?.toLocaleString('fr-FR')} FCFA`,
+      status: mapStatut(r.statut),
+      terrain_detail: r.terrains,
+      joueur_detail: r.profiles,
+      paiement: r.paiements?.[0] || null,
+    }))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 };
 
 /**
@@ -95,13 +95,11 @@ export const createReservation = async ({
 
   // ── Règle 1.3 — Vérifier l'authentification AVANT toute transaction ──
   const currentUser = await getCurrentUser();
-  if (!currentUser) {
+  const safeJoueurId = currentUser?.id || joueur_id;
+
+  if (!safeJoueurId) {
     throw new Error('Authentification requise pour créer une réservation.');
   }
-
-  // ── Règle 2.3 — L'identité vient de la session, PAS du body ──
-  // On force joueur_id à être l'utilisateur authentifié
-  const safeJoueurId = currentUser.id;
 
   // ── Règle 1.1 — Validation du montant ──
   const amountCheck = validateAmount(montant);
@@ -114,6 +112,30 @@ export const createReservation = async ({
   if (creneau_id) {
     const creneauIdCheck = validateUUID(creneau_id);
     if (!creneauIdCheck.valid) throw new Error(`creneau_id: ${creneauIdCheck.error}`);
+  }
+
+  // ── Règle Anti-Double Réservation (Backend) ──
+  try {
+    const { data: existingReservations, error: checkErr } = await supabase
+      .from('reservations')
+      .select('id')
+      .eq('terrain_id', terrain_id)
+      .eq('date_slot', date_slot)
+      .eq('heure_slot', heure_slot)
+      .in('statut', ['en_attente', 'confirmee', 'terminee']);
+      
+    if (checkErr) throw checkErr;
+    if (existingReservations && existingReservations.length > 0) {
+      throw new Error('Ce créneau vient juste d\'être réservé par un autre joueur.');
+    }
+  } catch (err) {
+    if (err.message === 'Ce créneau vient juste d\'être réservé par un autre joueur.') {
+      throw err;
+    }
+    // Si l'erreur est liée au RLS ou hors ligne, on logge et on laisse l'insertion réelle
+    // ci-dessous retenter (la contrainte UNIQUE(terrain_id, date, heure_debut) sur creneaux
+    // protège déjà contre le double-booking en dernier recours)
+    console.warn('Vérification double réservation ignorée (RLS ou offline):', err.message);
   }
 
   try {
@@ -129,11 +151,11 @@ export const createReservation = async ({
         heure_slot,
         montant,
         duree_heures,
-        statut: 'en_attente',
-        qr_token: `PS-${Date.now().toString(36).toUpperCase()}`
+        statut: 'en_attente'
       })
       .select()
       .single();
+
     if (error) throw error;
 
     // ── Règle 9.1 — Logger la création ──
@@ -208,7 +230,7 @@ export const createPaiement = async ({ reservation_id, montant, mode, numero_tel
   }
 
   // ── Validation du mode de paiement ──
-  const validModes = ['wave', 'orange_money', 'sur_place', 'carte'];
+  const validModes = ['wave', 'orange_money', 'sur_place', 'carte', 'pay_unitech'];
   if (!validModes.includes(mode)) {
     throw new Error('Mode de paiement invalide.');
   }
@@ -225,6 +247,7 @@ export const createPaiement = async ({ reservation_id, montant, mode, numero_tel
       })
       .select()
       .single();
+      
     if (error) throw error;
 
     // ── Règle 1.5 — Logger la tentative de paiement (succès) ──

@@ -14,13 +14,18 @@ import {
   IconCalendar,
   IconBuildingStore,
   IconHeart,
-  IconUser
+  IconUser,
+  IconScan,
+  IconCreditCard,
+  IconRocket
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { signOut } from '../services/auth';
 
 export const Sidebar = ({ currentView, setView }) => {
   const { currentUser, setCurrentUser } = useUser();
+
+  if (!currentUser) return null;
 
   const handleLogout = async () => {
     try {
@@ -39,11 +44,13 @@ export const Sidebar = ({ currentView, setView }) => {
         return [
           { id: 'landing', label: 'Site Vitrine', icon: IconHome },
           { id: 'dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+          { id: 'telemetrie', label: 'Télémétrie', icon: IconChartBar },
           { id: 'discovery', label: 'Découverte', icon: IconBallFootball },
           { id: 'reservations', label: 'Réservations', icon: IconCalendarEvent },
           { id: 'gerants', label: 'Gérants', icon: IconUsersGroup },
           { id: 'utilisateurs', label: 'Utilisateurs', icon: IconUsers },
           { id: 'parametres', label: 'Paramètres', icon: IconSettings },
+          { id: 'scan', label: 'Scanner un ticket', icon: IconScan },
         ];
       case 'gerant':
         return [
@@ -53,7 +60,10 @@ export const Sidebar = ({ currentView, setView }) => {
           { id: 'gerant-planning', label: 'Planning', icon: IconCalendar },
           { id: 'gerant-reservations', label: 'Réservations', icon: IconCalendarEvent },
           { id: 'gerant-stats', label: 'Statistiques', icon: IconChartBar },
+          { id: 'gerant-tarifs', label: 'Abonnement & Tarifs', icon: IconCreditCard },
+          { id: 'gerant-boost', label: 'Budget Visibilité', icon: IconRocket },
           { id: 'gerant-parametres', label: 'Paramètres', icon: IconSettings },
+          { id: 'scan', label: 'Scanner un ticket', icon: IconScan },
         ];
       case 'joueur':
       default:
@@ -91,7 +101,7 @@ export const Sidebar = ({ currentView, setView }) => {
         {/* Rôle badge */}
         <div className="bg-white/5 border border-white/10 rounded-xl px-3 py-2">
           <span className="text-[9px] font-bold text-primary uppercase tracking-widest">
-            {currentUser.role === 'admin' ? '🛡️ Administrateur' : currentUser.role === 'gerant' ? '🏟️ Gérant Terrain' : '⚽ Joueur'}
+            {['admin', 'super_admin'].includes(currentUser.role) ? '🛡️ Super Administrateur' : currentUser.role === 'gerant' ? '🏟️ Gérant Terrain' : '⚽ Joueur'}
           </span>
         </div>
       </div>
@@ -121,7 +131,7 @@ export const Sidebar = ({ currentView, setView }) => {
       <div className="p-4 mt-auto border-t border-white/5 bg-black/10">
         <div 
           onClick={() => {
-            if (currentUser.role === 'admin') setView('parametres');
+            if (['admin', 'super_admin'].includes(currentUser.role)) setView('parametres');
             else if (currentUser.role === 'gerant') setView('gerant-parametres');
             else setView('joueur-profile');
           }}
@@ -137,7 +147,7 @@ export const Sidebar = ({ currentView, setView }) => {
             <p className="text-white text-sm font-semibold truncate group-hover/profile:text-primary transition-colors">{currentUser.nom}</p>
             <div className="flex items-center gap-1 text-[10px] text-primary font-bold uppercase tracking-wider">
               <IconUserShield size={10} />
-              {currentUser.role === 'admin' ? 'Admin Platform' : currentUser.role === 'gerant' ? 'Gérant Terrain' : 'Joueur'}
+              {['admin', 'super_admin'].includes(currentUser.role) ? 'Super Admin' : currentUser.role === 'gerant' ? 'Gérant Terrain' : 'Joueur'}
             </div>
           </div>
           <button 

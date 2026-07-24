@@ -1,26 +1,71 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-import { getProfile } from '../services/auth';
+import { getProfile, signIn, signInWithGoogle } from '../services/auth';
 import { supabase } from '../lib/supabase';
+import { withRetry, withTimeout } from '../lib/errorHandler';
 import { 
   IconBallFootball, 
   IconMail, 
   IconLock, 
   IconArrowRight, 
   IconArrowLeft, 
+  IconEye,
+  IconEyeOff
 } from '@tabler/icons-react';
 
+// Détecte une erreur renvoyée par Supabase après un retour de redirection OAuth
+// (ex: email déjà utilisé par un autre provider — blocage explicite, pas de
+// fusion automatique de comptes). Lu une seule fois à l'initialisation du state
+// pour éviter un setState synchrone dans un effet (cascading renders).
+const readOAuthError = () => {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+  const searchParams = new URLSearchParams(window.location.search);
+  const errorDescription = hashParams.get('error_description') || searchParams.get('error_description');
+  const errorCode = hashParams.get('error') || searchParams.get('error');
+
+  if (errorCode === 'session_expired') {
+    return 'Votre session a expiré. Veuillez vous reconnecter pour continuer.';
+  }
+
+  if (!errorDescription && !errorCode) return null;
+  if (/already|exist|registered/i.test(errorDescription || '')) {
+    return 'Un compte existe déjà avec cet email. Connectez-vous avec votre mot de passe.';
+  }
+  return 'Connexion Google impossible. Veuillez réessayer ou utiliser votre mot de passe.';
+};
+
 export const Login = ({ setView }) => {
-  const { currentUser, setCurrentUser } = useUser();
+  const { currentUser, setCurrentUser, profileLoadedRef } = useUser();
   const [email, setEmail] = useState(() => localStorage.getItem('playgroundspot-saved-email') || '');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState(null);
+  const [error, setError] = useState(readOAuthError);
   const [loading, setLoading] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
+  const [rememberMe, setRememberMe] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  // Nettoyage de l'URL (error/error_description) pour ne pas re-déclencher au refresh
+  useEffect(() => {
+    if (!window.location.hash.includes('error') && !window.location.search.includes('error')) return;
+    const cleanSearch = window.location.search.replace(/[?&](error|error_description|error_code)=[^&]*/g, '');
+    window.history.replaceState(null, '', window.location.pathname + cleanSearch);
+  }, []);
+
+  const handleGoogleLogin = async () => {
+    setGoogleLoading(true);
+    setError(null);
+    try {
+      await signInWithGoogle();
+      // La redirection vers Google a lieu ici ; rien d'autre à faire.
+    } catch (err) {
+      setError(err.userMessage || err.message || 'Connexion Google impossible. Veuillez réessayer.');
+      setGoogleLoading(false);
+    }
+  };
 
   // Si déjà connecté, rediriger
   if (currentUser) {
-    const dest = currentUser.role === 'admin' ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
+    const dest = ['admin', 'super_admin'].includes(currentUser.role) ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
     setTimeout(() => setView(dest), 0);
     return null;
   }
@@ -30,18 +75,22 @@ export const Login = ({ setView }) => {
     setLoading(true);
     setError(null);
 
+    // Éviter la race condition avec le listener onAuthStateChange de UserContext en bloquant le chargement double
+    if (profileLoadedRef) {
+      profileLoadedRef.current = true;
+    }
+
     try {
-      // Connexion via Supabase
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({ 
-        email: email.trim(), 
-        password 
-      });
-      if (signInError) throw signInError;
+      // Connexion sécurisée avec rate limiter et logs de sécurité
+      // withTimeout évite un spinner infini si la requête réseau ne répond jamais
+      const data = await withTimeout(signIn({
+        email: email.trim(),
+        password,
+        rememberMe
+      }), 20000);
 
       if (data?.user) {
         // Gérer le "Se souvenir de moi"
-        // Logique : sessionStorage survit aux refreshs mais est vidé à la fermeture du navigateur.
-        // On l'utilise comme sentinelle : si absent au démarrage ET remember=false → sign out.
         if (rememberMe) {
           localStorage.setItem('playgroundspot-remember', 'true');
           localStorage.setItem('playgroundspot-saved-email', email.trim());
@@ -51,8 +100,13 @@ export const Login = ({ setView }) => {
           sessionStorage.setItem('playgroundspot-session-active', 'true');
         }
 
-        // Chargement immédiat du profil pour éliminer tout temps d'attente
-        const profile = await getProfile(data.user.id);
+        // Chargement du profil avec retry pour attendre la fin du trigger DB
+        // withTimeout évite un spinner infini si cette requête reste bloquée (ex: réseau IPv6 défaillant)
+        // Fenêtre large car withRetry peut prendre plusieurs secondes (2 tentatives + backoff)
+        const profile = await withTimeout(
+          withRetry(() => getProfile(data.user.id), { maxRetries: 3, baseDelay: 500, context: 'Login' }),
+          20000
+        );
         const userObj = {
           id: data.user.id,
           nom: profile.nom,
@@ -63,23 +117,34 @@ export const Login = ({ setView }) => {
           avatar: profile.avatar || profile.nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
           statut: profile.statut,
         };
-        
+
         setCurrentUser(userObj);
-        const dest = profile.role === 'admin' ? 'dashboard' : profile.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
+        const dest = ['admin', 'super_admin'].includes(profile.role) ? 'dashboard' : profile.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
         setView(dest);
       }
     } catch (err) {
-      if (err.message?.includes('Invalid login')) {
-        setError('Email ou mot de passe incorrect.');
-      } else if (err.message?.includes('Email not confirmed')) {
-        setError('Veuillez confirmer votre adresse email avant de vous connecter.');
+      if (profileLoadedRef) {
+        profileLoadedRef.current = false;
+      }
+      if (err?.message === 'Failed to fetch' || err?.code === 'NETWORK_ERROR') {
+        setError('Impossible de joindre le serveur. Vérifiez votre connexion internet.')
+      } else if (
+        err.message?.toLowerCase().includes('invalid') ||
+        err.message?.toLowerCase().includes('credentials') ||
+        err.userMessage?.toLowerCase().includes('incorrect') ||
+        err.message?.toLowerCase().includes('incorrect')
+      ) {
+        setError('Email ou mot de passe incorrect.')
+      } else if (err.message?.toLowerCase().includes('email not confirmed')) {
+        setError('Veuillez confirmer votre email avant de vous connecter.')
       } else {
-        setError(err.message || 'Erreur de connexion. Veuillez réessayer.');
+        setError(err.userMessage || err.message || 'Erreur de connexion. Veuillez réessayer.')
       }
     } finally {
-      setLoading(false);
+      setLoading(false)
     }
   };
+
 
   return (
     <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
@@ -144,13 +209,26 @@ export const Login = ({ setView }) => {
               <div className="flex items-center gap-3 bg-[#0A1810]/60 border border-white/5 rounded-xl px-4 py-3 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
                 <IconLock size={16} className="text-gray-400" />
                 <input 
-                  type="password" 
+                  type={showPassword ? 'text' : 'password'} 
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••" 
                   className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
                 />
+                <button 
+                  type="button" 
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="focus:outline-none transition-transform duration-300 active:scale-90 hover:scale-110 cursor-pointer"
+                >
+                  <div className={`transition-all duration-300 transform ${showPassword ? 'rotate-180 scale-100 opacity-90' : 'rotate-0 scale-100 opacity-70'}`}>
+                    {showPassword ? (
+                      <IconEyeOff size={16} className="text-primary" />
+                    ) : (
+                      <IconEye size={16} className="text-gray-400" />
+                    )}
+                  </div>
+                </button>
               </div>
             </div>
 
@@ -187,6 +265,33 @@ export const Login = ({ setView }) => {
             </button>
 
           </form>
+
+          {/* Séparateur */}
+          <div className="flex items-center gap-3">
+            <div className="flex-1 h-px bg-white/10"></div>
+            <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest">ou</span>
+            <div className="flex-1 h-px bg-white/10"></div>
+          </div>
+
+          {/* Connexion Google */}
+          <button
+            type="button"
+            onClick={handleGoogleLogin}
+            disabled={googleLoading}
+            className="w-full bg-white text-gray-800 font-bold py-3.5 rounded-xl hover:bg-gray-100 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 cursor-pointer disabled:opacity-70 disabled:cursor-not-allowed text-sm"
+          >
+            {googleLoading ? (
+              <div className="w-5 h-5 rounded-full border-2 border-gray-300 border-t-gray-600 animate-spin"></div>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 18 18" xmlns="http://www.w3.org/2000/svg">
+                <path d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844c-.209 1.125-.843 2.078-1.796 2.717v2.258h2.908c1.702-1.567 2.684-3.874 2.684-6.615z" fill="#4285F4"/>
+                <path d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332C2.438 15.983 5.482 18 9 18z" fill="#34A853"/>
+                <path d="M3.964 10.71c-.18-.54-.282-1.117-.282-1.71s.102-1.17.282-1.71V4.958H.957C.347 6.173 0 7.548 0 9s.348 2.827.957 4.042l3.007-2.332z" fill="#FBBC05"/>
+                <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0 5.482 0 2.438 2.017.957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z" fill="#EA4335"/>
+              </svg>
+            )}
+            Continuer avec Google
+          </button>
 
           {/* Inscription */}
           <div className="border-t border-white/5 pt-5 text-center">

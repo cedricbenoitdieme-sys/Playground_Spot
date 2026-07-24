@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { 
-  IconStarFilled, 
-  IconMapPin, 
-  IconBrandWhatsapp, 
+import {
+  IconStarFilled,
+  IconMapPin,
+  IconBrandWhatsapp,
   IconChevronLeft,
   IconTrophy,
   IconUsers,
@@ -20,16 +20,47 @@ import {
 } from '@tabler/icons-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
+import { TerrainDetailSkeleton } from '../components/Skeletons';
+import { TerrainImage } from '../components/TerrainImage';
+import { useUser } from '../context/UserContext';
+import { fetchTerrains } from '../services/terrains';
+import { fetchAvisByTerrain, fetchReviewableReservation, submitAvis } from '../services/avis';
 
-export const TerrainDetail = ({ terrain, onBack, onBook }) => {
+export const TerrainDetail = ({ terrain, onBack, onBook, setSelectedTerrain }) => {
+  const { currentUser } = useUser();
   const [toast, setToast] = useState(null);
   const [showShareModal, setShowShareModal] = useState(false);
   const [ratingInput, setRatingInput] = useState(0);
   const [hoverRating, setHoverRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
-  const [reviewsList, setReviewsList] = useState([
-    { id: 1, name: 'Amadou Diallo', initials: 'AD', rating: 5, text: "Meilleur terrain du quartier. L'éclairage est top pour les matchs de nuit !", date: '12/05/2026' }
-  ]);
+  const [reviewsList, setReviewsList] = useState([]);
+  const [reviewableReservationId, setReviewableReservationId] = useState(null);
+  const [nearbyTerrains, setNearbyTerrains] = useState([]);
+
+  // Charge les vrais avis du terrain, et la réservation "terminée" éligible à un
+  // avis pour le joueur connecté (RLS exige un reservation_id lié, cf. avis_insert_joueur).
+  useEffect(() => {
+    if (!terrain?.id) return;
+    fetchAvisByTerrain(terrain.id).then(setReviewsList).catch(() => setReviewsList([]));
+    if (currentUser?.role === 'joueur') {
+      fetchReviewableReservation(currentUser.id, terrain.id).then(setReviewableReservationId).catch(() => setReviewableReservationId(null));
+    }
+  }, [terrain?.id, currentUser?.id, currentUser?.role]);
+
+  // Charge les autres terrains réels du même quartier ("Terrains dans la zone")
+  useEffect(() => {
+    if (!terrain?.quartier) return;
+    fetchTerrains().then(data => {
+      setNearbyTerrains(data.filter(t => t.quartier === terrain.quartier && t.id !== terrain.id));
+    }).catch(() => setNearbyTerrains([]));
+  }, [terrain?.quartier, terrain?.id]);
+
+  const terrainIcon = L.divIcon({
+    html: `<div class="w-8 h-8 bg-[#1A7A4A] rounded-full border-2 border-white shadow-lg flex items-center justify-center text-[10px] text-white font-bold font-sans">🏟️</div>`,
+    className: 'terrain-marker',
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+  });
 
   const bookingWidgetRef = useRef(null);
   const [isWidgetVisible, setIsWidgetVisible] = useState(false);
@@ -56,7 +87,8 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
     };
   }, []);
 
-  if (!terrain) return null;
+  if (!terrain) return <TerrainDetailSkeleton />;
+
 
   const customIcon = L.divIcon({
     html: `<div class="w-8 h-8 bg-primary rounded-full border-2 border-white shadow-lg"></div>`,
@@ -100,25 +132,34 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
     });
   };
 
-  const handleSubmitReview = (e) => {
+  const handleSubmitReview = async (e) => {
     e.preventDefault();
     if (ratingInput === 0) {
       showToast('Veuillez sélectionner une note.');
       return;
     }
-    const newReview = {
-      id: Date.now(),
-      name: 'Vous',
-      initials: 'V',
-      rating: ratingInput,
-      text: reviewText,
-      date: new Date().toLocaleDateString('fr-FR')
-    };
-    setReviewsList([newReview, ...reviewsList]);
-    setRatingInput(0);
-    setHoverRating(0);
-    setReviewText('');
-    showToast('Avis publié avec succès !');
+    if (!reviewableReservationId) {
+      showToast('Vous devez avoir terminé une réservation sur ce terrain pour laisser un avis.');
+      return;
+    }
+    try {
+      await submitAvis({
+        reservation_id: reviewableReservationId,
+        joueur_id: currentUser.id,
+        terrain_id: terrain.id,
+        note: ratingInput,
+        commentaire: reviewText,
+      });
+      const updated = await fetchAvisByTerrain(terrain.id);
+      setReviewsList(updated);
+      setReviewableReservationId(null);
+      setRatingInput(0);
+      setHoverRating(0);
+      setReviewText('');
+      showToast('Merci Capitaine ! 🗣️ Votre avis aide toute la communauté.');
+    } catch (err) {
+      showToast(err.userMessage || err.message || "Impossible d'envoyer votre avis.");
+    }
   };
 
   return (
@@ -147,10 +188,12 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
         <div className="lg:col-span-2 space-y-8">
           {/* Main Gallery Placeholder */}
           <div className="relative rounded-3xl overflow-hidden aspect-[16/9] shadow-lg group">
-            <img 
-              src={terrain.image} 
-              alt={terrain.name} 
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+            <TerrainImage
+              terrainId={terrain.id}
+              fallbackUrl={terrain.image || terrain.image_url}
+              alt={terrain.name}
+              iconSize={40}
+              className="w-full h-full group-hover:scale-105 transition-transform duration-700"
             />
             <div className="absolute top-4 left-4 bg-primary/90 backdrop-blur-md px-4 py-2 rounded-xl text-white font-bold shadow-lg">
               {terrain.surface}
@@ -174,8 +217,8 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
               </div>
             </div>
 
-            {/* Quick Specs */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 py-6 border-y border-gray-50">
+            {/* Quick Specs (données réelles uniquement) */}
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-4 py-6 border-y border-gray-50">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-primary">
                   <IconTrophy size={20} />
@@ -190,8 +233,8 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
                   <IconUsers size={20} />
                 </div>
                 <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Joueurs</p>
-                  <p className="font-bold text-sm text-primary-dark">10-14 max</p>
+                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Capacité</p>
+                  <p className="font-bold text-sm text-primary-dark">{terrain.capacite ? `${terrain.capacite} joueurs` : 'Non renseignée'}</p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
@@ -200,16 +243,7 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
                 </div>
                 <div>
                   <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Lumière</p>
-                  <p className="font-bold text-sm text-primary-dark">Inclus</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-primary">
-                  <IconClock size={20} />
-                </div>
-                <div>
-                  <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider">Horaires</p>
-                  <p className="font-bold text-sm text-primary-dark">08:00 - 00:00</p>
+                  <p className="font-bold text-sm text-primary-dark">{terrain.amenities?.includes('Éclairage') ? 'Incluse' : 'Non renseignée'}</p>
                 </div>
               </div>
             </div>
@@ -235,56 +269,98 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
                 ))}
               </div>
             </div>
-            
             <div className="bg-white p-4 rounded-card shadow-subtle border border-black/5 h-[300px]">
-              <MapContainer 
-                center={[terrain.lat, terrain.lng]} 
-                zoom={14} 
+              <MapContainer
+                center={[terrain.lat, terrain.lng]}
+                zoom={14}
                 className="h-full w-full rounded-2xl z-0"
-                dragging={false}
                 zoomControl={false}
               >
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[terrain.lat, terrain.lng]} icon={customIcon} />
+                <Marker position={[terrain.lat, terrain.lng]} icon={terrainIcon} />
               </MapContainer>
             </div>
           </div>
+
+          {/* 🏟️ Suggestion de terrains dans la même zone */}
+          {nearbyTerrains.length > 0 && (
+            <div className="bg-white p-6 rounded-[2rem] shadow-subtle border border-black/5 space-y-4">
+              <div>
+                <h3 className="text-base font-bold text-primary-dark uppercase tracking-wider">
+                  🏟️ Terrains dans la zone {terrain.quartier}
+                </h3>
+                <p className="text-xs text-gray-400">D'autres complexes sportifs à proximité pour vos matchs.</p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {nearbyTerrains.map((item) => (
+                  <div 
+                    key={item.id}
+                    onClick={() => {
+                      if (setSelectedTerrain) {
+                        setSelectedTerrain(item);
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }
+                    }}
+                    className="flex gap-4 p-3 bg-gray-50 border border-gray-100 hover:border-primary/20 hover:bg-primary/5 rounded-2xl cursor-pointer hover:scale-[1.01] active:scale-[0.99] transition-all"
+                  >
+                    <TerrainImage terrainId={item.id} fallbackUrl={item.image || item.image_url} alt={item.name} iconSize={18} className="w-20 h-20 rounded-xl shrink-0" />
+                    <div className="flex-1 flex flex-col justify-between min-w-0">
+                      <div>
+                        <h4 className="font-bold text-sm text-primary-dark truncate">{item.name}</h4>
+                        <p className="text-[10px] text-gray-400 font-semibold">{item.size} · {item.surface}</p>
+                      </div>
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="text-xs font-bold text-primary">{item.price.toLocaleString('fr-FR')} FCFA/h</span>
+                        <span className="text-[10px] bg-secondary/15 text-secondary font-black px-2 py-0.5 rounded-full">{item.rating} ★</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Reviews Section */}
           <div className="bg-white p-8 rounded-card shadow-subtle border border-black/5">
             <h3 className="font-bold text-primary-dark mb-6">Avis Clients</h3>
             
-            {/* Add Review Form */}
-            <form onSubmit={handleSubmitReview} className="mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100">
-              <h4 className="text-sm font-bold text-primary-dark uppercase tracking-widest mb-4">Laissez votre avis</h4>
-              <div className="flex gap-1 mb-4">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setRatingInput(star)}
-                    onMouseEnter={() => setHoverRating(star)}
-                    onMouseLeave={() => setHoverRating(0)}
-                    className="p-1 focus:outline-none transition-transform hover:scale-110"
-                  >
-                    <IconStarFilled 
-                      size={28} 
-                      className={`${(hoverRating || ratingInput) >= star ? 'text-secondary' : 'text-gray-300'}`} 
-                    />
-                  </button>
-                ))}
-              </div>
-              <textarea 
-                value={reviewText}
-                onChange={(e) => setReviewText(e.target.value)}
-                placeholder="Partagez votre expérience sur ce terrain..."
-                className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 ring-primary/20 transition-all mb-4 min-h-[100px]"
-                required
-              />
-              <button type="submit" className="btn-primary px-8">Publier l'avis</button>
-            </form>
+            {/* Add Review Form — uniquement si le joueur a une réservation terminée non encore notée */}
+            {currentUser?.role === 'joueur' && reviewableReservationId && (
+              <form onSubmit={handleSubmitReview} className="mb-8 p-6 bg-gray-50 rounded-2xl border border-gray-100">
+                <h4 className="text-sm font-bold text-primary-dark uppercase tracking-widest mb-4">Laissez votre avis</h4>
+                <div className="flex gap-1 mb-4">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRatingInput(star)}
+                      onMouseEnter={() => setHoverRating(star)}
+                      onMouseLeave={() => setHoverRating(0)}
+                      className="p-1 focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <IconStarFilled
+                        size={28}
+                        className={`${(hoverRating || ratingInput) >= star ? 'text-secondary' : 'text-gray-300'}`}
+                      />
+                    </button>
+                  ))}
+                </div>
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="Partagez votre expérience sur ce terrain..."
+                  className="w-full bg-white border border-gray-200 rounded-xl p-4 text-sm focus:outline-none focus:ring-2 ring-primary/20 transition-all mb-4 min-h-[100px]"
+                  required
+                />
+                <button type="submit" className="btn-primary px-8">Publier l'avis</button>
+              </form>
+            )}
 
             <div className="space-y-6">
+              {reviewsList.length === 0 && (
+                <p className="text-sm text-gray-400 text-center py-6">Aucun avis pour le moment.</p>
+              )}
               {reviewsList.map((review) => (
                 <div key={review.id} className="pb-6 border-b border-gray-50 last:border-0 last:pb-0">
                   <div className="flex justify-between items-center mb-2">
@@ -329,22 +405,20 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
                 Réserver maintenant
               </button>
               
-              <a 
-                href={`https://api.whatsapp.com/send?phone=221770000000&text=Bonjour, je souhaite réserver le terrain ${terrain.name}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="w-full flex items-center justify-center gap-2 border-2 border-primary/20 text-primary font-bold py-4 rounded-2xl hover:bg-primary/5 transition-all"
-              >
-                <IconBrandWhatsapp size={20} />
-                Contacter le gérant
-              </a>
+              {terrain.gerant_tel && (
+                <a
+                  href={`https://api.whatsapp.com/send?phone=${terrain.gerant_tel.replace(/\D/g, '')}&text=${encodeURIComponent(`Bonjour, je souhaite réserver le terrain ${terrain.name}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full flex items-center justify-center gap-2 border-2 border-primary/20 text-primary font-bold py-4 rounded-2xl hover:bg-primary/5 transition-all"
+                >
+                  <IconBrandWhatsapp size={20} />
+                  Contacter le gérant
+                </a>
+              )}
             </div>
 
             <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs font-bold">
-                <span className="text-gray-400 uppercase tracking-wider">Disponibilité</span>
-                <span className="text-green-500 bg-green-50 px-2 py-0.5 rounded">Aujourd'hui</span>
-              </div>
               <div className="flex items-center gap-2">
                 <IconClock size={16} className="text-gray-400" />
                 <span className="text-sm text-gray-600 font-medium italic">Confirmation instantanée</span>
@@ -378,9 +452,9 @@ export const TerrainDetail = ({ terrain, onBack, onBook }) => {
 
       {/* Share Modal */}
       {showShareModal && createPortal(
-        <div className="fixed inset-0 lg:left-64 z-[9999]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setShowShareModal(false)}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-sm mx-auto rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md transition-opacity" onClick={() => setShowShareModal(false)}></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-sm mx-auto rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 z-10">
             <div className="p-6 border-b border-gray-50 flex items-center justify-between">
               <h3 className="font-bold text-lg text-primary-dark">Partager le terrain</h3>
               <button onClick={() => setShowShareModal(false)} className="text-gray-400 hover:text-primary-dark p-2 bg-gray-50 rounded-full transition-colors">

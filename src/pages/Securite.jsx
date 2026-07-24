@@ -11,9 +11,9 @@ import { fetchAuditLogs } from '../services/audit';
 const Sheet = ({ open, onClose, title, children }) => {
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 lg:left-64 z-[9999]">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-xl mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[9999]">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-md transition-opacity" onClick={onClose} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-xl mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 z-10">
         <div className="flex items-center justify-between p-5 border-b border-gray-100 bg-[#0F2318] text-white">
           <div className="flex items-center gap-2">
             <IconUserShield size={20} className="text-primary" />

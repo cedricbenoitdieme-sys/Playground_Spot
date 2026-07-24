@@ -22,7 +22,7 @@ const maskSensitiveData = (profile, currentUserId = null, currentUserRole = null
   if (!profile) return profile;
   
   // Le propriétaire du profil ou un admin voit tout
-  if (currentUserId === profile.id || currentUserRole === 'admin') {
+  if (currentUserId === profile.id || ['admin', 'super_admin'].includes(currentUserRole)) {
     return profile;
   }
   
@@ -59,25 +59,36 @@ export const fetchProfiles = async ({ role, statut, limit = 100, currentUserId =
 
 /**
  * Récupérer les gérants avec leurs terrains.
+ *
+ * NOTE DE SÉCURITÉ ET PERFORMANCE :
+ * N'utilise PAS le hook useGerantTerrains ici (conçu pour un seul gérant, boucler créerait un problème N+1).
+ * Interroge directement la vue `v_gerant_terrains` qui agrège l'ensemble des terrains par gérant en une seule requête.
+ * (Voir migrations 20260724110000 et 20260724120000 pour la vue canonique).
  */
 export const fetchGerants = async ({ currentUserId = null, currentUserRole = null } = {}) => {
-  const { data, error } = await supabase
+  const { data: gerants, error: gerantsErr } = await supabase
     .from('profiles')
-    .select(`
-      *,
-      gerant_terrains (
-        terrains ( id, nom, quartier )
-      )
-    `)
+    .select('*')
     .eq('role', 'gerant')
     .order('nom');
-  if (error) throw handleServiceError(error, 'fetchGerants');
-  
-  return data.map(g => ({
-    ...maskSensitiveData(g, currentUserId, currentUserRole),
-    initiales: g.avatar || getInitiales(g.nom),
-    terrains: (g.gerant_terrains || []).map(gt => gt.terrains?.nom).filter(Boolean),
-  }));
+  if (gerantsErr) throw handleServiceError(gerantsErr, 'fetchGerants:profiles');
+
+  const { data: terrainStats, error: statsErr } = await supabase
+    .from('v_gerant_terrains')
+    .select('*');
+  if (statsErr) throw handleServiceError(statsErr, 'fetchGerants:v_gerant_terrains');
+
+  const statsByGerant = Object.fromEntries((terrainStats || []).map(s => [s.gerant_id, s]));
+
+  return gerants.map(g => {
+    const stats = statsByGerant[g.id];
+    return {
+      ...maskSensitiveData(g, currentUserId, currentUserRole),
+      initiales: g.avatar || getInitiales(g.nom),
+      terrains: stats?.terrains || [],
+      terrainCount: stats?.terrain_count || 0,
+    };
+  });
 };
 
 /**

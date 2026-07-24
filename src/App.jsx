@@ -16,8 +16,9 @@ import { GerantStats } from './pages/GerantStats';
 import { Gerants } from './pages/Gerants';
 import { Utilisateurs } from './pages/Utilisateurs';
 import { Parametres } from './pages/Parametres';
+import { Telemetrie } from './pages/Telemetrie';
 
-// Import new subviews
+import { AdminLayout } from './pages/admin/AdminLayout';
 import { Landing } from './pages/Landing';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
@@ -28,46 +29,186 @@ import { JoueurHome } from './pages/JoueurHome';
 import { JoueurProfile } from './pages/JoueurProfile';
 import { JoueurFavoris } from './pages/JoueurFavoris';
 import { ScanTicket } from './pages/ScanTicket';
+import { GerantTarifs } from './pages/GerantTarifs';
+import { GerantVisibilityBoost } from './pages/GerantVisibilityBoost';
+import { PaymentSuccess } from './pages/PaymentSuccess';
+import { PaymentCancel } from './pages/PaymentCancel';
+import { Abonnement } from './pages/Abonnement';
+import { TrialBanner } from './components/TrialBanner';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useUser } from './context/UserContext';
 import { signOut } from './services/auth';
+import { fetchReservations } from './services/reservations';
+import { supabase } from './lib/supabase';
 
-import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball, IconScan } from '@tabler/icons-react';
+import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball, IconScan, IconLoader2 } from '@tabler/icons-react';
+
+const ADMIN_EMAILS = ['elhadjsylla667@gmail.com', 'cedricbenoitdieme@gmail.com', 'gmoustapha0805@gmail.com', 'admin@playgroundspot.sn'];
 
 function App() {
   const path = window.location.pathname;
   const isVerify = path.startsWith('/verify/');
   const verifyToken = isVerify ? path.split('/verify/')[1] : null;
 
-  const { currentUser, setCurrentUser, loading } = useUser();
+  const { currentUser, setCurrentUser, loading: isProfileLoading, displayPlan, setDisplayPlan } = useUser() || { currentUser: null, setCurrentUser: () => {}, loading: true };
   const hasRedirectedRef = useRef(false);
   
   const getInitialView = () => {
+    if (window.location.pathname === '/scan-ticket') return 'scan';
+    if (window.location.pathname === '/payment/success') return 'payment-success';
+    if (window.location.pathname === '/payment/cancel') return 'payment-cancel';
     const urlParams = new URLSearchParams(window.location.search);
     const viewParam = urlParams.get('view');
-    // Allow deep-linking from landing page (e.g. ?role=joueur&view=discovery)
     const validViews = [
       'landing', 'login', 'register',
-      'dashboard','reservations','gerants','utilisateurs','parametres','menu',
-      'gerant-dashboard','gerant-terrain','gerant-planning','gerant-reservations','gerant-stats','gerant-parametres',
+      'dashboard','reservations','gerants','utilisateurs','parametres','menu', 'telemetrie',
+      'gerant-dashboard','gerant-terrain','gerant-planning','gerant-reservations','gerant-stats','gerant-parametres', 'gerant-tarifs', 'gerant-boost',
       'joueur-home','joueur-reservations','joueur-favoris','joueur-profile','tickets',
-      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan'
+      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan', 'payment-success', 'payment-cancel'
     ];
     if (viewParam && validViews.includes(viewParam)) return viewParam;
-    return 'landing'; // default - will be updated by useEffect after auth loads
+    return 'landing';
   };
 
   const [view, setView] = useState(getInitialView);
+  const [maintenanceActive, setMaintenanceActive] = useState(false);
+
+  // Paywall state machine: 'checking' | 'active' | 'trial' | 'paywall'
+  const [subStatus, setSubStatus] = useState('checking');
+  const [trialStatus, setTrialStatus] = useState(null);
+  const [forceUnlock, setForceUnlock] = useState(false);
+
+  // ── HARD FAILSAFE (CORRECTIF Tâche 5) ──
+  // Timeout de 5s qui débloque À LA FOIS isProfileLoading ET subStatus s'il reste sur 'checking'
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setForceUnlock(true);
+      setSubStatus(prev => prev === 'checking' ? 'active' : prev);
+    }, 5000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // ── State Machine Paywall Abonnement ──
+  useEffect(() => {
+    // Si pas connecté, rien à vérifier pour le paywall
+    if (!currentUser) {
+      setSubStatus('active');
+      if (setDisplayPlan) setDisplayPlan(null);
+      return;
+    }
+
+    const checkSubscriptionStatus = async () => {
+      // 1. Tâche 1: Branche de sortie JOUEUR -> subStatus = 'active', displayPlan = null
+      let role = currentUser.role;
+      if (!role) {
+        try {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('role')
+            .eq('id', currentUser.id)
+            .single();
+          if (profile?.role) role = profile.role;
+        } catch (e) {
+          console.warn('[App Paywall] Impossible de charger le rôle DB:', e);
+        }
+      }
+
+      if (role === 'joueur') {
+        setSubStatus('active');
+        if (setDisplayPlan) setDisplayPlan('Joueur');
+        return;
+      }
+
+      // 2a. Bypass ADMIN (super_admin / admin OU email dans ADMIN_EMAILS)
+      const isAdminEmail = ADMIN_EMAILS.includes(currentUser.email || '');
+      if (role === 'admin' || role === 'super_admin' || isAdminEmail) {
+        setSubStatus('active');
+        if (setDisplayPlan) setDisplayPlan('Entreprise (Admin)');
+        return;
+      }
+
+      // 2b. Bypass DEV
+      const isDevFake = import.meta.env.DEV && currentUser.id === 'dev-admin-id';
+      if (isDevFake) {
+        setSubStatus('active');
+        if (setDisplayPlan) setDisplayPlan('Dev');
+        return;
+      }
+
+      // 2c. Essai gratuit via get_trial_status() RPC (si disponible)
+      try {
+        const { data: trial } = await supabase.rpc('get_trial_status', { p_gerant_id: currentUser.id });
+        if (trial?.in_trial || (trial?.has_trial && trial?.status === 'trial' && !trial?.is_expired)) {
+          setTrialStatus(trial);
+          setSubStatus('trial');
+          const daysLeft = trial.jours_restants ?? trial.days_left ?? 0;
+          if (setDisplayPlan) setDisplayPlan(`Essai gratuit — ${daysLeft}j restants`);
+          return;
+        }
+      } catch (err) {
+        // Si la RPC get_trial_status n'existe pas encore dans ce projet, ignorer élégamment
+      }
+
+      // 2d. Abonnement actif via la table subscriptions
+      try {
+        const { data: subs } = await supabase
+          .from('subscriptions')
+          .select('id, plan_id, status, cycle, date_fin')
+          .eq('gerant_id', currentUser.id)
+          .eq('status', 'active');
+
+        if (subs && subs.length > 0) {
+          const activeSub = subs[0];
+          setSubStatus('active');
+          const planNames = { free: 'Free', starter: 'Starter', pro: 'Pro', entreprise: 'Entreprise' };
+          const planNom = planNames[activeSub.plan_id] || (activeSub.plan_id ? activeSub.plan_id.charAt(0).toUpperCase() + activeSub.plan_id.slice(1) : 'Starter');
+          const cycleNom = activeSub.cycle === 'annuel' ? 'Annuel' : activeSub.cycle === 'mensuel' ? 'Mensuel' : null;
+          const formattedPlan = cycleNom ? `${planNom} · ${cycleNom}` : planNom;
+          if (setDisplayPlan) setDisplayPlan(formattedPlan);
+        } else {
+          setSubStatus('paywall');
+          if (setDisplayPlan) setDisplayPlan(null);
+        }
+      } catch (err) {
+        console.error('[App Paywall] Erreur lors de la vérification des souscriptions:', err);
+        setSubStatus('active'); // fallback de sécurité pour ne pas bloquer en cas d'erreur réseau
+        if (setDisplayPlan) setDisplayPlan(null);
+      }
+    };
+
+    checkSubscriptionStatus();
+  }, [currentUser, setDisplayPlan]);
+
+  useEffect(() => {
+    const checkMaintenance = async () => {
+      try {
+        const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+        const res = await fetch(`${apiUrl}/api/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.modeMaintenance) {
+            setMaintenanceActive(true);
+          } else {
+            setMaintenanceActive(false);
+          }
+        }
+      } catch (err) {
+        // Ignore
+      }
+    };
+    checkMaintenance();
+    const interval = setInterval(checkMaintenance, 20000);
+    return () => clearInterval(interval);
+  }, []);
 
   // ── Synchroniser la vue quand la session est restaurée après un refresh ──
   useEffect(() => {
-    // Ne pas rediriger tant que l'auth n'est pas complètement chargée
-    if (loading) return;
+    const effectiveLoading = isProfileLoading && !forceUnlock;
+    if (effectiveLoading) return;
     if (hasRedirectedRef.current) return;
     
     if (currentUser) {
       hasRedirectedRef.current = true;
-      // Si on est encore sur landing/login/register, rediriger vers le bon dashboard
       const publicViews = ['landing', 'login', 'register'];
       if (publicViews.includes(view)) {
         if (currentUser.role === 'admin') setView('dashboard');
@@ -75,12 +216,37 @@ function App() {
         else setView('joueur-home');
       }
     }
-  }, [currentUser, loading, view]);
+  }, [currentUser, isProfileLoading, forceUnlock, view]);
 
   const [selectedTerrain, setSelectedTerrain] = useState(null);
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [toast, setToast] = useState(null);
-  const [showAnalysisModal, setShowAnalysisModal] = useState(false);
+  const [ticketsData, setTicketsData] = useState([]);
+
+  // Charge les vrais tickets du joueur connecté
+  useEffect(() => {
+    if (view !== 'tickets' || !currentUser?.id) return;
+    const today = new Date().toISOString().split('T')[0];
+    fetchReservations({ joueurId: currentUser.id, statut: 'confirmee' })
+      .then(data => {
+        setTicketsData(
+          data
+            .filter(r => r.date_slot >= today)
+            .map(r => ({
+              id: r.id,
+              terrain: r.terrain,
+              quartier: r.terrain_detail?.quartier || '',
+              date: new Date(r.date_slot).toLocaleDateString('fr-FR'),
+              slot: r.heure_slot?.slice(0, 5),
+              status: 'À venir',
+              amount: r.amount,
+              image: r.terrain_detail?.image_url,
+              raw: r,
+            }))
+        );
+      })
+      .catch(() => setTicketsData([]));
+  }, [view, currentUser?.id]);
 
   const triggerToast = (message) => {
     setToast(message);
@@ -88,7 +254,7 @@ function App() {
   };
 
   const handleDenied = () => {
-    if (loading) return; // Sécurité additionnelle avant redirect
+    if (isProfileLoading && !forceUnlock) return;
     if (!currentUser) {
       setView('landing');
       triggerToast('Veuillez vous connecter pour accéder à cette page');
@@ -104,12 +270,21 @@ function App() {
     triggerToast('Accès non autorisé');
   };
 
+  const handleLogout = async () => {
+    hasRedirectedRef.current = false;
+    try { await signOut(); } catch (_) {}
+    setCurrentUser(null);
+    setSubStatus('active');
+    setView('landing');
+  };
+
   if (isVerify) {
     return <VerifyTicket token={verifyToken} />;
   }
 
-  // ── Écran de chargement premium pendant la restauration de session ──
-  if (loading) {
+  // ── Écran de chargement du profil (avec Failsafe forceUnlock) ──
+  const effectiveLoading = isProfileLoading && !forceUnlock;
+  if (effectiveLoading) {
     return (
       <div className="min-h-screen bg-[#0F2318] flex flex-col items-center justify-center gap-6">
         <div className="relative">
@@ -126,8 +301,85 @@ function App() {
     );
   }
 
+  // ── 3. Rendu selon subStatus (CHECKING & PAYWALL) ──
+  if (currentUser && currentUser.role === 'gerant') {
+    if (subStatus === 'checking' && !forceUnlock) {
+      return (
+        <div className="min-h-screen bg-[#0F2318] flex flex-col justify-center items-center p-6 text-center text-white">
+          <IconLoader2 size={40} className="animate-spin text-primary mb-4" />
+          <p className="font-bold text-sm uppercase tracking-wider mb-6">Vérification de votre abonnement...</p>
+          <button
+            onClick={handleLogout}
+            className="px-6 py-2.5 bg-white/10 hover:bg-white/20 border border-white/10 text-xs font-bold rounded-xl transition-all cursor-pointer flex items-center gap-2"
+          >
+            <IconLogout size={16} />
+            <span>Se déconnecter</span>
+          </button>
+        </div>
+      );
+    }
+
+    if (subStatus === 'paywall') {
+      return (
+        <Abonnement
+          onSuccess={(subData) => {
+            setSubStatus('active');
+            if (subData?.plan_id && setDisplayPlan) {
+              const planMap = { free: 'Free', starter: 'Starter', pro: 'Pro', entreprise: 'Entreprise' };
+              const planName = planMap[subData.plan_id] || (subData.plan_id.charAt(0).toUpperCase() + subData.plan_id.slice(1));
+              const cycleName = subData.cycle === 'annuel' ? 'Annuel' : subData.cycle === 'mensuel' ? 'Mensuel' : null;
+              setDisplayPlan(cycleName ? `${planName} · ${cycleName}` : planName);
+            }
+          }}
+          onLogout={handleLogout}
+        />
+      );
+    }
+  }
+
+  // ── Écran de maintenance globale ──
+  if (maintenanceActive && currentUser?.role !== 'admin') {
+    return (
+      <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center p-6 text-center relative overflow-hidden font-sans">
+        <div className="absolute top-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[450px] h-[450px] rounded-full bg-primary/30 blur-[120px] pointer-events-none" />
+        
+        <div className="max-w-md w-full bg-[#122A1D]/85 border border-white/10 p-8 rounded-[2.5rem] shadow-2xl backdrop-blur-xl space-y-6">
+          <div className="w-20 h-20 bg-primary/10 rounded-full flex items-center justify-center border-2 border-primary mx-auto animate-pulse">
+            <IconSettings size={40} className="text-primary animate-spin-slow" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="font-display font-bold text-2xl text-white">Maintenance en cours 🛠️</h2>
+            <p className="text-sm text-gray-400 leading-relaxed">
+              Nous mettons à jour la plateforme pour vous offrir la meilleure expérience possible sur le terrain.
+            </p>
+          </div>
+          <div className="bg-white/5 border border-white/5 p-4 rounded-2xl text-xs text-gray-500 font-medium">
+            Le service sera de retour très bientôt. Merci pour votre patience !
+          </div>
+          {currentUser && (
+            <button 
+              onClick={handleLogout}
+              className="w-full bg-primary hover:bg-primary-dark text-white font-bold py-3.5 rounded-xl transition-all cursor-pointer shadow-glow text-xs uppercase tracking-wider"
+            >
+              Déconnexion
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Layout currentView={view} setView={setView}>
+      {/* 3. Render TrialBanner if subStatus === 'trial' */}
+      {subStatus === 'trial' && (
+        <TrialBanner
+          trialStatus={trialStatus}
+          onTrialExpired={() => setSubStatus('paywall')}
+        />
+      )}
+
       {view === 'landing' ? (
         <Landing setView={setView} />
       ) : view === 'login' ? (
@@ -136,42 +388,7 @@ function App() {
         <Register setView={setView} />
       ) : view === 'dashboard' ? (
         <ProtectedRoute allowedRoles={['admin']} onDenied={handleDenied}>
-          <Header title="Tableau de bord Admin" showSearch={true} setView={setView} />
-
-          <div className="flex-1 space-y-6 pb-8 overflow-y-auto overflow-x-hidden px-1">
-            {/* Statistics Cards */}
-            <StatsGrid />
-
-            <div className="px-6 lg:px-8 space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Top Terrains Section */}
-                <div className="lg:col-span-2 bg-white p-5 rounded-card shadow-subtle border border-black/5">
-                  <div className="flex items-center justify-between mb-4">
-                    <h3 className="text-sm font-bold text-primary-dark uppercase">Performance des Terrains</h3>
-                    <button 
-                      onClick={() => setShowAnalysisModal(true)}
-                      className="text-[11px] font-bold text-primary hover:underline active:scale-95 transition-transform cursor-pointer"
-                    >
-                      Analyser tout
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <TopTerrains />
-                  </div>
-                </div>
-
-                {/* Occupation Chart */}
-                <div className="bg-white p-5 rounded-card shadow-subtle border border-black/5">
-                  <OccupationChart />
-                </div>
-              </div>
-
-              {/* Main Table below */}
-              <div className="bg-white rounded-card shadow-subtle border border-black/5 overflow-hidden">
-                <ReservationsTable />
-              </div>
-            </div>
-          </div>
+          <AdminLayout onExit={() => setView('menu')} />
         </ProtectedRoute>
       ) : view === 'reservations' ? (
         <ProtectedRoute allowedRoles={['admin']} onDenied={handleDenied}>
@@ -214,6 +431,7 @@ function App() {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-1"
                 style={{ animation: 'slideUp 0.4s 0.05s cubic-bezier(.22,1,.36,1) both' }}>Navigation Administration</p>
               {[
+                { id: 'telemetrie', label: 'Télémétrie', sub: 'Activité en temps réel', icon: IconTrendingUp },
                 { id: 'scan', label: 'Scanner un Ticket', sub: 'Validation QR Code joueur', icon: IconScan },
                 { id: 'gerants', label: 'Gérants', sub: 'CRUD, suspensions, approbation', icon: IconUsersGroup },
                 { id: 'utilisateurs', label: 'Utilisateurs', sub: 'Liste joueurs, historique, blocage', icon: IconUsers },
@@ -243,13 +461,7 @@ function App() {
             </div>
 
             <button
-              onClick={async () => {
-                triggerToast('Déconnexion…');
-                hasRedirectedRef.current = false;
-                try { await signOut(); } catch (_) {}
-                setCurrentUser(null);
-                setView('landing');
-              }}
+              onClick={handleLogout}
               className="w-full flex items-center justify-center gap-3 py-4 bg-red-50 text-red-600 font-bold rounded-2xl border border-red-100 hover:bg-red-100 active:scale-[0.98] transition-all min-h-[56px] cursor-pointer"
               style={{ 
                 animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both',
@@ -260,10 +472,14 @@ function App() {
             </button>
           </div>
         </ProtectedRoute>
+      ) : view === 'telemetrie' ? (
+        <ProtectedRoute allowedRoles={['admin']} onDenied={handleDenied}>
+          <Telemetrie setView={setView} />
+        </ProtectedRoute>
       ) : view === 'gerant-dashboard' ? (
         <ProtectedRoute allowedRoles={['gerant']} onDenied={handleDenied}>
           <Header title="Mon Complexe" setView={setView} />
-          <GerantDashboard />
+          <GerantDashboard setView={setView} />
         </ProtectedRoute>
       ) : view === 'gerant-terrain' ? (
         <ProtectedRoute allowedRoles={['gerant']} onDenied={handleDenied}>
@@ -292,6 +508,24 @@ function App() {
           <Header title="Paramètres Gérant" setView={setView} />
           <Parametres setView={setView} />
         </ProtectedRoute>
+      ) : view === 'gerant-tarifs' ? (
+        <ProtectedRoute allowedRoles={['gerant', 'admin']} onDenied={handleDenied}>
+          <Header title="Abonnement & Tarifs" setView={setView} />
+          <GerantTarifs setView={setView} />
+        </ProtectedRoute>
+      ) : view === 'gerant-boost' ? (
+        <ProtectedRoute allowedRoles={['gerant', 'admin']} onDenied={handleDenied}>
+          <Header title="Budget Visibilité" setView={setView} />
+          <GerantVisibilityBoost setView={setView} />
+        </ProtectedRoute>
+      ) : view === 'payment-success' ? (
+        <ProtectedRoute allowedRoles={['gerant', 'admin', 'joueur']} onDenied={handleDenied}>
+          <PaymentSuccess setView={setView} />
+        </ProtectedRoute>
+      ) : view === 'payment-cancel' ? (
+        <ProtectedRoute allowedRoles={['gerant', 'admin', 'joueur']} onDenied={handleDenied}>
+          <PaymentCancel setView={setView} />
+        </ProtectedRoute>
       ) : view === 'joueur-home' ? (
         <ProtectedRoute allowedRoles={['joueur']} onDenied={handleDenied}>
           <Header title="Accueil Joueur" setView={setView} />
@@ -318,12 +552,9 @@ function App() {
       ) : view === 'tickets' ? (
         <ProtectedRoute allowedRoles={['joueur']} onDenied={handleDenied}>
           <MyTickets
-            reservations={[
-              { id: 'PS-88291', terrain: 'City Foot Almadies', quartier: 'Almadies', date: '22/05/2026', slot: '18:00', status: 'À venir', amount: '15.000 FCFA', image: 'https://images.unsplash.com/photo-1574629810360-7efbbe195018?auto=format&fit=crop&q=80&w=800' },
-              { id: 'PS-44210', terrain: 'Dakar Arena Pitch', quartier: 'Plateau', date: '25/05/2026', slot: '20:00', status: 'À venir', amount: '20.000 FCFA', image: 'https://images.unsplash.com/photo-1529900948638-02f04dc5b4e0?auto=format&fit=crop&q=80&w=800' }
-            ]}
+            reservations={ticketsData}
             onViewDetail={(ticket) => {
-              setSelectedReservation(ticket);
+              setSelectedReservation(ticket.raw || ticket);
               setView('reservation-detail');
             }}
           />
@@ -338,6 +569,7 @@ function App() {
             terrain={selectedTerrain}
             onBack={() => setView('discovery')}
             onBook={() => setView('booking-flow')}
+            setSelectedTerrain={setSelectedTerrain}
           />
         </ProtectedRoute>
       ) : view === 'booking-flow' ? (
@@ -362,47 +594,12 @@ function App() {
             }}
           />
         </ProtectedRoute>
+      ) : view === 'scan' ? (
+        <ProtectedRoute allowedRoles={['admin', 'gerant']} onDenied={handleDenied}>
+          <Header title="Scanner un Ticket" setView={setView} />
+          <ScanTicket onBack={() => setView(currentUser?.role === 'admin' ? 'menu' : 'gerant-dashboard')} />
+        </ProtectedRoute>
       ) : null}
-
-      {/* Analysis Modal for "Analyser tout" */}
-      {showAnalysisModal && (
-        <div className="fixed inset-0 z-[100]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm transition-opacity" onClick={() => setShowAnalysisModal(false)}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-lg mx-auto rounded-2xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-300 no-scrollbar">
-            <button onClick={() => setShowAnalysisModal(false)} className="absolute top-6 right-6 text-gray-400 hover:text-primary-dark p-2 bg-gray-50 rounded-full cursor-pointer">
-              <IconX size={20} />
-            </button>
-            <div className="mb-6 pr-10 min-w-0">
-              <h3 className="text-2xl font-display font-bold text-primary-dark tracking-tight mb-1 truncate whitespace-normal break-words">Rapport Global de Performance</h3>
-              <p className="text-sm text-gray-500 font-medium">Statistiques complètes de tous les terrains.</p>
-            </div>
-
-            <div className="space-y-4 max-h-[350px] overflow-y-auto pr-2 no-scrollbar">
-              {TOP_TERRAINS.map((terrain) => (
-                <div key={terrain.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
-                  <div className="flex items-center gap-3">
-                    <img src={terrain.image} alt={terrain.name} className="w-10 h-10 rounded-xl object-cover" />
-                    <div>
-                      <h4 className="font-bold text-sm text-primary-dark">{terrain.name}</h4>
-                      <p className="text-xs text-gray-400 font-semibold uppercase tracking-widest">{terrain.bookings} réservations</p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold text-primary">{terrain.revenue}</p>
-                    <span className="text-[10px] text-green-500 bg-green-50 font-bold px-2 py-0.5 rounded-full inline-flex items-center gap-0.5">
-                      <IconTrendingUp size={10} /> +12%
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-8 flex gap-3">
-              <button onClick={() => setShowAnalysisModal(false)} className="w-full btn-primary h-12">Fermer</button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Global Toast */}
       {toast && (

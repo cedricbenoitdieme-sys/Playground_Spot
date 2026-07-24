@@ -8,6 +8,7 @@ import {
 } from '@tabler/icons-react';
 import { fetchTopTerrains } from '../services/terrains';
 import { formatAmountAbbreviated } from '../services/stats';
+import { TerrainImage } from '../components/TerrainImage';
 
 export const JoueurFavoris = ({ setView, setSelectedTerrain }) => {
   const [favoriteTerrains, setFavoriteTerrains] = useState([]);
@@ -57,10 +58,12 @@ export const JoueurFavoris = ({ setView, setSelectedTerrain }) => {
               }}
             >
               <div className="h-40 md:h-auto md:w-48 relative overflow-hidden flex-shrink-0">
-                <img 
-                  src={terrain.image} 
-                  alt={terrain.name} 
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                <TerrainImage
+                  terrainId={terrain.id}
+                  fallbackUrl={terrain.image || terrain.image_url}
+                  alt={terrain.name}
+                  iconSize={24}
+                  className="w-full h-full group-hover:scale-105 transition-transform duration-500"
                 />
                 <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-1.5 rounded-full shadow-sm cursor-pointer hover:scale-110 text-red-500">
                   <IconHeart size={16} fill="currentColor" />

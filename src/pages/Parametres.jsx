@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import { CustomSelect } from '../components/CustomSelect';
 import {
   IconUser, IconLock, IconBell, IconSettings, IconInfoCircle,
   IconChevronRight, IconCheck, IconX, IconEye, IconEyeOff,
@@ -7,6 +8,10 @@ import {
   IconEdit, IconShield, IconPalette, IconDeviceMobile,
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
+import { supabase } from '../lib/supabase';
+import { updateProfile } from '../services/auth';
+
+const ROLE_LABELS = { admin: 'Super Administrateur', gerant: 'Gérant Terrain', joueur: 'Joueur' };
 /* ── Toggle switch ── */
 const Toggle = ({ value, onChange }) => (
   <button onClick={() => onChange(!value)}
@@ -44,9 +49,9 @@ const Row = ({ label, sub, children, onClick }) => (
 const Sheet = ({ open, onClose, title, children }) => {
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 lg:left-64 z-[9999]">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[9999]">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-md transition-opacity" onClick={onClose} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 z-10">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <h3 className="font-bold text-lg text-primary-dark">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors"><IconX size={18} /></button>
@@ -59,11 +64,20 @@ const Sheet = ({ open, onClose, title, children }) => {
 
 /* ════════════════════════ PAGE ════════════════════════ */
 export const Parametres = ({ setView }) => {
-  const { setCurrentUser } = useUser();
-  // Profil
-  const [profil, setProfil] = useState({ nom: 'Admin PlaygroundSpot', email: 'admin@playgroundspot.sn', tel: '+221 77 000 00 01' });
+  const { currentUser, setCurrentUser } = useUser();
+  // Profil — initialisé depuis le compte réellement connecté, jamais de
+  // valeur factice (chaque utilisateur, quel que soit son rôle, voit ses
+  // propres informations dès le chargement, sans avoir à les éditer manuellement).
+  const [profil, setProfil] = useState({ nom: '', email: '', tel: '' });
   const [editProfil, setEditProfil] = useState(false);
   const [profilForm, setProfilForm] = useState(profil);
+  const [savingProfil, setSavingProfil] = useState(false);
+
+  useEffect(() => {
+    if (currentUser) {
+      setProfil({ nom: currentUser.nom || '', email: currentUser.email || '', tel: currentUser.tel || '' });
+    }
+  }, [currentUser]);
 
   // Mot de passe
   const [editPwd, setEditPwd] = useState(false);
@@ -99,24 +113,124 @@ export const Parametres = ({ setView }) => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
 
-  const handleSaveProfil = (e) => {
-    e.preventDefault();
-    setProfil(profilForm);
-    setEditProfil(false);
-    showToast('Profil mis à jour ✓');
+  // Charger les paramètres au montage
+  useEffect(() => {
+    const fetchSettings = async () => {
+      try {
+        const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+        const res = await fetch(`${apiUrl}/api/settings`);
+        if (res.ok) {
+          const data = await res.json();
+          setPlateforme(prev => ({
+            ...prev,
+            commission: String(data.commissionPlateforme),
+            modeMainten: data.modeMaintenance
+          }));
+          setPlatForm(prev => ({
+            ...prev,
+            commission: String(data.commissionPlateforme),
+            modeMainten: data.modeMaintenance
+          }));
+        }
+      } catch (err) {
+        console.error("Error loading settings:", err);
+      }
+    };
+    if (['admin', 'super_admin'].includes(currentUser?.role)) {
+      fetchSettings();
+    }
+  }, [currentUser]);
+
+  // Envoyer la mise à jour des paramètres
+  const handleUpdateSetting = async (key, value) => {
+    try {
+      const sessionRes = await supabase.auth.getSession();
+      const token = sessionRes.data?.session?.access_token;
+      if (!token) return;
+
+      const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const res = await fetch(`${apiUrl}/api/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ key, value })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPlateforme(prev => ({
+          ...prev,
+          commission: String(data.commissionPlateforme),
+          modeMainten: data.modeMaintenance
+        }));
+      }
+    } catch (err) {
+      console.error("Error updating setting:", err);
+    }
   };
 
-  const handleSavePwd = (e) => {
+  const handleSaveProfil = async (e) => {
     e.preventDefault();
-    if (pwd.next !== pwd.confirm) { showToast('❌ Les mots de passe ne correspondent pas'); return; }
-    if (pwd.next.length < 8) { showToast('❌ Minimum 8 caractères'); return; }
-    setPwd({ current: '', next: '', confirm: '' });
-    setEditPwd(false);
-    showToast('Mot de passe mis à jour ✓');
+    if (!currentUser?.id) return;
+    setSavingProfil(true);
+    try {
+      const updated = await updateProfile(currentUser.id, {
+        nom: profilForm.nom.trim(),
+        tel: profilForm.tel.trim(),
+        // email volontairement exclu : un changement d'email doit passer
+        // par le flow de confirmation Supabase Auth (supabase.auth.updateUser),
+        // pas par une simple UPDATE de la table profiles.
+      });
+      setProfil(prev => ({ ...prev, nom: updated.nom, tel: updated.tel }));
+      setCurrentUser({ ...currentUser, nom: updated.nom, tel: updated.tel });
+      setEditProfil(false);
+      showToast('Profil mis à jour ✓');
+    } catch (err) {
+      showToast(`❌ ${err.userMessage || err.message || 'Erreur lors de la mise à jour du profil'}`);
+    } finally {
+      setSavingProfil(false);
+    }
   };
 
-  const handleSavePlat = (e) => {
+  const handleSavePwd = async (e) => {
     e.preventDefault();
+    
+    const hasUpperCase = /[A-Z]/.test(pwd.next);
+    const hasLowerCase = /[a-z]/.test(pwd.next);
+    const hasNumber = /[0-9]/.test(pwd.next);
+    const hasSpecialChar = /[^A-Za-z0-9]/.test(pwd.next);
+    
+    if (pwd.next !== pwd.confirm) { 
+      showToast('❌ Les mots de passe ne correspondent pas'); 
+      return; 
+    }
+    if (pwd.next.length < 8) { 
+      showToast('❌ Le mot de passe doit faire au moins 8 caractères'); 
+      return; 
+    }
+    if (!hasUpperCase || !hasLowerCase || !hasNumber || !hasSpecialChar) {
+      showToast('❌ Le mot de passe doit contenir une majuscule, une minuscule, un chiffre et un caractère spécial');
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.auth.updateUser({ password: pwd.next });
+      if (error) {
+        showToast(`❌ Erreur: ${error.message}`);
+        return;
+      }
+      setPwd({ current: '', next: '', confirm: '' });
+      setEditPwd(false);
+      showToast('Mot de passe mis à jour avec succès ✓');
+    } catch (err) {
+      showToast(`❌ Erreur réseau lors de la mise à jour`);
+    }
+  };
+
+  const handleSavePlat = async (e) => {
+    e.preventDefault();
+    await handleUpdateSetting('commission_plateforme', platForm.commission);
     setPlateforme(platForm);
     setEditPlat(false);
     showToast('Paramètres plateforme mis à jour ✓');
@@ -138,11 +252,11 @@ export const Parametres = ({ setView }) => {
           {/* Avatar */}
           <div className="px-5 py-5 flex items-center gap-4 border-b border-gray-50">
             <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center text-2xl font-black shadow-lg shadow-primary/20 flex-shrink-0">
-              AD
+              {currentUser?.avatar || '??'}
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-primary-dark text-base">{profil.nom}</p>
-              <p className="text-[11px] text-gray-400 font-medium">Super Administrateur</p>
+              <p className="text-[11px] text-gray-400 font-medium">{ROLE_LABELS[currentUser?.role] || currentUser?.role}</p>
               <p className="text-[11px] text-primary font-semibold mt-0.5">{profil.email}</p>
             </div>
             <button onClick={() => { setProfilForm(profil); setEditProfil(true); }}
@@ -199,9 +313,9 @@ export const Parametres = ({ setView }) => {
             <span className="text-[11px] text-gray-400 font-medium">UTC+0</span>
           </Row>
           <Row label="Mode maintenance" sub={plateforme.modeMainten ? 'Site inaccessible aux joueurs' : 'Plateforme en ligne'}>
-            <Toggle value={plateforme.modeMainten} onChange={v => {
-              setPlateforme(p => ({ ...p, modeMainten: v }));
+            <Toggle value={plateforme.modeMainten} onChange={async (v) => {
               showToast(v ? '⚠️ Mode maintenance activé' : '✓ Plateforme en ligne');
+              await handleUpdateSetting('mode_maintenance', v);
             }} />
           </Row>
         </Section>
@@ -254,22 +368,24 @@ export const Parametres = ({ setView }) => {
       <Sheet open={editProfil} onClose={() => setEditProfil(false)} title="Modifier le profil">
         <form onSubmit={handleSaveProfil} className="space-y-4">
           {[
-            { label: 'Nom complet', key: 'nom', type: 'text', icon: IconUser },
-            { label: 'Email',       key: 'email', type: 'email', icon: IconMail },
-            { label: 'Téléphone',   key: 'tel', type: 'tel', icon: IconPhone },
-          ].map(({ label, key, type, icon: Icon }) => (
+            { label: 'Nom complet', key: 'nom', type: 'text', icon: IconUser, editable: true },
+            { label: 'Email',       key: 'email', type: 'email', icon: IconMail, editable: false },
+            { label: 'Téléphone',   key: 'tel', type: 'tel', icon: IconPhone, editable: true },
+          ].map(({ label, key, type, icon: Icon, editable }) => (
             <div key={key}>
-              <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">{label}</label>
-              <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 ring-primary/20 transition-all">
+              <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">
+                {label}{!editable && <span className="normal-case font-medium text-gray-400"> (non modifiable ici)</span>}
+              </label>
+              <div className={`flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 transition-all ${editable ? 'focus-within:ring-2 ring-primary/20' : 'bg-gray-50 opacity-70'}`}>
                 <Icon size={16} className="text-gray-400 flex-shrink-0" />
-                <input type={type} value={profilForm[key]} required
+                <input type={type} value={profilForm[key]} required disabled={!editable}
                   onChange={e => setProfilForm(p => ({ ...p, [key]: e.target.value }))}
-                  className="flex-1 bg-transparent border-none focus:outline-none text-sm" />
+                  className="flex-1 bg-transparent border-none focus:outline-none text-sm disabled:cursor-not-allowed" />
               </div>
             </div>
           ))}
-          <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 min-h-[48px] hover:bg-primary-dark transition-colors">
-            Enregistrer
+          <button type="submit" disabled={savingProfil} className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 min-h-[48px] hover:bg-primary-dark transition-colors disabled:opacity-60">
+            {savingProfil ? 'Enregistrement...' : 'Enregistrer'}
           </button>
         </form>
       </Sheet>
@@ -289,8 +405,18 @@ export const Parametres = ({ setView }) => {
                 <input type={showPwd[key] ? 'text' : 'password'} value={pwd[key]} required minLength={key !== 'current' ? 8 : 1}
                   onChange={e => setPwd(p => ({ ...p, [key]: e.target.value }))}
                   className="flex-1 bg-transparent border-none focus:outline-none text-sm" placeholder="••••••••" />
-                <button type="button" onClick={() => setShowPwd(p => ({ ...p, [key]: !p[key] }))}>
-                  {showPwd[key] ? <IconEyeOff size={16} className="text-gray-400" /> : <IconEye size={16} className="text-gray-400" />}
+                <button 
+                  type="button" 
+                  onClick={() => setShowPwd(p => ({ ...p, [key]: !p[key] }))}
+                  className="focus:outline-none transition-transform duration-300 active:scale-90 hover:scale-110 cursor-pointer"
+                >
+                  <div className={`transition-all duration-300 transform ${showPwd[key] ? 'rotate-180 scale-100 opacity-90' : 'rotate-0 scale-100 opacity-70'}`}>
+                    {showPwd[key] ? (
+                      <IconEyeOff size={16} className="text-primary" />
+                    ) : (
+                      <IconEye size={16} className="text-gray-400" />
+                    )}
+                  </div>
                 </button>
               </div>
             </div>
@@ -316,12 +442,18 @@ export const Parametres = ({ setView }) => {
           </div>
           <div>
             <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Devise</label>
-            <select value={platForm.devise} onChange={e => setPlatForm(p => ({ ...p, devise: e.target.value }))}
-              className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20 bg-white">
-              <option>FCFA</option>
-              <option>EUR</option>
-              <option>USD</option>
-            </select>
+            <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 ring-primary/20 bg-white min-h-[48px]">
+              <CustomSelect
+                value={platForm.devise}
+                onChange={val => setPlatForm(p => ({ ...p, devise: val }))}
+                options={[
+                  { label: 'FCFA', value: 'FCFA' },
+                  { label: 'EUR', value: 'EUR' },
+                  { label: 'USD', value: 'USD' }
+                ]}
+                theme="light"
+              />
+            </div>
           </div>
           <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 min-h-[48px] hover:bg-primary-dark transition-colors">
             Enregistrer
@@ -337,12 +469,16 @@ export const Parametres = ({ setView }) => {
             <p>Les présentes Conditions Générales d'Utilisation ont pour objet de définir les modalités de mise à disposition des services du site PlaygroundSpot et les conditions d'utilisation par l'Utilisateur.</p>
           </div>
           <div>
-            <h4 className="font-bold text-primary-dark mb-1">2. Services proposés</h4>
+            <h4 className="font-bold text-primary-dark mb-1">2. Traitement des paiements</h4>
+            <p>Les paiements, notamment les règlements par Wave qui sont rendus possibles grâce à notre partenaire Unitech Pay, sont traités de manière sécurisée. Nous ne stockons aucune information bancaire sur nos serveurs.</p>
+          </div>
+          <div>
+            <h4 className="font-bold text-primary-dark mb-1">3. Services proposés</h4>
             <p>PlaygroundSpot met en relation des joueurs amateurs et des gérants d'infrastructures sportives privées à Dakar. Nous agissons en tant qu'intermédiaire technologique.</p>
           </div>
           <div>
-            <h4 className="font-bold text-primary-dark mb-1">3. Paiement et Annulation</h4>
-            <p>Tout paiement effectué via Wave ou Orange Money est définitif. L'annulation d'une réservation dépend des conditions propres fixées par le gérant.</p>
+            <h4 className="font-bold text-primary-dark mb-1">4. Paiement et Annulation</h4>
+            <p>Tout paiement (dont les paiements Wave possibles grâce à Unitech Pay) est définitif. L'annulation d'une réservation dépend des conditions propres fixées par le gérant.</p>
           </div>
         </div>
       </Sheet>
@@ -356,7 +492,7 @@ export const Parametres = ({ setView }) => {
           </div>
           <div>
             <h4 className="font-bold text-primary-dark mb-1">2. Traitement des paiements</h4>
-            <p>Les paiements sont traités par nos partenaires sécurisés (Wave, Orange Money). Nous ne stockons aucune information bancaire sur nos serveurs.</p>
+            <p>Les paiements, notamment les règlements par Wave qui sont rendus possibles grâce à notre partenaire Unitech Pay, sont traités de manière sécurisée. Nous ne stockons aucune information bancaire sur nos serveurs.</p>
           </div>
           <div>
             <h4 className="font-bold text-primary-dark mb-1">3. Partage d'informations</h4>

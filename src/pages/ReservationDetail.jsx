@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { 
   IconChevronLeft, 
@@ -17,13 +17,20 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { useUser } from '../context/UserContext';
+import TicketQR from '../components/TicketQR';
 
 export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
   const { currentUser } = useUser();
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
+  const qrCanvasRef = useRef(null);
 
   if (!reservation) return null;
+
+  const booking = {
+    ...reservation,
+    status: (reservation.status === 'Confirmée' || reservation.status === 'confirmee' || reservation.status === 'confirmed') ? 'confirmed' : reservation.status
+  };
 
   const handleDownload = (format) => {
     if (format === 'pdf') {
@@ -71,7 +78,7 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
       ctx.font = 'bold 35px Inter';
       ctx.fillText(`CODE: ${reservation.qr_token || reservation.id}`, 50, 320);
       
-      const qrCanvas = document.getElementById('qr-code-canvas');
+      const qrCanvas = document.getElementById(`qr-canvas-${reservation.id}`) || qrCanvasRef.current;
       if (qrCanvas) {
         ctx.drawImage(qrCanvas, 380, 100, 160, 160);
       }
@@ -197,7 +204,8 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
               
               <div className="bg-white p-4 rounded-3xl border-2 border-dashed border-gray-100 inline-block mb-6 relative">
                 <QRCodeCanvas 
-                  id="qr-code-canvas"
+                  id={`qr-canvas-${reservation.id}`}
+                  ref={qrCanvasRef}
                   value={`${window.location.origin}/verify/${reservation.qr_token || reservation.id}`} 
                   size={150} 
                   includeMargin={true} 
@@ -217,9 +225,9 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
       </div>
 
       {isCancelModalOpen && createPortal(
-        <div className="fixed inset-0 lg:left-64 z-[9999]">
-          <div className="absolute inset-0 bg-primary-dark/60 backdrop-blur-sm" onClick={() => setIsCancelModalOpen(false)}></div>
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-sm mx-auto rounded-modal shadow-2xl p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar">
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md" onClick={() => setIsCancelModalOpen(false)}></div>
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-sm mx-auto rounded-modal shadow-2xl p-8 overflow-y-auto max-h-[90vh] animate-in zoom-in-95 duration-200 no-scrollbar z-10">
             <h3 className="text-xl font-bold text-primary-dark mb-2 text-center">Annuler ce ticket ?</h3>
             <p className="text-gray-500 text-center text-sm mb-8">Cette action est irréversible.</p>
             <div className="space-y-3">
@@ -229,6 +237,7 @@ export const ReservationDetail = ({ reservation, onBack, onCancel }) => {
           </div>
         </div>
       , document.body)}
+      {booking.status === 'confirmed' && <TicketQR booking={booking} />}
     </div>
   );
 };

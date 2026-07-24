@@ -1,48 +1,36 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  IconCheck, 
-  IconAlertTriangle, 
-  IconX, 
-  IconLoader2, 
-  IconMapPin, 
-  IconCalendar, 
-  IconClock, 
-  IconUsers, 
-  IconWallet
-} from '@tabler/icons-react';
+// ⚠️ Déclarer cette route dans le routeur principal (ex: App.jsx ou routes du projet) :
+// import VerifyTicket from './pages/VerifyTicket'
+// <Route path="/verify" element={<VerifyTicket />} />
 
-import { supabase } from '../lib/supabase';
+import React, { useEffect, useState } from 'react';
 
-export const VerifyTicket = ({ token }) => {
+export function VerifyTicket({ token: propToken }) {
+  const urlParams = new URLSearchParams(window.location.search);
+  const token = propToken || urlParams.get('token');
+
   const [loading, setLoading] = useState(true);
-  const [ticket, setTicket] = useState(null);
-  const [error, setError] = useState(false);
+  const [result, setResult] = useState(null);
+  const [animate, setAnimate] = useState(false);
 
   useEffect(() => {
+    // Animation fade-in simple au montage
+    setAnimate(true);
+
+    if (!token) {
+      setLoading(false);
+      setResult({ valid: false });
+      return;
+    }
+
     const verifyToken = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        const baseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
-        const res = await fetch(`${baseUrl}/api/verify/${token}`, {
-          headers: {
-            'Authorization': `Bearer ${session?.access_token}`
-          }
-        });
-        
-        if (!res.ok) {
-          setError(true);
-        } else {
-          const data = await res.json();
-          if (data.statut === 'invalide') {
-            setError(true);
-          } else {
-            setTicket(data);
-          }
-        }
+        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const response = await fetch(`${apiUrl}/api/reservations/verify?token=${token}`);
+        const data = await response.json();
+        setResult(data);
       } catch (err) {
-        console.error("Erreur de vérification:", err);
-        setError(true);
+        console.error('Erreur lors de la vérification:', err);
+        setResult({ valid: false });
       } finally {
         setLoading(false);
       }
@@ -51,150 +39,85 @@ export const VerifyTicket = ({ token }) => {
     verifyToken();
   }, [token]);
 
-  const markAsUsed = () => {
-    setTicket(prev => ({
-      ...prev,
-      statut: 'utilise',
-      scanAt: new Date().toLocaleString('fr-FR', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      }).replace(',', ' à')
-    }));
-  };
-
   if (loading) {
     return (
-      <div className="h-full bg-background flex flex-col items-center justify-center p-6">
-        <IconLoader2 className="w-12 h-12 text-primary animate-spin mb-4" />
-        <p className="text-primary-dark font-bold animate-pulse">Vérification en cours...</p>
+      <div className="min-h-screen bg-[#0F2318] flex items-center justify-center p-4">
+        <div className="flex flex-col items-center gap-4 text-white">
+          <svg className="animate-spin h-10 w-10 text-[#E8DCC8]" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          </svg>
+          <span className="font-display font-medium text-lg text-[#E8DCC8]">Vérification du ticket...</span>
+        </div>
       </div>
     );
   }
 
-  if (error || !ticket) {
-    return (
-      <div className="h-full bg-gray-100 flex flex-col items-center justify-center p-6 text-center">
-        <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mb-6">
-          <IconX size={40} className="text-gray-500" />
-        </div>
-        <h2 className="text-2xl font-bold text-gray-800 mb-2">Token invalide</h2>
-        <p className="text-gray-500 mb-8 text-sm">Ce ticket n'est pas reconnu par le système PlaygroundSpot.</p>
-        <button 
-          onClick={() => window.location.href = '/'}
-          className="btn-primary w-full max-w-xs h-14"
+  const isValid = result?.valid === true;
+
+  return (
+    <div
+      className={`min-h-screen flex items-center justify-center p-4 transition-opacity duration-300 ${
+        animate ? 'opacity-100' : 'opacity-0'
+      } ${isValid ? 'bg-[#1A7A4A]' : 'bg-[#4A1A1A]'}`}
+    >
+      <div className="bg-white/10 backdrop-blur-md border border-white/20 rounded-3xl p-8 max-w-md w-full text-center shadow-2xl flex flex-col items-center text-white">
+        {isValid ? (
+          <>
+            {/* Icône ✅ grande */}
+            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-white mb-6">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+              </svg>
+            </div>
+            
+            <h1 className="text-3xl font-display font-bold mb-6">Ticket Valide</h1>
+            
+            {/* Détails du ticket */}
+            <div className="w-full text-left bg-black/15 rounded-2xl p-5 space-y-4 font-sans border border-white/5 mb-8">
+              <div>
+                <p className="text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest mb-0.5">Terrain</p>
+                <p className="text-lg font-bold">{result.terrain}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest mb-0.5">Date</p>
+                  <p className="text-base font-bold">{new Date(result.date).toLocaleDateString('fr-FR')}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest mb-0.5">Heure</p>
+                  <p className="text-base font-bold">{result.heure}</p>
+                </div>
+              </div>
+              <div className="border-t border-white/10 pt-3">
+                <p className="text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest mb-0.5">Joueur</p>
+                <p className="text-base font-bold">{result.joueur}</p>
+                <p className="text-sm text-white/80">{result.phone}</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Icône ❌ */}
+            <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center text-white mb-6">
+              <svg className="w-10 h-10" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+            
+            <h1 className="text-3xl font-display font-bold mb-2">Ticket Invalide</h1>
+            <p className="text-[#E8DCC8]/80 font-medium mb-8">Ce QR code n'est pas reconnu.</p>
+          </>
+        )}
+
+        {/* Bouton de retour */}
+        <button
+          onClick={() => { window.location.href = '/'; }}
+          className="w-full bg-white text-[#0F2318] py-3.5 px-6 rounded-2xl font-display font-semibold hover:bg-[#E8DCC8] transition-all hover:scale-[1.02] active:scale-[0.98]"
         >
           Retour à l'accueil
         </button>
       </div>
-    );
-  }
-
-  const themes = {
-    valide: {
-      bg: 'bg-[#1A7A4A]',
-      icon: <IconCheck size={48} className="text-white" />,
-      title: 'Ticket Valide',
-      textColor: 'text-white'
-    },
-    utilise: {
-      bg: 'bg-[#F5820D]',
-      icon: <IconAlertTriangle size={48} className="text-white" />,
-      title: 'Déjà Utilisé',
-      textColor: 'text-white'
-    },
-    annule: {
-      bg: 'bg-[#DC2626]',
-      icon: <IconX size={48} className="text-white" />,
-      title: 'Ticket Annulé',
-      textColor: 'text-white'
-    }
-  };
-
-  const theme = themes[ticket.statut];
-
-  return (
-    <div className={`h-full ${theme.bg} flex flex-col p-0 transition-colors duration-500`}>
-      {/* Visual Header */}
-      <div className="flex flex-col items-center justify-center py-12 px-6">
-        <div className="w-24 h-24 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center mb-6 border border-white/30 animate-in zoom-in duration-500">
-          {theme.icon}
-        </div>
-        <h1 className="text-3xl font-display font-bold text-white mb-2">{theme.title}</h1>
-        <p className="text-white/80 font-medium text-sm tracking-widest uppercase">{token}</p>
-      </div>
-
-      {/* Ticket Details Card */}
-      <div className="flex-1 bg-[#F8F7F2] rounded-t-[3rem] p-8 shadow-2xl relative">
-        {/* Ticket Perforation Notch */}
-        <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-12 h-6 bg-white/20 backdrop-blur-md rounded-full border border-white/30"></div>
-        
-        <div className="space-y-8 animate-in slide-in-from-bottom-10 duration-700">
-          {ticket.statut === 'utilise' && (
-            <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl flex items-start gap-3">
-              <IconAlertTriangle className="text-orange-500 shrink-0" size={20} />
-              <p className="text-orange-800 text-sm font-medium">
-                Ce ticket a déjà été scanné le <span className="font-bold">{ticket.scanAt}</span>.
-              </p>
-            </div>
-          )}
-
-          {ticket.statut === 'annule' && (
-            <div className="bg-red-50 border border-red-200 p-4 rounded-2xl flex items-start gap-3">
-              <IconX className="text-red-500 shrink-0" size={20} />
-              <p className="text-red-800 text-sm font-medium">
-                Cette réservation a été annulée par le client ou l'administration.
-              </p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 gap-6">
-            <InfoRow icon={IconCheck} label="Joueur" value={ticket.joueur} />
-            <InfoRow icon={IconMapPin} label="Terrain" value={`${ticket.terrain} (${ticket.quartier})`} />
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow icon={IconCalendar} label="Date" value={ticket.date} />
-              <InfoRow icon={IconClock} label="Créneau" value={ticket.creneau} />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <InfoRow icon={IconUsers} label="Joueurs" value={`${ticket.nbJoueurs} Joueurs`} />
-              <InfoRow icon={IconWallet} label="Montant" value={ticket.montant} />
-            </div>
-          </div>
-
-          <div className="pt-8 space-y-4">
-            {ticket.statut === 'valide' && (
-              <button 
-                onClick={markAsUsed}
-                className="w-full bg-[#1A7A4A] text-white h-16 rounded-2xl font-bold text-lg shadow-lg shadow-[#1A7A4A]/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-              >
-                <IconCheck size={24} />
-                Marquer comme utilisé
-              </button>
-            )}
-            
-            <button 
-              onClick={() => window.location.href = '/'}
-              className="w-full bg-white text-primary-dark border border-gray-200 h-16 rounded-2xl font-bold text-lg active:scale-95 transition-all"
-            >
-              Retour
-            </button>
-          </div>
-        </div>
-      </div>
     </div>
   );
-};
-
-const InfoRow = ({ icon: Icon, label, value }) => (
-  <div className="flex items-start gap-4">
-    <div className="w-10 h-10 bg-white border border-gray-100 rounded-xl flex items-center justify-center text-primary-dark shrink-0 shadow-sm">
-      <Icon size={20} stroke={2} />
-    </div>
-    <div>
-      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">{label}</p>
-      <p className="text-base font-bold text-primary-dark">{value}</p>
-    </div>
-  </div>
-);
+}

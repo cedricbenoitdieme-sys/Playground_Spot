@@ -6,6 +6,7 @@ import {
   IconCheck, IconBan, IconTrash, IconEdit, IconChevronRight,
   IconLoader2
 } from '@tabler/icons-react';
+import { supabase } from '../lib/supabase';
 import { fetchGerants } from '../services/profiles';
 import { updateProfileStatut } from '../services/profiles';
 
@@ -22,21 +23,22 @@ const StatusBadge = ({ statut }) => {
     'actif':      'bg-green-50 text-green-700 border-green-200',
     'suspendu':   'bg-red-50 text-red-600 border-red-200',
     'en attente': 'bg-yellow-50 text-yellow-700 border-yellow-200',
+    'en_attente': 'bg-yellow-50 text-yellow-700 border-yellow-200',
   };
+  const label = statut === 'en_attente' ? 'En attente' : statut;
   return (
     <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${map[statut] || 'bg-gray-100 text-gray-500'}`}>
-      {statut.charAt(0).toUpperCase() + statut.slice(1)}
+      {label.charAt(0).toUpperCase() + label.slice(1)}
     </span>
   );
 };
-
 /* ── Bottom Sheet ── */
 const Sheet = ({ open, onClose, title, children }) => {
   if (!open) return null;
   return createPortal(
-    <div className="fixed inset-0 lg:left-64 z-[9999]">
-      <div className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[9999]">
+      <div className="fixed inset-0 bg-black/50 backdrop-blur-md transition-opacity" onClick={onClose} />
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-md mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 z-10">
         <div className="flex items-center justify-between p-5 border-b border-gray-100">
           <h3 className="font-bold text-lg text-primary-dark">{title}</h3>
           <button onClick={onClose} className="p-2 rounded-full bg-gray-100 hover:bg-gray-200 transition-colors">
@@ -68,7 +70,7 @@ const GerantCard = ({ g, onClick }) => (
         <p className="font-bold text-primary-dark truncate">{g.nom}</p>
         <StatusBadge statut={g.statut} />
       </div>
-      <p className="text-[11px] text-gray-400 font-medium">{g.quartier} · {(g.terrains || []).length} terrain{(g.terrains || []).length > 1 ? 's' : ''}</p>
+      <p className="text-[11px] text-gray-400 font-medium">{g.quartier || 'Dakar'} · {(g.terrains || []).length} terrain{(g.terrains || []).length > 1 ? 's' : ''}</p>
       <div className="flex items-center gap-3 mt-1.5">
         <span className="text-xs font-bold text-primary">{fmt(g.revenus)}</span>
         {g.note && (
@@ -83,7 +85,7 @@ const GerantCard = ({ g, onClick }) => (
 );
 
 /* ══════════════════════════ PAGE ══════════════════════════ */
-const STATUTS = ['tous', 'actif', 'suspendu', 'en attente'];
+const STATUTS = ['tous', 'actif', 'suspendu', 'en_attente'];
 
 export const Gerants = () => {
   const [search, setSearch]       = useState('');
@@ -111,28 +113,57 @@ export const Gerants = () => {
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
-  const handleAddGerant = (e) => {
+  const handleAddGerant = async (e) => {
     e.preventDefault();
     if (!newForm.nom.trim() || !newForm.email.trim()) return;
-    const initiales = newForm.nom.trim().split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-    const nouveau = {
-      id: Date.now(),
-      nom: newForm.nom.trim(),
-      initiales,
-      email: newForm.email.trim(),
-      tel: newForm.tel.trim() || '—',
-      quartier: newForm.quartier.trim() || 'Dakar',
-      statut: 'en attente',
-      terrains: [],
-      revenus: 0,
-      reservations: 0,
-      note: null,
-      dateInscription: new Date().toLocaleDateString('fr-FR'),
-    };
-    setGerants(prev => [nouveau, ...prev]);
-    setNewForm({ nom: '', email: '', tel: '', quartier: '' });
-    setAddForm(false);
-    showToast(`${nouveau.nom} ajouté ✓ — en attente d'approbation`);
+    try {
+      const session = (await supabase.auth.getSession()).data.session;
+      const token = session?.access_token;
+      if (!token) {
+        throw new Error('Session expirée. Veuillez vous reconnecter.');
+      }
+
+      const baseUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+      const response = await fetch(`${baseUrl}/api/create-gerant`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          nom: newForm.nom.trim(),
+          email: newForm.email.trim().toLowerCase(),
+          tel: newForm.tel.trim() || null,
+          quartier: newForm.quartier.trim() || null
+        })
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || 'Erreur lors du traitement de la requête');
+      }
+
+      const data = await response.json();
+
+      const profileData = data.user;
+      const initiales = profileData.nom.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+      const nouveau = {
+        ...profileData,
+        initiales,
+        terrains: [],
+        revenus: 0,
+        reservations: 0,
+        note: null,
+        dateInscription: new Date(profileData.created_at).toLocaleDateString('fr-FR'),
+      };
+      setGerants(prev => [nouveau, ...prev]);
+      setNewForm({ nom: '', email: '', tel: '', quartier: '' });
+      setAddForm(false);
+      showToast(`${nouveau.nom} ajouté ✓ — mot de passe temporaire : ${data.tempPassword}`);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur de création : " + (err.message || err.error_description || "Une erreur est survenue"));
+    }
   };
 
   const filtered = gerants.filter(g => {
@@ -142,22 +173,41 @@ export const Gerants = () => {
     return matchSearch && matchStatut;
   });
 
-  const handleSuspend = (g) => {
-    setGerants(prev => prev.map(x => x.id === g.id ? { ...x, statut: x.statut === 'suspendu' ? 'actif' : 'suspendu' } : x));
-    setSelected(null);
-    showToast(g.statut === 'suspendu' ? `${g.nom} réactivé ✓` : `${g.nom} suspendu`);
+  const handleSuspend = async (g) => {
+    try {
+      const nextStatut = g.statut === 'suspendu' ? 'actif' : 'suspendu';
+      await updateProfileStatut(g.id, nextStatut);
+      setGerants(prev => prev.map(x => x.id === g.id ? { ...x, statut: nextStatut } : x));
+      setSelected(null);
+      showToast(g.statut === 'suspendu' ? `${g.nom} réactivé ✓` : `${g.nom} suspendu`);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la suspension : " + err.message);
+    }
   };
 
-  const handleApprove = (g) => {
-    setGerants(prev => prev.map(x => x.id === g.id ? { ...x, statut: 'actif' } : x));
-    setSelected(null);
-    showToast(`${g.nom} approuvé ✓`);
+  const handleApprove = async (g) => {
+    try {
+      await updateProfileStatut(g.id, 'actif');
+      setGerants(prev => prev.map(x => x.id === g.id ? { ...x, statut: 'actif' } : x));
+      setSelected(null);
+      showToast(`${g.nom} approuvé ✓`);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de l'approbation : " + err.message);
+    }
   };
 
-  const handleDelete = (g) => {
-    setGerants(prev => prev.filter(x => x.id !== g.id));
-    setSelected(null);
-    showToast(`${g.nom} supprimé`);
+  const handleDelete = async (g) => {
+    try {
+      await updateProfileStatut(g.id, 'inactif');
+      setGerants(prev => prev.filter(x => x.id !== g.id));
+      setSelected(null);
+      showToast(`${g.nom} supprimé`);
+    } catch (err) {
+      console.error(err);
+      showToast("Erreur lors de la suppression : " + err.message);
+    }
   };
 
   const stats = {
@@ -261,7 +311,7 @@ export const Gerants = () => {
                 <div>
                   <p className="font-bold text-lg text-primary-dark">{selected.nom}</p>
                   <StatusBadge statut={selected.statut} />
-                  <p className="text-xs text-gray-400 mt-1">Inscrit le {selected.dateInscription}</p>
+                  <p className="text-xs text-gray-400 mt-1">Inscrit le {selected.dateInscription || (selected.created_at ? new Date(selected.created_at).toLocaleDateString('fr-FR') : '—')}</p>
                 </div>
               </div>
             </div>
@@ -269,9 +319,9 @@ export const Gerants = () => {
             {/* Infos */}
             <div className="p-5 space-y-3">
               {[
-                { icon: IconMail,    val: selected.email },
-                { icon: IconPhone,   val: selected.tel },
-                { icon: IconMapPin,  val: selected.quartier },
+                { icon: IconMail,    val: selected.email || 'Non renseigné' },
+                { icon: IconPhone,   val: selected.tel || selected.telephone || 'Non renseigné' },
+                { icon: IconMapPin,  val: selected.quartier || 'Non renseigné' },
               ].map(({ icon: Icon, val }, i) => (
                 <div key={i} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
                   <Icon size={18} className="text-primary flex-shrink-0" />
@@ -281,13 +331,35 @@ export const Gerants = () => {
 
               {/* Terrains */}
               <div className="p-3 bg-gray-50 rounded-xl">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">Terrains gérés</p>
-                <div className="space-y-1">
-                  {selected.terrains.map((t, i) => (
-                    <div key={i} className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-                      <IconBallFootball size={14} className="text-primary" /> {t}
-                    </div>
-                  ))}
+                <p className="text-[10px] font-bold uppercase tracking-widest text-gray-400 mb-2">
+                  Terrains gérés ({selected.terrainCount ?? selected.terrains?.length ?? 0})
+                </p>
+                <div className="space-y-1.5">
+                  {(selected.terrains || []).length === 0 ? (
+                    <p className="text-xs text-gray-400 font-medium">Aucun terrain enregistré</p>
+                  ) : (
+                    (selected.terrains || []).map((t, i) => {
+                      const name = typeof t === 'string' ? t : (t.nom || t.name || 'Terrain');
+                      const status = typeof t === 'object' ? (t.status || t.statut) : null;
+                      return (
+                        <div key={i} className="flex items-center justify-between text-sm font-semibold text-gray-700">
+                          <div className="flex items-center gap-2">
+                            <IconBallFootball size={14} className="text-primary flex-shrink-0" />
+                            <span>{name}</span>
+                          </div>
+                          {status && (
+                            <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${
+                              status === 'approved' || status === 'actif' ? 'bg-green-100 text-green-700' :
+                              status === 'pending' || status === 'en_attente' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-red-100 text-red-700'
+                            }`}>
+                              {status === 'approved' || status === 'actif' ? 'Approuvé' : status === 'pending' || status === 'en_attente' ? 'En attente' : 'Rejeté'}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
 

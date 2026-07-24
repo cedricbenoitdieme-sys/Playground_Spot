@@ -1,17 +1,20 @@
 import React from 'react';
 import { IconStarFilled, IconMapPin } from '@tabler/icons-react';
+import { TerrainImage } from './TerrainImage';
 
 export const TerrainCard = ({ terrain }) => {
   return (
     <div className="bg-white rounded-card overflow-hidden shadow-subtle hover:shadow-md transition-all duration-300 group cursor-pointer border border-black/5">
       {/* Image Container */}
-      <div className="relative aspect-[16/9] overflow-hidden">
-        <img 
-          src={terrain.image} 
-          alt={terrain.name} 
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+        <TerrainImage
+          terrainId={terrain.id}
+          fallbackUrl={terrain.image || terrain.image_url}
+          alt={terrain.name}
+          iconSize={32}
+          className="w-full h-full group-hover:scale-105 transition-transform duration-500"
         />
-        
+
         {/* Overlay Badges */}
         <div className="absolute top-3 right-3 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-lg text-[10px] font-bold text-primary-dark shadow-sm border border-black/5">
           {terrain.surface}

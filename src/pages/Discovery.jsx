@@ -4,6 +4,7 @@ import { TerrainCard } from '../components/TerrainCard';
 import { MapDiscovery } from '../components/MapDiscovery';
 import { fetchTerrains } from '../services/terrains';
 import { IconCheck, IconLoader2 } from '@tabler/icons-react';
+import { DiscoverySkeleton } from '../components/Skeletons';
 
 export const Discovery = ({ setView, setSelectedTerrain }) => {
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
@@ -28,6 +29,11 @@ export const Discovery = ({ setView, setSelectedTerrain }) => {
     };
     load();
   }, []);
+
+  if (loading) {
+    return <DiscoverySkeleton />;
+  }
+
 
   const filteredTerrains = terrains.filter(terrain => {
     const matchesSearch = (terrain.name || terrain.nom || '').toLowerCase().includes(searchQuery.toLowerCase()) || 

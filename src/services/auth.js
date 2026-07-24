@@ -17,8 +17,8 @@ import { validateEmail, validatePassword } from '../lib/validators';
  */
 export const getCurrentUser = async () => {
   const { data: { user }, error } = await supabase.auth.getUser();
-  if (error || !user) return null;
-  return user;
+  if (!error && user) return user;
+  return null;
 };
 
 /**
@@ -114,7 +114,7 @@ export const signUp = async ({ email, password, nom, role = 'joueur', quartier =
  * 
  * Règles: 8.2 (rate limit login), 9.1 (log tentatives)
  */
-export const signIn = async ({ email, password }) => {
+export const signIn = async ({ email, password, rememberMe = true }) => {
   // ── Règle 8.2 — Rate limiting connexion ──
   const rl = checkRateLimit('login', RATE_LIMITS.login.maxRequests, RATE_LIMITS.login.windowMs);
   if (!rl.allowed) {
@@ -125,8 +125,12 @@ export const signIn = async ({ email, password }) => {
   try {
     const { data, error } = await supabase.auth.signInWithPassword({ 
       email: email.trim().toLowerCase(), 
-      password 
+      password,
+      options: {
+        persistSession: rememberMe
+      }
     });
+
     if (error) {
       // ── Règle 9.1 — Logger l'échec de connexion ──
       securityLog.loginFailure(email);
@@ -139,11 +143,32 @@ export const signIn = async ({ email, password }) => {
     return data;
   } catch (error) {
     // Re-throw les erreurs de login Supabase telles quelles pour le message utilisateur
-    if (error.message?.includes('Invalid login') || error.message?.includes('Email not confirmed')) {
+    if (
+      error.message?.toLowerCase().includes('invalid') ||
+      error.message?.toLowerCase().includes('credentials') ||
+      error.message?.toLowerCase().includes('email not confirmed') ||
+      error.message?.toLowerCase().includes('invalid login')
+    ) {
       throw error;
     }
     throw handleServiceError(error, 'signIn');
   }
+};
+
+/**
+ * Connexion via Google OAuth. Redirige vers Google puis revient sur
+ * /?view=login, où Login.jsx détecte une éventuelle erreur de blocage
+ * (email déjà utilisé par le flow email/password) posée par Supabase
+ * dans l'URL de retour.
+ */
+export const signInWithGoogle = async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/?view=login`
+    }
+  });
+  if (error) throw handleServiceError(error, 'signInWithGoogle');
 };
 
 /**

@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { CustomSelect } from '../components/CustomSelect';
 import { 
   IconTicket, 
   IconMapPin, 
@@ -69,16 +70,19 @@ export const MyTickets = ({ reservations, onViewDetail }) => {
             </div>
             
             {/* Sort Toggle */}
-            <select 
-              value={sortOrder}
-              onChange={(e) => setSortOrder(e.target.value)}
-              className="bg-white border border-gray-100 rounded-full px-4 py-2 shadow-sm text-sm font-bold text-gray-600 focus:outline-none cursor-pointer"
-            >
-              <option value="newest">Plus récents d'abord</option>
-              <option value="oldest">Plus anciens d'abord</option>
-              <option value="az">A - Z</option>
-              <option value="za">Z - A</option>
-            </select>
+            <div className="bg-white border border-gray-100 rounded-full px-4 py-2 shadow-sm text-sm font-bold text-gray-600 focus:outline-none cursor-pointer flex items-center min-w-[180px] min-h-[38px]">
+              <CustomSelect
+                value={sortOrder}
+                onChange={(val) => setSortOrder(val)}
+                options={[
+                  { label: "Plus récents d'abord", value: "newest" },
+                  { label: "Plus anciens d'abord", value: "oldest" },
+                  { label: "A - Z", value: "az" },
+                  { label: "Z - A", value: "za" }
+                ]}
+                theme="light"
+              />
+            </div>
           </div>
         </header>
 

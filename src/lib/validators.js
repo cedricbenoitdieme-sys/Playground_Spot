@@ -17,7 +17,7 @@ const SENEGAL_PHONE_REGEX = /^(?:\+221)?[[:space:]-]?7[0-9678][[:space:]-]?\d{3}
 // Version simplifiée pour le JS
 const PHONE_REGEX = /^(\+221\s?)?7[0-9678]\s?\d{3}\s?\d{2}\s?\d{2}$/;
 
-const ALLOWED_ROLES = ['admin', 'gerant', 'joueur'];
+const ALLOWED_ROLES = ['admin', 'super_admin', 'gerant', 'joueur'];
 
 // ── Règle 2.4 — Validation UUID ─────────────────────────────
 /**
@@ -27,8 +27,17 @@ const ALLOWED_ROLES = ['admin', 'gerant', 'joueur'];
  * @returns {{ valid: boolean, error?: string }}
  */
 export const validateUUID = (id) => {
-  if (!id || typeof id !== 'string') {
+  if (!id) {
     return { valid: false, error: 'ID requis' };
+  }
+  // En mode développement, autoriser les identifiants numériques simples (fixtures locales)
+  if (import.meta.env?.DEV) {
+    if (typeof id === 'number' || /^\d+$/.test(id)) {
+      return { valid: true };
+    }
+  }
+  if (typeof id !== 'string') {
+    return { valid: false, error: 'Format UUID invalide' };
   }
   if (!UUID_REGEX.test(id)) {
     return { valid: false, error: 'Format UUID invalide' };
