@@ -251,6 +251,38 @@ export const updateProfile = async (userId, updates) => {
 };
 
 /**
+ * Envoie un e-mail de réinitialisation de mot de passe.
+ */
+export const sendPasswordResetEmail = async (email) => {
+  const emailCheck = validateEmail(email);
+  if (!emailCheck.valid) throw new Error(emailCheck.error);
+
+  const redirectTo = `${window.location.origin}/?view=login&reset=true`;
+
+  const { error } = await supabase.auth.resetPasswordForEmail(email.trim().toLowerCase(), {
+    redirectTo,
+  });
+
+  if (error) throw handleServiceError(error, 'sendPasswordResetEmail');
+  return true;
+};
+
+/**
+ * Met à jour le mot de passe de l'utilisateur connecté/authentifié via token de réinitialisation.
+ */
+export const updateUserPassword = async (newPassword) => {
+  const pwdCheck = validatePassword(newPassword);
+  if (!pwdCheck.valid) throw new Error(pwdCheck.error);
+
+  const { data, error } = await supabase.auth.updateUser({
+    password: newPassword,
+  });
+
+  if (error) throw handleServiceError(error, 'updateUserPassword');
+  return data;
+};
+
+/**
  * Écouter les changements d'état d'authentification.
  */
 export const onAuthStateChange = (callback) => {

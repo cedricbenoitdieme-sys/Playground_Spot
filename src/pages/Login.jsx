@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useUser } from '../context/UserContext';
-import { getProfile, signIn, signInWithGoogle } from '../services/auth';
+import { getProfile, signIn, signInWithGoogle, sendPasswordResetEmail, updateUserPassword } from '../services/auth';
 import { supabase } from '../lib/supabase';
 import { withRetry, withTimeout } from '../lib/errorHandler';
 import { 
@@ -10,7 +10,10 @@ import {
   IconArrowRight, 
   IconArrowLeft, 
   IconEye,
-  IconEyeOff
+  IconEyeOff,
+  IconX,
+  IconCheck,
+  IconAlertCircle
 } from '@tabler/icons-react';
 
 // Détecte une erreur renvoyée par Supabase après un retour de redirection OAuth
@@ -44,6 +47,34 @@ export const Login = ({ setView }) => {
   const [showPassword, setShowPassword] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
 
+  // Forgot password modal state
+  const [showForgotModal, setShowForgotModal] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState('');
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotSuccess, setForgotSuccess] = useState(false);
+  const [forgotError, setForgotError] = useState(null);
+
+  // Update password modal state (after email link click)
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetError, setResetError] = useState(null);
+
+  // Detect password reset token or hash event from Supabase
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+    const isReset = searchParams.get('reset') === 'true' || hashParams.get('type') === 'recovery';
+
+    if (isReset) {
+      setShowResetModal(true);
+    }
+  }, []);
+
   // Nettoyage de l'URL (error/error_description) pour ne pas re-déclencher au refresh
   useEffect(() => {
     if (!window.location.hash.includes('error') && !window.location.search.includes('error')) return;
@@ -56,15 +87,56 @@ export const Login = ({ setView }) => {
     setError(null);
     try {
       await signInWithGoogle();
-      // La redirection vers Google a lieu ici ; rien d'autre à faire.
     } catch (err) {
       setError(err.userMessage || err.message || 'Connexion Google impossible. Veuillez réessayer.');
       setGoogleLoading(false);
     }
   };
 
+  const handleForgotSubmit = async (e) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    setForgotError(null);
+    setForgotSuccess(false);
+
+    try {
+      await sendPasswordResetEmail(forgotEmail);
+      setForgotSuccess(true);
+    } catch (err) {
+      setForgotError(err.message || "Impossible d'envoyer l'email de réinitialisation.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetSubmit = async (e) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setResetError('Les mots de passe ne correspondent pas.');
+      return;
+    }
+
+    setResetLoading(true);
+    setResetError(null);
+
+    try {
+      await updateUserPassword(newPassword);
+      setResetSuccess(true);
+      setTimeout(() => {
+        setShowResetModal(false);
+        setResetSuccess(false);
+        setNewPassword('');
+        setConfirmPassword('');
+      }, 2000);
+    } catch (err) {
+      setResetError(err.message || 'Échec de la mise à jour du mot de passe.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   // Si déjà connecté, rediriger
-  if (currentUser) {
+  if (currentUser && !showResetModal) {
     const dest = ['admin', 'super_admin'].includes(currentUser.role) ? 'dashboard' : currentUser.role === 'gerant' ? 'gerant-dashboard' : 'joueur-home';
     setTimeout(() => setView(dest), 0);
     return null;
@@ -107,6 +179,13 @@ export const Login = ({ setView }) => {
           withRetry(() => getProfile(data.user.id), { maxRetries: 3, baseDelay: 500, context: 'Login' }),
           20000
         );
+
+        if (!profile || profile.statut === 'suspendu' || profile.statut === 'inactif') {
+          await supabase.auth.signOut();
+          setError('Votre compte est suspendu ou inactif. Contactez l\'administrateur.');
+          return;
+        }
+
         const userObj = {
           id: data.user.id,
           nom: profile.nom,
@@ -243,7 +322,18 @@ export const Login = ({ setView }) => {
                 />
                 Se souvenir
               </label>
-              <span className="hover:text-primary transition-colors cursor-pointer">Mot de passe oublié ?</span>
+              <button 
+                type="button"
+                onClick={() => {
+                  setForgotEmail(email);
+                  setForgotSuccess(false);
+                  setForgotError(null);
+                  setShowForgotModal(true);
+                }}
+                className="hover:text-primary transition-colors cursor-pointer"
+              >
+                Mot de passe oublié ?
+              </button>
             </div>
 
             {/* Submit Button */}
@@ -314,6 +404,187 @@ export const Login = ({ setView }) => {
         </div>
 
       </div>
+
+      {/* Modal Réinitialisation (Demande d'e-mail) */}
+      {showForgotModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#122A1D] border border-white/10 w-full max-w-md rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative text-white">
+            <button 
+              onClick={() => setShowForgotModal(false)}
+              className="absolute top-6 right-6 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              <IconX size={20} />
+            </button>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold font-display">Mot de passe oublié</h3>
+              <p className="text-xs text-gray-400">
+                Saisissez votre e-mail. Nous vous enverrons un lien sécurisé pour choisir un nouveau mot de passe.
+              </p>
+            </div>
+
+            {forgotSuccess ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-3 text-center">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                  <IconCheck size={24} />
+                </div>
+                <p className="text-xs text-emerald-300 font-semibold">
+                  E-mail envoyé ! Vérifiez votre boîte de réception (et vos spams) et cliquez sur le lien.
+                </p>
+                <button
+                  onClick={() => setShowForgotModal(false)}
+                  className="w-full py-2.5 bg-emerald-500 text-black font-bold text-xs rounded-xl hover:bg-emerald-400 transition-all"
+                >
+                  Fermer
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgotSubmit} className="space-y-4">
+                {forgotError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold flex items-center gap-2">
+                    <IconAlertCircle size={16} />
+                    <span>{forgotError}</span>
+                  </div>
+                )}
+
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest pl-1">Adresse Email</label>
+                  <div className="flex items-center gap-3 bg-[#0A1810]/60 border border-white/5 rounded-xl px-4 py-3 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                    <IconMail size={16} className="text-gray-400" />
+                    <input 
+                      type="email" 
+                      required
+                      value={forgotEmail}
+                      onChange={(e) => setForgotEmail(e.target.value)}
+                      placeholder="votre.email@exemple.com" 
+                      className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={forgotLoading}
+                  className="w-full py-3.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition-all shadow-glow flex items-center justify-center gap-2 text-sm disabled:opacity-70 cursor-pointer"
+                >
+                  {forgotLoading ? (
+                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
+                  ) : (
+                    <span>Envoyer le lien de réinitialisation</span>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Modal Nouveau Mot de Passe (Après clic sur l'e-mail) */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
+          <div className="bg-[#122A1D] border border-white/10 w-full max-w-md rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative text-white">
+            <button 
+              onClick={() => setShowResetModal(false)}
+              className="absolute top-6 right-6 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
+            >
+              <IconX size={20} />
+            </button>
+
+            <div className="space-y-2">
+              <h3 className="text-xl font-bold font-display text-emerald-400">Nouveau mot de passe</h3>
+              <p className="text-xs text-gray-300">
+                Saisissez votre nouveau mot de passe sécurisé pour finaliser la réinitialisation.
+              </p>
+            </div>
+
+            {resetSuccess ? (
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl space-y-3 text-center">
+                <div className="w-10 h-10 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
+                  <IconCheck size={24} />
+                </div>
+                <p className="text-xs text-emerald-300 font-bold">
+                  Mot de passe mis à jour avec succès ! Vous êtes connecté.
+                </p>
+              </div>
+            ) : (
+              <form onSubmit={handleResetSubmit} className="space-y-4">
+                {resetError && (
+                  <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-xl text-red-400 text-xs font-semibold flex items-center gap-2">
+                    <IconAlertCircle size={16} />
+                    <span>{resetError}</span>
+                  </div>
+                )}
+
+                {/* Nouveau Mot de passe */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest pl-1">Nouveau mot de passe</label>
+                  <div className="flex items-center gap-3 bg-[#0A1810]/60 border border-white/5 rounded-xl px-4 py-3 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                    <IconLock size={16} className="text-gray-400" />
+                    <input 
+                      type={showNewPassword ? 'text' : 'password'} 
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Nouveau mot de passe (min. 6 car.)" 
+                      className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="focus:outline-none transition-transform duration-300 active:scale-90 hover:scale-110 cursor-pointer"
+                    >
+                      {showNewPassword ? (
+                        <IconEyeOff size={16} className="text-primary" />
+                      ) : (
+                        <IconEye size={16} className="text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Confirmation Mot de passe */}
+                <div className="space-y-1">
+                  <label className="block text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest pl-1">Confirmer le mot de passe</label>
+                  <div className="flex items-center gap-3 bg-[#0A1810]/60 border border-white/5 rounded-xl px-4 py-3 focus-within:border-primary/50 focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                    <IconLock size={16} className="text-gray-400" />
+                    <input 
+                      type={showConfirmPassword ? 'text' : 'password'} 
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      placeholder="Confirmez le nouveau mot de passe" 
+                      className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="focus:outline-none transition-transform duration-300 active:scale-90 hover:scale-110 cursor-pointer"
+                    >
+                      {showConfirmPassword ? (
+                        <IconEyeOff size={16} className="text-primary" />
+                      ) : (
+                        <IconEye size={16} className="text-gray-400" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="w-full py-3.5 bg-primary text-white font-bold rounded-xl hover:bg-primary-dark transition-all shadow-glow flex items-center justify-center gap-2 text-sm disabled:opacity-70 cursor-pointer"
+                >
+                  {resetLoading ? (
+                    <div className="w-5 h-5 rounded-full border-2 border-white/30 border-t-white animate-spin"></div>
+                  ) : (
+                    <span>Valider mon nouveau mot de passe</span>
+                  )}
+                </button>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   );
