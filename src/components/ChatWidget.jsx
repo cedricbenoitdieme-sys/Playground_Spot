@@ -378,30 +378,157 @@ export const ChatWidget = () => {
     }
   };
 
+  // ── Drag, Docking & Retraction States ──
+  const [dockSide, setDockSide] = useState(() => localStorage.getItem('playgroundspot-chat-dock-side') || 'right');
+  const [dockY, setDockY] = useState(() => {
+    const saved = localStorage.getItem('playgroundspot-chat-dock-y');
+    return saved ? parseFloat(saved) : 80; // Pourcentage vertical (0-100)
+  });
+  const [isRetracted, setIsRetracted] = useState(() => localStorage.getItem('playgroundspot-chat-retracted') === 'true');
+  const [isDragging, setIsDragging] = useState(false);
+  const dragRef = useRef({ startX: 0, startY: 0, initialYPercent: 80, hasMoved: false });
+  const buttonRef = useRef(null);
+
+  // Persistence dans localStorage
+  useEffect(() => {
+    localStorage.setItem('playgroundspot-chat-dock-side', dockSide);
+    localStorage.setItem('playgroundspot-chat-dock-y', dockY.toString());
+    localStorage.setItem('playgroundspot-chat-retracted', isRetracted.toString());
+  }, [dockSide, dockY, isRetracted]);
+
+  // Handlers pour le Drag (Souris + Touch)
+  const handlePointerDown = (e) => {
+    // Éviter le drag si le chat est déjà ouvert
+    if (isOpen) return;
+
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+    dragRef.current = {
+      startX: clientX,
+      startY: clientY,
+      initialYPercent: dockY,
+      hasMoved: false
+    };
+
+    const handlePointerMove = (moveEvent) => {
+      const currentX = moveEvent.touches ? moveEvent.touches[0].clientX : moveEvent.clientX;
+      const currentY = moveEvent.touches ? moveEvent.touches[0].clientY : moveEvent.clientY;
+      
+      const deltaX = Math.abs(currentX - dragRef.current.startX);
+      const deltaY = Math.abs(currentY - dragRef.current.startY);
+
+      if (deltaX > 5 || deltaY > 5) {
+        if (!dragRef.current.hasMoved) {
+          dragRef.current.hasMoved = true;
+          setIsDragging(true);
+          // Si on commence à glisser, on sort du mode rétracté
+          if (isRetracted) setIsRetracted(false);
+        }
+
+        // Calcul de la position verticale relative (%)
+        const windowHeight = window.innerHeight;
+        const newYPercent = Math.min(Math.max((currentY / windowHeight) * 100, 10), 90);
+        setDockY(newYPercent);
+
+        // Détection du côté le plus proche pendant le drag
+        const windowWidth = window.innerWidth;
+        if (currentX < windowWidth / 2) {
+          setDockSide('left');
+        } else {
+          setDockSide('right');
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      window.removeEventListener('mousemove', handlePointerMove);
+      window.removeEventListener('mouseup', handlePointerUp);
+      window.removeEventListener('touchmove', handlePointerMove);
+      window.removeEventListener('touchend', handlePointerUp);
+
+      setTimeout(() => setIsDragging(false), 50);
+
+      // Si l'utilisateur n'a pas glissé (simple clic)
+      if (!dragRef.current.hasMoved) {
+        if (isRetracted) {
+          // Premier clic : Déployer l'icône sans ouvrir le chat
+          setIsRetracted(false);
+        } else {
+          // Deuxième clic : Ouvrir le chat
+          setIsOpen(true);
+        }
+      } else {
+        // Fin de drag : Snap auto et mise en mode rétracté automatique après un court délai
+        setIsRetracted(true);
+      }
+    };
+
+    window.addEventListener('mousemove', handlePointerMove);
+    window.addEventListener('mouseup', handlePointerUp);
+    window.addEventListener('touchmove', handlePointerMove, { passive: false });
+    window.addEventListener('touchend', handlePointerUp);
+  };
+
   const displayMessages = getDisplayMessages();
 
+  // Positionnement dynamique du bouton flottant et de la fenêtre de chat
+  const unreadBadgeCount = messages.filter(m => m.receiver_id === currentUser?.id && !m.is_read).length;
+
   return (
-    <div className="fixed bottom-20 lg:bottom-6 right-6 z-[9999] font-sans">
-      {/* Floating Button */}
+    <div 
+      ref={buttonRef}
+      className={`fixed z-[9999] font-sans transition-all duration-300 ease-out select-none ${
+        isDragging ? 'transition-none cursor-grabbing' : ''
+      }`}
+      style={{
+        top: `${dockY}%`,
+        transform: 'translateY(-50%)',
+        ...(dockSide === 'left' 
+          ? { left: isRetracted ? '-38px' : '16px' } 
+          : { right: isRetracted ? '-38px' : '16px' }
+        )
+      }}
+    >
+      {/* Floating Draggable Button */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          className="w-14 h-14 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-xl shadow-primary/30 transition-all hover:scale-110 active:scale-95 animate-bounce-slow"
-        >
-          <div className="relative">
-            <IconMessageChatbot size={28} />
-            {messages.filter(m => m.receiver_id === currentUser?.id && !m.is_read).length > 0 && (
-              <span className="absolute -top-2 -right-2 bg-red-500 text-white font-bold text-[9px] w-4 h-4 rounded-full flex items-center justify-center animate-pulse">
-                {messages.filter(m => m.receiver_id === currentUser?.id && !m.is_read).length}
-              </span>
-            )}
-          </div>
-        </button>
+        <div className="relative group">
+          <button
+            onMouseDown={handlePointerDown}
+            onTouchStart={handlePointerDown}
+            className={`w-14 h-14 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-2xl shadow-primary/40 transition-all cursor-grab active:cursor-grabbing ${
+              isRetracted ? 'opacity-70 hover:opacity-100 scale-90' : 'hover:scale-105 active:scale-95'
+            }`}
+            title={isRetracted ? "Cliquer pour déployer le chatbot" : "Glisser pour déplacer / Clic pour ouvrir"}
+          >
+            <div className="relative pointer-events-none">
+              <IconMessageChatbot size={26} />
+              {unreadBadgeCount > 0 && !isRetracted && (
+                <span className="absolute -top-2 -right-2 bg-red-500 text-white font-bold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center animate-pulse shadow-md">
+                  {unreadBadgeCount}
+                </span>
+              )}
+            </div>
+          </button>
+          {/* Petite poignée indicative quand rétracté */}
+          {isRetracted && (
+            <div className={`absolute top-1/2 -translate-y-1/2 w-1.5 h-6 bg-white/40 rounded-full animate-pulse ${
+              dockSide === 'left' ? 'right-1' : 'left-1'
+            }`} />
+          )}
+        </div>
       )}
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="bg-white w-[350px] sm:w-[380px] h-[500px] rounded-[2rem] shadow-2xl border border-black/5 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+        <div 
+          className={`bg-white w-[350px] sm:w-[380px] h-[500px] rounded-[2rem] shadow-2xl border border-black/5 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 fixed z-[10000] ${
+            dockSide === 'left' ? 'left-4 sm:left-6' : 'right-4 sm:right-6'
+          }`}
+          style={{
+            bottom: '80px'
+          }}
+        >
           
           {/* Header */}
           <div className="bg-[#0F2318] text-white p-4 flex items-center justify-between shrink-0">
