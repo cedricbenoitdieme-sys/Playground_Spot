@@ -25,7 +25,8 @@ import {
   IconFileText,
   IconPaperclip,
   IconExternalLink,
-  IconFileTypePdf
+  IconFileTypePdf,
+  IconCrosshair
 } from '@tabler/icons-react';
 import { ImageCropperModal } from './ImageCropperModal';
 import { 
@@ -117,6 +118,43 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
   ];
 
   const SIZES = ['5v5', '7v7', '11v11'];
+
+  // Géolocalisation navigateur (Option A)
+  const [geoLocating, setGeoLocating] = useState(false);
+
+  const handleUseMyPosition = () => {
+    if (!navigator.geolocation) {
+      setFormError("La géolocalisation n'est pas supportée par votre navigateur.");
+      return;
+    }
+
+    setGeoLocating(true);
+    setFormError('');
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setFormData(p => ({
+          ...p,
+          lat: parseFloat(pos.coords.latitude.toFixed(6)),
+          lng: parseFloat(pos.coords.longitude.toFixed(6))
+        }));
+        setGeoLocating(false);
+      },
+      (err) => {
+        setGeoLocating(false);
+        if (err.code === 1) {
+          setFormError("Permission de géolocalisation refusée par votre navigateur.");
+        } else if (err.code === 2) {
+          setFormError("Position GPS indisponible. Vérifiez les réglages de votre appareil.");
+        } else if (err.code === 3) {
+          setFormError("Délai d'attente de la géolocalisation dépassé.");
+        } else {
+          setFormError("Impossible de déterminer votre position GPS.");
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
 
   const handleFileSelect = (e) => {
     const file = e.target.files?.[0];
@@ -551,9 +589,20 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
                 <IconMapPin size={18} className="text-primary" />
                 3. Emplacement GPS (Cliquez ou glissez sur la carte)
               </h4>
-              <span className="text-xs font-mono text-gray-500">
-                Lat: {formData.lat}, Lng: {formData.lng}
-              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={handleUseMyPosition}
+                  disabled={geoLocating}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-[11px] font-bold transition-all disabled:opacity-50"
+                >
+                  {geoLocating ? <IconLoader2 size={12} className="animate-spin" /> : <IconCrosshair size={12} />}
+                  Ma position
+                </button>
+                <span className="text-xs font-mono text-gray-500">
+                  Lat: {formData.lat}, Lng: {formData.lng}
+                </span>
+              </div>
             </div>
 
             <div className="h-64 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative">
@@ -565,8 +614,8 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
                 className="h-full w-full z-0"
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
                 />
                 <MapLocationPicker 
                   position={{ lat: formData.lat, lng: formData.lng }}

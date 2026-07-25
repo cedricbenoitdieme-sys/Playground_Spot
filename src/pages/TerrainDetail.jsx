@@ -276,7 +276,10 @@ export const TerrainDetail = ({ terrain, onBack, onBook, setSelectedTerrain }) =
                 className="h-full w-full rounded-2xl z-0"
                 zoomControl={false}
               >
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                <TileLayer 
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" 
+                />
                 <Marker position={[terrain.lat, terrain.lng]} icon={terrainIcon} />
               </MapContainer>
             </div>
