@@ -120,6 +120,29 @@ export const Landing = ({ setView }) => {
   const [popularTerrains, setPopularTerrains] = useState([]);
   const [loadingTerrains, setLoadingTerrains] = useState(true);
 
+  // Platform Stats Cache State
+  const [platformStats, setPlatformStats] = useState(null);
+
+  useEffect(() => {
+    const fetchPlatformStats = async () => {
+      try {
+        const { data } = await supabase
+          .from('stats_plateforme_cache')
+          .select('*')
+          .eq('id', true)
+          .maybeSingle();
+
+        if (data) {
+          setPlatformStats(data);
+        }
+      } catch (err) {
+        console.warn('Stats plateforme indisponibles:', err);
+      }
+    };
+
+    fetchPlatformStats();
+  }, []);
+
   useEffect(() => {
     const fetchPopular = async () => {
       try {
@@ -396,22 +419,28 @@ export const Landing = ({ setView }) => {
           <div className="w-full max-w-xl bg-white/5 border border-white/10 rounded-3xl p-4 sm:p-5 backdrop-blur-md shadow-subtle flex flex-wrap gap-4 justify-around items-center mt-2 animate-slide-up-medium mx-auto">
             <div className="text-center group cursor-default">
               <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
-                <CountUp end={15000} suffix="+" />
+                <CountUp end={platformStats?.nombre_joueurs ?? 1} suffix="+" />
               </p>
               <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Joueurs Dakarois</span>
             </div>
             <div className="w-px h-8 bg-white/10 hidden sm:block"></div>
             <div className="text-center group cursor-default">
               <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
-                <CountUp end={55} suffix="+" />
+                <CountUp end={platformStats?.nombre_terrains ?? 1} suffix={platformStats?.nombre_terrains > 0 ? "" : "+"} />
               </p>
               <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Terrains Homologués</span>
             </div>
             <div className="w-px h-8 bg-white/10 hidden sm:block"></div>
             <div className="text-center group cursor-default">
-              <p className="text-2xl sm:text-3xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
-                <CountUp end={98} suffix="%" />
-              </p>
+              {platformStats?.taux_satisfaction != null ? (
+                <p className="text-2xl sm:text-3xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
+                  <CountUp end={platformStats.taux_satisfaction} suffix="%" />
+                </p>
+              ) : (
+                <p className="text-xl sm:text-2xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300 pt-1">
+                  Nouveau ! ⭐
+                </p>
+              )}
               <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Taux de Satisfaction</span>
             </div>
           </div>
