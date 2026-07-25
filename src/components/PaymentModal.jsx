@@ -138,7 +138,7 @@ export const PaymentModal = ({ method, amount, isOpen, onClose, onConfirm }) => 
               <button 
                 onClick={handleSimulate}
                 disabled={isMobilePayment && !phoneNumber.trim()}
-                className="w-full btn-primary h-14 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+                className="w-full btn-primary h-14 shadow-lg shadow-primary/20 disabled:opacity-50 disabled:cursor-not-allowed mb-4 flex items-center justify-center gap-2"
               >
                 {isMobilePayment ? 'Envoyer la demande de paiement' : 'Simuler paiement reçu'}
               </button>
@@ -156,8 +156,11 @@ export const PaymentModal = ({ method, amount, isOpen, onClose, onConfirm }) => 
 
           {status === 'processing' && (
             <div className="flex flex-col items-center gap-4 py-4">
-              <IconLoader2 className="text-primary animate-spin" size={40} />
-              <p className="font-bold text-primary animate-pulse">En attente de confirmation...</p>
+              <button disabled className="w-full btn-primary h-14 shadow-lg shadow-primary/20 opacity-70 cursor-not-allowed flex items-center justify-center gap-2">
+                <IconLoader2 className="animate-spin" size={22} />
+                <span>Traitement en cours...</span>
+              </button>
+              <p className="font-bold text-xs text-primary animate-pulse">En attente de confirmation de votre opérateur...</p>
             </div>
           )}
 

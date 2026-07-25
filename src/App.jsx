@@ -1,39 +1,41 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
 import { StatsGrid } from './components/StatsGrid';
 import { OccupationChart } from './components/OccupationChart';
 import { ReservationsTable } from './components/ReservationsTable';
 import { TopTerrains } from './components/TopTerrains';
-import { Discovery } from './pages/Discovery';
-import { TerrainDetail } from './pages/TerrainDetail';
-import { BookingFlow } from './components/BookingFlow';
-import { MyReservations } from './pages/MyReservations';
-import { ReservationDetail } from './pages/ReservationDetail';
-import { MyTickets } from './pages/MyTickets';
-import { VerifyTicket } from './pages/VerifyTicket';
-import { GerantStats } from './pages/GerantStats';
-import { Gerants } from './pages/Gerants';
-import { Utilisateurs } from './pages/Utilisateurs';
-import { Parametres } from './pages/Parametres';
-import { Telemetrie } from './pages/Telemetrie';
 
-import { AdminLayout } from './pages/admin/AdminLayout';
-import { Landing } from './pages/Landing';
-import { Login } from './pages/Login';
-import { Register } from './pages/Register';
-import { GerantDashboard } from './pages/GerantDashboard';
-import { GerantTerrain } from './pages/GerantTerrain';
-import { GerantPlanning } from './pages/GerantPlanning';
-import { JoueurHome } from './pages/JoueurHome';
-import { JoueurProfile } from './pages/JoueurProfile';
-import { JoueurFavoris } from './pages/JoueurFavoris';
-import { ScanTicket } from './pages/ScanTicket';
-import { GerantTarifs } from './pages/GerantTarifs';
-import { GerantVisibilityBoost } from './pages/GerantVisibilityBoost';
-import { PaymentSuccess } from './pages/PaymentSuccess';
-import { PaymentCancel } from './pages/PaymentCancel';
-import { Abonnement } from './pages/Abonnement';
+// Code-splitting via React.lazy() pour alléger le bundle mobile initial
+const Discovery = lazy(() => import('./pages/Discovery').then(m => ({ default: m.Discovery })));
+const TerrainDetail = lazy(() => import('./pages/TerrainDetail').then(m => ({ default: m.TerrainDetail })));
+const BookingFlow = lazy(() => import('./components/BookingFlow').then(m => ({ default: m.BookingFlow })));
+const MyReservations = lazy(() => import('./pages/MyReservations').then(m => ({ default: m.MyReservations })));
+const ReservationDetail = lazy(() => import('./pages/ReservationDetail').then(m => ({ default: m.ReservationDetail })));
+const MyTickets = lazy(() => import('./pages/MyTickets').then(m => ({ default: m.MyTickets })));
+const VerifyTicket = lazy(() => import('./pages/VerifyTicket').then(m => ({ default: m.VerifyTicket })));
+const GerantStats = lazy(() => import('./pages/GerantStats').then(m => ({ default: m.GerantStats })));
+const Gerants = lazy(() => import('./pages/Gerants').then(m => ({ default: m.Gerants })));
+const Utilisateurs = lazy(() => import('./pages/Utilisateurs').then(m => ({ default: m.Utilisateurs })));
+const Parametres = lazy(() => import('./pages/Parametres').then(m => ({ default: m.Parametres })));
+const Telemetrie = lazy(() => import('./pages/Telemetrie').then(m => ({ default: m.Telemetrie })));
+const AdminLayout = lazy(() => import('./pages/admin/AdminLayout').then(m => ({ default: m.AdminLayout })));
+const Landing = lazy(() => import('./pages/Landing').then(m => ({ default: m.Landing })));
+const Login = lazy(() => import('./pages/Login').then(m => ({ default: m.Login })));
+const Register = lazy(() => import('./pages/Register').then(m => ({ default: m.Register })));
+const GerantDashboard = lazy(() => import('./pages/GerantDashboard').then(m => ({ default: m.GerantDashboard })));
+const GerantTerrain = lazy(() => import('./pages/GerantTerrain').then(m => ({ default: m.GerantTerrain })));
+const GerantPlanning = lazy(() => import('./pages/GerantPlanning').then(m => ({ default: m.GerantPlanning })));
+const JoueurHome = lazy(() => import('./pages/JoueurHome').then(m => ({ default: m.JoueurHome })));
+const JoueurProfile = lazy(() => import('./pages/JoueurProfile').then(m => ({ default: m.JoueurProfile })));
+const JoueurFavoris = lazy(() => import('./pages/JoueurFavoris').then(m => ({ default: m.JoueurFavoris })));
+const ScanTicket = lazy(() => import('./pages/ScanTicket').then(m => ({ default: m.ScanTicket })));
+const GerantTarifs = lazy(() => import('./pages/GerantTarifs').then(m => ({ default: m.GerantTarifs })));
+const GerantVisibilityBoost = lazy(() => import('./pages/GerantVisibilityBoost').then(m => ({ default: m.GerantVisibilityBoost })));
+const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess').then(m => ({ default: m.PaymentSuccess })));
+const PaymentCancel = lazy(() => import('./pages/PaymentCancel').then(m => ({ default: m.PaymentCancel })));
+const Abonnement = lazy(() => import('./pages/Abonnement').then(m => ({ default: m.Abonnement })));
+
 import { TrialBanner } from './components/TrialBanner';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useUser } from './context/UserContext';
@@ -381,9 +383,15 @@ function App() {
           />
         )}
 
-      {view === 'landing' ? (
-        <Landing setView={setView} />
-      ) : view === 'login' ? (
+      <Suspense fallback={
+        <div className="flex-1 flex flex-col items-center justify-center min-h-[50vh] gap-3 text-primary">
+          <IconLoader2 className="animate-spin" size={36} />
+          <span className="text-xs font-bold font-display uppercase tracking-widest text-primary-dark/60">Chargement...</span>
+        </div>
+      }>
+        {view === 'landing' ? (
+          <Landing setView={setView} />
+        ) : view === 'login' ? (
         <Login setView={setView} />
       ) : view === 'register' ? (
         <Register setView={setView} />
@@ -601,6 +609,7 @@ function App() {
           <ScanTicket onBack={() => setView(currentUser?.role === 'admin' ? 'menu' : 'gerant-dashboard')} />
         </ProtectedRoute>
       ) : null}
+      </Suspense>
 
       {/* Global Toast */}
       {toast && (

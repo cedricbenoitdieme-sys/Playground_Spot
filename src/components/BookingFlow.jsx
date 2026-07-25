@@ -545,8 +545,19 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               {!amountCheck.valid && (
                 <p className="text-red-500 text-xs font-bold text-center mb-2">{amountCheck.error}</p>
               )}
-              <button disabled={!paymentMethod || isSubmitting} onClick={() => setIsPaymentModalOpen(true)} className="btn-primary w-full max-w-sm h-14 disabled:opacity-50">
-                {isSubmitting ? 'Traitement...' : 'Confirmer le paiement'}
+              <button 
+                disabled={!paymentMethod || isSubmitting} 
+                onClick={() => setIsPaymentModalOpen(true)} 
+                className="btn-primary w-full max-w-sm h-14 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isSubmitting ? (
+                  <>
+                    <IconLoader2 className="animate-spin" size={20} />
+                    <span>Traitement en cours...</span>
+                  </>
+                ) : (
+                  'Confirmer le paiement'
+                )}
               </button>
               <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
             </div>
