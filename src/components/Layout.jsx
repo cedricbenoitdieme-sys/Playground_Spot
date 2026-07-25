@@ -13,7 +13,7 @@ export const Layout = ({ children, currentView, setView }) => {
     return (
       <div className="min-h-screen w-full bg-[#0F2318] text-white overflow-x-hidden">
         {children}
-        <ChatWidget />
+        <ChatWidget currentView={currentView} />
       </div>
     );
   }
@@ -33,7 +33,7 @@ export const Layout = ({ children, currentView, setView }) => {
       {!isDetailView && !isAdminDashboard && (
         <BottomNav currentView={currentView} setView={setView} />
       )}
-      <ChatWidget />
+      <ChatWidget currentView={currentView} />
     </div>
   );
 };

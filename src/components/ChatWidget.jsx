@@ -18,9 +18,17 @@ import { fetchTerrains } from '../services/terrains';
 import { supabase } from '../lib/supabase';
 import * as amplitude from '@amplitude/unified';
 
-export const ChatWidget = () => {
+export const ChatWidget = ({ currentView }) => {
   const { currentUser } = useUser();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Détection de la présence d'une barre de navigation bas ou d'une barre d'action sticky
+  const hasBottomNav = !!currentUser && !['terrain-detail', 'booking-flow', 'reservation-detail', 'dashboard'].includes(currentView);
+  const hasStickyAction = currentView === 'terrain-detail';
+  const hasStickyBottomBar = hasBottomNav || hasStickyAction;
+
+  // Calcul dynamique de la borne max Y (%) pour que le FAB flotte toujours AU-DESSUS des barres bas
+  const maxYPercent = hasStickyBottomBar ? 72 : 88;
   const [activeChannel, setActiveChannel] = useState('bot'); // 'bot', 'admin', 'gerant'
   const [terrains, setTerrains] = useState([]);
   const [selectedTerrainId, setSelectedTerrainId] = useState(null);
@@ -395,12 +403,18 @@ export const ChatWidget = () => {
   const [dockSide, setDockSide] = useState(() => localStorage.getItem('playgroundspot-chat-dock-side') || 'right');
   const [dockY, setDockY] = useState(() => {
     const saved = localStorage.getItem('playgroundspot-chat-dock-y');
-    const parsed = saved ? parseFloat(saved) : 72;
-    return Math.min(Math.max(parsed, 10), 78); // Clamped between 10% and 78%
+    const parsed = saved ? parseFloat(saved) : 68;
+    return Math.min(Math.max(parsed, 10), maxYPercent);
   });
+
+  // Re-clamp dockY quand la page (currentView) change et qu'une barre bas apparaît/disparaît
+  useEffect(() => {
+    setDockY(prev => Math.min(Math.max(prev, 10), maxYPercent));
+  }, [maxYPercent]);
+
   const [isRetracted, setIsRetracted] = useState(() => localStorage.getItem('playgroundspot-chat-retracted') === 'true');
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, initialYPercent: 72, hasMoved: false });
+  const dragRef = useRef({ startX: 0, startY: 0, initialYPercent: 68, hasMoved: false });
   const buttonRef = useRef(null);
 
   // Persistence dans localStorage
@@ -440,9 +454,9 @@ export const ChatWidget = () => {
           if (isRetracted) setIsRetracted(false);
         }
 
-        // Calcul de la position verticale relative (%) avec garde-fou (min 10%, max 78% pour ne pas chevaucher la bottom bar)
+        // Calcul de la position verticale relative (%) avec garde-fou dynamique
         const windowHeight = window.innerHeight;
-        const newYPercent = Math.min(Math.max((currentY / windowHeight) * 100, 10), 78);
+        const newYPercent = Math.min(Math.max((currentY / windowHeight) * 100, 10), maxYPercent);
         setDockY(newYPercent);
 
         // Détection du côté le plus proche pendant le drag
