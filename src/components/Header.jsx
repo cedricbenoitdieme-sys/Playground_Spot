@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { IconBell, IconSearch, IconX, IconCheck, IconHome } from '@tabler/icons-react';
+import { IconBell, IconSearch, IconX, IconCheck, IconHome, IconBallFootball } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { PlanBadge } from './PlanBadge';
 
