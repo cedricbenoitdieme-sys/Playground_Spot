@@ -43,7 +43,7 @@ import { supabase } from './lib/supabase';
 
 import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball, IconScan, IconLoader2 } from '@tabler/icons-react';
 
-const ADMIN_EMAILS = ['elhadjsylla667@gmail.com', 'cedricbenoitdieme@gmail.com', 'gmoustapha0805@gmail.com', 'admin@playgroundspot.sn'];
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 function App() {
   const path = window.location.pathname;
@@ -372,13 +372,14 @@ function App() {
 
   return (
     <Layout currentView={view} setView={setView}>
-      {/* 3. Render TrialBanner if subStatus === 'trial' */}
-      {subStatus === 'trial' && (
-        <TrialBanner
-          trialStatus={trialStatus}
-          onTrialExpired={() => setSubStatus('paywall')}
-        />
-      )}
+      <ErrorBoundary>
+        {/* 3. Render TrialBanner if subStatus === 'trial' */}
+        {subStatus === 'trial' && (
+          <TrialBanner
+            trialStatus={trialStatus}
+            onTrialExpired={() => setSubStatus('paywall')}
+          />
+        )}
 
       {view === 'landing' ? (
         <Landing setView={setView} />
@@ -608,6 +609,7 @@ function App() {
           <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
+      </ErrorBoundary>
     </Layout>
   );
 }

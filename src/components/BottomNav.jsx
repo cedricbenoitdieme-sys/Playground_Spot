@@ -34,7 +34,7 @@ export const BottomNav = ({ currentView, setView }) => {
       case 'admin':
         return [
           { id: 'dashboard', icon: IconLayoutDashboard, label: 'Dashboard' },
-          { id: 'terrains', icon: IconBuildingStore, label: 'Terrains' },
+          { id: 'discovery', icon: IconBuildingStore, label: 'Terrains' },
           { id: 'scan', icon: IconScan, label: 'Scanner', isFloating: true },
           { id: 'gerants', icon: IconUsersGroup, label: 'Gérants' },
           { id: 'menu', icon: IconMenu2, label: 'Menu ☰' }
@@ -75,8 +75,8 @@ export const BottomNav = ({ currentView, setView }) => {
       case 'admin':
         return [
           { id: 'dashboard', label: 'Super Admin Dashboard', sub: 'Statistiques globales du réseau Dakar', icon: IconLayoutDashboard, color: 'bg-primary/10 text-primary' },
-          { id: 'terrains', label: 'Terrains & Homologation', sub: 'Valider les soumissions gérants', icon: IconBuildingStore, color: 'bg-teal-50 text-teal-600' },
-          { id: 'subscriptions', label: 'Gestion des Abonnements', sub: 'Suivi des souscriptions SaaS gérants', icon: IconCreditCard, color: 'bg-amber-50 text-amber-600' },
+          { id: 'discovery', label: 'Terrains & Homologation', sub: 'Consulter le réseau de terrains', icon: IconBuildingStore, color: 'bg-teal-50 text-teal-600' },
+          { id: 'gerant-tarifs', label: 'Gestion des Abonnements', sub: 'Suivi des souscriptions SaaS gérants', icon: IconCreditCard, color: 'bg-amber-50 text-amber-600' },
           { id: 'telemetrie', label: 'Télémétrie & Logs', sub: 'Activité en temps réel & logs système', icon: IconTrendingUp, color: 'bg-purple-50 text-purple-600' },
           { id: 'scan', label: 'Scanner un Ticket', sub: 'Validation QR Code joueur', icon: IconScan, color: 'bg-emerald-50 text-emerald-600' },
           { id: 'gerants', label: 'Gérants du Parc', sub: 'CRUD, suspensions & approbations', icon: IconUsersGroup, color: 'bg-blue-50 text-blue-600' },
@@ -111,10 +111,9 @@ export const BottomNav = ({ currentView, setView }) => {
     <>
       {/* Barre de navigation du bas (Bottom Navigation Bar) */}
       <div 
-        className="lg:hidden fixed left-0 right-0 bg-white border-t border-gray-100 px-4 py-2 flex items-center justify-around z-50 h-[60px] shadow-lg"
+        className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-100 px-2 sm:px-4 flex items-center justify-around z-50 h-[64px] shadow-2xl backdrop-blur-lg bg-white/95"
         style={{
-          bottom: 'env(safe-area-inset-bottom)',
-          paddingBottom: 'env(safe-area-inset-bottom)',
+          paddingBottom: 'max(0px, env(safe-area-inset-bottom))',
         }}
       >
         {navItems.map((item, index) => {
@@ -123,16 +122,17 @@ export const BottomNav = ({ currentView, setView }) => {
           
           if (item.isFloating) {
             return (
-              <div key={index} className="flex-1 flex justify-center items-center relative -top-4 h-full">
+              <div key={index} className="flex-1 flex justify-center items-center relative h-full pointer-events-none">
                 <button 
                   onClick={() => handleNavClick(item.id)}
-                  className={`w-14 h-14 rounded-full flex items-center justify-center shadow-lg border-4 border-background transition-transform active:scale-95 cursor-pointer ${
+                  className={`pointer-events-auto -top-5 relative w-13 h-13 sm:w-14 sm:h-14 rounded-full flex items-center justify-center shadow-xl border-[3px] border-white transition-all active:scale-90 cursor-pointer ${
                     isActive 
-                      ? 'bg-primary-dark text-white shadow-primary-dark/30' 
-                      : 'bg-primary text-white shadow-primary/30'
+                      ? 'bg-primary-dark text-white shadow-primary-dark/40 ring-2 ring-primary-dark/20' 
+                      : 'bg-primary text-white shadow-primary/30 hover:bg-primary-dark'
                   }`}
+                  title={item.label}
                 >
-                  <Icon size={24} />
+                  <Icon size={22} className="sm:w-6 sm:h-6" />
                 </button>
               </div>
             );
@@ -142,12 +142,12 @@ export const BottomNav = ({ currentView, setView }) => {
             <button 
               key={index}
               onClick={() => handleNavClick(item.id)}
-              className={`flex-1 h-full relative flex flex-col justify-center items-center gap-0.5 transition-colors cursor-pointer ${isActive ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
+              className={`flex-1 h-full min-w-0 px-1 relative flex flex-col justify-center items-center gap-0.5 transition-colors cursor-pointer ${isActive ? 'text-primary' : 'text-gray-400 hover:text-gray-600'}`}
             >
-              <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
-              <span className="text-[10px] font-bold tracking-tight">{item.label}</span>
+              <Icon size={20} strokeWidth={isActive ? 2.5 : 2} className="shrink-0" />
+              <span className="text-[9.5px] sm:text-[10px] font-bold tracking-tight truncate w-full text-center">{item.label}</span>
               {isActive && (
-                <span className="absolute bottom-0.5 w-1 h-1 bg-primary rounded-full animate-ping"></span>
+                <span className="absolute bottom-1 w-1 h-1 bg-primary rounded-full animate-ping"></span>
               )}
             </button>
           );
