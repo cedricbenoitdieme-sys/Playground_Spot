@@ -16,7 +16,8 @@ import {
   IconBrandInstagram,
   IconBrandSnapchat,
   IconLink,
-  IconX
+  IconX,
+  IconNavigation
 } from '@tabler/icons-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
@@ -269,19 +270,36 @@ export const TerrainDetail = ({ terrain, onBack, onBook, setSelectedTerrain }) =
                 ))}
               </div>
             </div>
-            <div className="bg-white p-4 rounded-card shadow-subtle border border-black/5 h-[300px]">
-              <MapContainer
-                center={[terrain.lat, terrain.lng]}
-                zoom={14}
-                className="h-full w-full rounded-2xl z-0"
-                zoomControl={false}
-              >
-                <TileLayer 
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" 
-                />
-                <Marker position={[terrain.lat, terrain.lng]} icon={terrainIcon} />
-              </MapContainer>
+            <div className="bg-white p-4 rounded-card shadow-subtle border border-black/5 h-[300px] relative flex flex-col justify-between">
+              <div className="h-full w-full relative rounded-2xl overflow-hidden">
+                <MapContainer
+                  center={[terrain.lat, terrain.lng]}
+                  zoom={14}
+                  className="h-full w-full z-0"
+                  zoomControl={false}
+                >
+                  <TileLayer 
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                    url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" 
+                  />
+                  <Marker position={[terrain.lat, terrain.lng]} icon={terrainIcon} />
+                </MapContainer>
+
+                {/* External Navigation Button */}
+                <a
+                  href={
+                    typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent)
+                      ? `https://maps.apple.com/?daddr=${terrain.lat},${terrain.lng}`
+                      : `https://www.google.com/maps/dir/?api=1&destination=${terrain.lat},${terrain.lng}`
+                  }
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="absolute bottom-3 right-3 z-10 bg-primary hover:bg-primary-dark text-white font-bold text-xs px-3.5 py-2 rounded-xl shadow-lg flex items-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                >
+                  <IconNavigation size={14} />
+                  <span>Itinéraire</span>
+                </a>
+              </div>
             </div>
           </div>
 

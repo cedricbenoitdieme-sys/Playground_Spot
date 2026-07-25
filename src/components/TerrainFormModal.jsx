@@ -26,7 +26,8 @@ import {
   IconPaperclip,
   IconExternalLink,
   IconFileTypePdf,
-  IconCrosshair
+  IconCrosshair,
+  IconSearch
 } from '@tabler/icons-react';
 import { ImageCropperModal } from './ImageCropperModal';
 import { 
@@ -119,12 +120,16 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
 
   const SIZES = ['5v5', '7v7', '11v11'];
 
-  // Géolocalisation navigateur (Option A)
+  // Géolocalisation navigateur (Option A) & Recherche Nominatim
   const [geoLocating, setGeoLocating] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchingAddress, setSearchingAddress] = useState(false);
+
+  const DAKAR_DEFAULT = { lat: 14.7167, lng: -17.4677 };
 
   const handleUseMyPosition = () => {
     if (!navigator.geolocation) {
-      setFormError("La géolocalisation n'est pas supportée par votre navigateur.");
+      setFormError("La géolocalisation n'est pas supportée. Position récente conservée.");
       return;
     }
 
@@ -142,18 +147,52 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
       },
       (err) => {
         setGeoLocating(false);
+        // Fallback Dakar center
+        setFormData(p => ({
+          ...p,
+          lat: p.lat || DAKAR_DEFAULT.lat,
+          lng: p.lng || DAKAR_DEFAULT.lng
+        }));
+
         if (err.code === 1) {
-          setFormError("Permission de géolocalisation refusée par votre navigateur.");
+          setFormError("Permission de géolocalisation refusée. Carte recentrée sur Dakar.");
         } else if (err.code === 2) {
-          setFormError("Position GPS indisponible. Vérifiez les réglages de votre appareil.");
+          setFormError("Position GPS indisponible. Carte recentrée sur Dakar.");
         } else if (err.code === 3) {
-          setFormError("Délai d'attente de la géolocalisation dépassé.");
+          setFormError("Délai GPS dépassé. Carte recentrée sur Dakar.");
         } else {
-          setFormError("Impossible de déterminer votre position GPS.");
+          setFormError("Impossible de déterminer votre position. Carte centrée sur Dakar.");
         }
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
+  };
+
+  // OpenStreetMap Nominatim search helper
+  const handleSearchAddress = async () => {
+    if (!searchQuery.trim()) return;
+    setSearchingAddress(true);
+    setFormError('');
+    try {
+      const q = encodeURIComponent(`${searchQuery.trim()}, Dakar, Sénégal`);
+      const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${q}&limit=1`);
+      const results = await res.json();
+      if (results && results.length > 0) {
+        const first = results[0];
+        setFormData(p => ({
+          ...p,
+          lat: parseFloat(parseFloat(first.lat).toFixed(6)),
+          lng: parseFloat(parseFloat(first.lon).toFixed(6))
+        }));
+      } else {
+        setFormError("Aucune adresse trouvée pour cette recherche à Dakar.");
+      }
+    } catch (err) {
+      console.error('Erreur recherche Nominatim:', err);
+      setFormError("Erreur lors de la recherche de l'adresse.");
+    } finally {
+      setSearchingAddress(false);
+    }
   };
 
   const handleFileSelect = (e) => {
@@ -584,38 +623,62 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
 
           {/* Section 3 : Localisation sur Carte Leaflet */}
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <h4 className="font-bold text-sm text-primary-dark flex items-center gap-2">
                 <IconMapPin size={18} className="text-primary" />
-                3. Emplacement GPS (Cliquez ou glissez sur la carte)
+                3. Emplacement GPS
               </h4>
               <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={handleUseMyPosition}
                   disabled={geoLocating}
-                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-[11px] font-bold transition-all disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 hover:bg-primary/20 text-primary border border-primary/20 rounded-lg text-[11px] font-bold transition-all disabled:opacity-50 cursor-pointer"
                 >
                   {geoLocating ? <IconLoader2 size={12} className="animate-spin" /> : <IconCrosshair size={12} />}
-                  Ma position
+                  Ma position actuelle
                 </button>
-                <span className="text-xs font-mono text-gray-500">
-                  Lat: {formData.lat}, Lng: {formData.lng}
+                <span className="text-xs font-mono text-gray-500 bg-gray-100 px-2 py-1 rounded-md">
+                  {formData.lat}, {formData.lng}
                 </span>
               </div>
             </div>
 
+            {/* Barre de Recherche d'Adresse Nominatim (OpenStreetMap) */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && (e.preventDefault(), handleSearchAddress())}
+                  placeholder="Rechercher un lieu/quartier à Dakar (ex: Mermoz, Sacré-Cœur)..."
+                  className="w-full bg-gray-50 border border-gray-200 rounded-xl pl-9 pr-4 py-2 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+                <IconSearch size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              </div>
+              <button
+                type="button"
+                onClick={handleSearchAddress}
+                disabled={searchingAddress || !searchQuery.trim()}
+                className="px-3.5 py-2 bg-gray-900 text-white rounded-xl text-xs font-bold hover:bg-gray-800 transition-all disabled:opacity-40 cursor-pointer flex items-center gap-1 shrink-0"
+              >
+                {searchingAddress ? <IconLoader2 size={14} className="animate-spin" /> : 'Centrer'}
+              </button>
+            </div>
+
+            {/* Carte Leaflet déplaçable avec tuiles CartoDB Voyager */}
             <div className="h-64 w-full rounded-2xl overflow-hidden border border-gray-200 shadow-sm relative">
               <MapContainer 
                 key={isOpen ? `map-${formData.lat}-${formData.lng}` : 'closed'}
                 center={[formData.lat, formData.lng]} 
-                zoom={13} 
+                zoom={14} 
                 scrollWheelZoom={false}
                 className="h-full w-full z-0"
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://carto.com/attributions">CARTO</a>'
-                  url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                  url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                 />
                 <MapLocationPicker 
                   position={{ lat: formData.lat, lng: formData.lng }}
@@ -623,6 +686,9 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
                 />
               </MapContainer>
             </div>
+            <p className="text-[11px] text-gray-400 italic">
+              💡 Astuce : Vous pouvez glisser-déposer l'icône ballon de foot directement sur la carte pour ajuster la position exacte.
+            </p>
           </div>
 
           {/* Section 4 : Galerie Photos (6 max) avec Recadrage & Compression */}
