@@ -382,11 +382,12 @@ export const ChatWidget = () => {
   const [dockSide, setDockSide] = useState(() => localStorage.getItem('playgroundspot-chat-dock-side') || 'right');
   const [dockY, setDockY] = useState(() => {
     const saved = localStorage.getItem('playgroundspot-chat-dock-y');
-    return saved ? parseFloat(saved) : 80; // Pourcentage vertical (0-100)
+    const parsed = saved ? parseFloat(saved) : 72;
+    return Math.min(Math.max(parsed, 10), 78); // Clamped between 10% and 78%
   });
   const [isRetracted, setIsRetracted] = useState(() => localStorage.getItem('playgroundspot-chat-retracted') === 'true');
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, initialYPercent: 80, hasMoved: false });
+  const dragRef = useRef({ startX: 0, startY: 0, initialYPercent: 72, hasMoved: false });
   const buttonRef = useRef(null);
 
   // Persistence dans localStorage
@@ -426,9 +427,9 @@ export const ChatWidget = () => {
           if (isRetracted) setIsRetracted(false);
         }
 
-        // Calcul de la position verticale relative (%)
+        // Calcul de la position verticale relative (%) avec garde-fou (min 10%, max 78% pour ne pas chevaucher la bottom bar)
         const windowHeight = window.innerHeight;
-        const newYPercent = Math.min(Math.max((currentY / windowHeight) * 100, 10), 90);
+        const newYPercent = Math.min(Math.max((currentY / windowHeight) * 100, 10), 78);
         setDockY(newYPercent);
 
         // Détection du côté le plus proche pendant le drag
@@ -522,11 +523,11 @@ export const ChatWidget = () => {
       {/* Chat Window */}
       {isOpen && (
         <div 
-          className={`bg-white w-[350px] sm:w-[380px] h-[500px] rounded-[2rem] shadow-2xl border border-black/5 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 fixed z-[10000] ${
+          className={`bg-white w-[calc(100vw-32px)] sm:w-[380px] max-h-[80vh] h-[500px] rounded-[2rem] shadow-2xl border border-black/5 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 fixed z-[10000] ${
             dockSide === 'left' ? 'left-4 sm:left-6' : 'right-4 sm:right-6'
           }`}
           style={{
-            bottom: '80px'
+            bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))'
           }}
         >
           
