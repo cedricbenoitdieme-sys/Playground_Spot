@@ -35,11 +35,7 @@ const filterGerantContact = (terrain, currentUserRole = null, currentUserId = nu
 export const fetchTerrains = async ({ currentUserRole = null, currentUserId = null } = {}) => {
   const { data, error } = await supabase
     .from('terrains')
-    .select(`
-      *,
-      profiles!gerant_id ( nom, tel, email ),
-      terrain_amenities ( id, label, icone )
-    `)
+    .select('id, nom, quartier, adresse, price, rating, reviews_count, image_url, lat, lng, surface, size, gerant_id')
     .eq('statut', 'actif')
     .order('rating', { ascending: false });
   if (error) throw handleServiceError(error, 'fetchTerrains');
@@ -47,11 +43,7 @@ export const fetchTerrains = async ({ currentUserRole = null, currentUserId = nu
   return data.map(t => {
     const terrain = {
       ...t,
-      gerant_nom: t.profiles?.nom || null,
-      gerant_tel: t.profiles?.tel || null,
-      gerant_email: t.profiles?.email || null,
-      amenities: (t.terrain_amenities || []).map(a => a.label),
-      // Aliases de compatibilité avec le front actuel
+      amenities: [],
       name: t.nom,
       price: t.price,
       image: t.image_url,

@@ -375,7 +375,7 @@ export const fetchRepartitionPaiements = async (gerantId) => {
 export const fetchCreneauxDisponibles = async (terrainId, date) => {
   const { data, error } = await supabase
     .from('creneaux')
-    .select('*')
+    .select('id, heure_debut, heure_fin, prix_override')
     .eq('terrain_id', terrainId)
     .eq('date', date)
     .eq('statut', 'disponible')

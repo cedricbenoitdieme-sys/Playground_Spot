@@ -114,57 +114,29 @@ export const createReservation = async ({
     if (!creneauIdCheck.valid) throw new Error(`creneau_id: ${creneauIdCheck.error}`);
   }
 
-  // ── Règle Anti-Double Réservation (Backend) ──
-  try {
-    const { data: existingReservations, error: checkErr } = await supabase
-      .from('reservations')
-      .select('id')
-      .eq('terrain_id', terrain_id)
-      .eq('date_slot', date_slot)
-      .eq('heure_slot', heure_slot)
-      .in('statut', ['en_attente', 'confirmee', 'terminee']);
-      
-    if (checkErr) throw checkErr;
-    if (existingReservations && existingReservations.length > 0) {
-      throw new Error('Ce créneau vient juste d\'être réservé par un autre joueur.');
+  // Plus de pré-check SELECT racé : la RPC garantit l'atomicité et
+  // renvoie déjà le message clair en cas de conflit.
+  const { data, error } = await supabase.rpc('create_reservation_safe', {
+    p_terrain_id: terrain_id,
+    p_joueur_id: safeJoueurId,
+    p_creneau_id: creneau_id,
+    p_terrain_nom: terrain_nom,
+    p_joueur_nom: joueur_nom,
+    p_date_slot: date_slot,
+    p_heure_slot: heure_slot,
+    p_montant: montant,
+    p_duree_heures: duree_heures,
+  });
+
+  if (error) {
+    if (error.message?.includes("vient d'être réservé")) {
+      throw new Error(error.message);
     }
-  } catch (err) {
-    if (err.message === 'Ce créneau vient juste d\'être réservé par un autre joueur.') {
-      throw err;
-    }
-    // Si l'erreur est liée au RLS ou hors ligne, on logge et on laisse l'insertion réelle
-    // ci-dessous retenter (la contrainte UNIQUE(terrain_id, date, heure_debut) sur creneaux
-    // protège déjà contre le double-booking en dernier recours)
-    console.warn('Vérification double réservation ignorée (RLS ou offline):', err.message);
-  }
-
-  try {
-    const { data, error } = await supabase
-      .from('reservations')
-      .insert({
-        terrain_id,
-        joueur_id: safeJoueurId, // TOUJOURS depuis la session
-        creneau_id,
-        terrain_nom,
-        joueur_nom,
-        date_slot,
-        heure_slot,
-        montant,
-        duree_heures,
-        statut: 'en_attente'
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-
-    // ── Règle 9.1 — Logger la création ──
-    securityLog.paymentInitiated(safeJoueurId, data.id, montant, 'reservation');
-
-    return data;
-  } catch (error) {
     throw handleServiceError(error, 'createReservation');
   }
+
+  securityLog.paymentInitiated(safeJoueurId, data.id, montant, 'reservation');
+  return data;
 };
 
 /**
