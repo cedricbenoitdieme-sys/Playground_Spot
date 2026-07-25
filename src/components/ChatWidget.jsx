@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { 
   IconMessageChatbot, 
   IconX, 
@@ -58,6 +59,18 @@ export const ChatWidget = () => {
     supabase.from('plan_limits').select('plan_id, nom, prix_mensuel, prix_annuel, commission_rate').order('prix_mensuel')
       .then(({ data }) => setPlansInfo(data || []))
       .catch(() => {});
+  }, [isOpen]);
+
+  // Lock body scroll when chat modal is open on mobile/desktop
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
   }, [isOpen]);
 
   // Charge les vrais terrains (pour le sélecteur "canal Gérant") et l'ID du vrai
@@ -477,277 +490,296 @@ export const ChatWidget = () => {
   const unreadBadgeCount = messages.filter(m => m.receiver_id === currentUser?.id && !m.is_read).length;
 
   return (
-    <div 
-      ref={buttonRef}
-      className={`fixed z-[9999] font-sans transition-all duration-300 ease-out select-none ${
-        isDragging ? 'transition-none cursor-grabbing' : ''
-      }`}
-      style={{
-        top: `${dockY}%`,
-        transform: 'translateY(-50%)',
-        ...(dockSide === 'left' 
-          ? { left: isRetracted ? '-38px' : '16px' } 
-          : { right: isRetracted ? '-38px' : '16px' }
-        )
-      }}
-    >
-      {/* Floating Draggable Button */}
+    <>
+      {/* Floating Draggable Button (Only when chat is closed) */}
       {!isOpen && (
-        <div className="relative group">
-          <button
-            onMouseDown={handlePointerDown}
-            onTouchStart={handlePointerDown}
-            className={`w-14 h-14 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-2xl shadow-primary/40 transition-all cursor-grab active:cursor-grabbing ${
-              isRetracted ? 'opacity-70 hover:opacity-100 scale-90' : 'hover:scale-105 active:scale-95'
-            }`}
-            title={isRetracted ? "Cliquer pour déployer le chatbot" : "Glisser pour déplacer / Clic pour ouvrir"}
-          >
-            <div className="relative pointer-events-none">
-              <IconMessageChatbot size={26} />
-              {unreadBadgeCount > 0 && !isRetracted && (
-                <span className="absolute -top-2 -right-2 bg-red-500 text-white font-bold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center animate-pulse shadow-md">
-                  {unreadBadgeCount}
-                </span>
-              )}
-            </div>
-          </button>
-          {/* Petite poignée indicative quand rétracté */}
-          {isRetracted && (
-            <div className={`absolute top-1/2 -translate-y-1/2 w-1.5 h-6 bg-white/40 rounded-full animate-pulse ${
-              dockSide === 'left' ? 'right-1' : 'left-1'
-            }`} />
-          )}
-        </div>
-      )}
-
-      {/* Chat Window */}
-      {isOpen && (
         <div 
-          className={`bg-white w-[calc(100vw-32px)] sm:w-[380px] max-h-[80vh] h-[500px] rounded-[2rem] shadow-2xl border border-black/5 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 fixed z-[10000] ${
-            dockSide === 'left' ? 'left-4 sm:left-6' : 'right-4 sm:right-6'
+          ref={buttonRef}
+          className={`fixed z-[9990] font-sans transition-all duration-300 ease-out select-none ${
+            isDragging ? 'transition-none cursor-grabbing' : ''
           }`}
           style={{
-            bottom: 'calc(88px + env(safe-area-inset-bottom, 0px))'
+            top: `${dockY}%`,
+            transform: 'translateY(-50%)',
+            ...(dockSide === 'left' 
+              ? { left: isRetracted ? '-38px' : '16px' } 
+              : { right: isRetracted ? '-38px' : '16px' }
+            )
           }}
         >
-          
-          {/* Header */}
-          <div className="bg-[#0F2318] text-white p-4 flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              {hasInboxOnThisChannel && activeConversationUserId && (
-                <button 
-                  onClick={() => { setActiveConversationUserId(null); }}
-                  className="mr-1 p-1 hover:bg-white/10 rounded-lg transition-colors"
-                >
-                  <IconArrowLeft size={16} />
-                </button>
-              )}
-              <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-white">
-                <IconMessageChatbot size={18} />
-              </div>
-              <div>
-                <h4 className="font-bold text-sm font-display truncate max-w-[150px]">
-                  {hasInboxOnThisChannel && activeConversationUserId ? activeConversationUserName : 'PlaygroundSpot Chat'}
-                </h4>
-                <p className="text-[10px] text-gray-400 flex items-center gap-1">
-                  <IconCircleFilled size={6} className="text-emerald-400 animate-pulse" /> 
-                  {isOtherUserTyping ? 'En train d\'écrire...' : 'En ligne'}
-                </p>
-              </div>
-            </div>
-            <button 
-              onClick={() => setIsOpen(false)}
-              className="p-1.5 hover:bg-white/10 rounded-full transition-colors"
+          <div className="relative group">
+            <button
+              onMouseDown={handlePointerDown}
+              onTouchStart={handlePointerDown}
+              className={`w-14 h-14 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-2xl shadow-primary/40 transition-all cursor-grab active:cursor-grabbing ${
+                isRetracted ? 'opacity-70 hover:opacity-100 scale-90' : 'hover:scale-105 active:scale-95'
+              }`}
+              title={isRetracted ? "Cliquer pour déployer le chatbot" : "Glisser pour déplacer / Clic pour ouvrir"}
             >
-              <IconX size={18} />
-            </button>
-          </div>
-
-          {/* Channel Selector */}
-          {(!hasInboxOnThisChannel || !activeConversationUserId) && (
-            <div className="flex bg-[#0A1810]/5 p-1.5 gap-1 shrink-0 border-b border-gray-100">
-              <button
-                onClick={() => { setActiveChannel('bot'); setShowTerrainDropdown(false); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
-                  activeChannel === 'bot' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                <IconRobot size={14} /> Bot
-              </button>
-              <button
-                onClick={() => { setActiveChannel('admin'); setShowTerrainDropdown(false); }}
-                className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
-                  activeChannel === 'admin' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'
-                }`}
-              >
-                <IconUserShield size={14} /> Admin
-              </button>
-              {(isGerant || !isStaff) && (
-                <button
-                  onClick={() => { setActiveChannel('gerant'); }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all ${
-                    activeChannel === 'gerant' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'
-                  }`}
-                >
-                  <IconBuildingStore size={14} /> Gérant
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Gérant selector for players */}
-          {!hasInboxOnThisChannel && activeChannel === 'gerant' && (
-            <div className="bg-gray-50 px-3 py-2 border-b border-gray-100 shrink-0 relative">
-              <button 
-                onClick={() => setShowTerrainDropdown(!showTerrainDropdown)}
-                className="w-full flex items-center justify-between bg-white border border-gray-200 rounded-xl px-3 py-1.5 text-[11px] font-semibold text-gray-700 hover:border-gray-300 transition-colors"
-              >
-                <span className="truncate">Terrain : {selectedTerrain?.name}</span>
-                <IconChevronDown size={14} className={`text-gray-400 transition-transform ${showTerrainDropdown ? 'rotate-180' : ''}`} />
-              </button>
-              {showTerrainDropdown && (
-                <div className="absolute left-3 right-3 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-32 overflow-y-auto py-1">
-                  {terrains.map(t => (
-                    <button
-                      key={t.id}
-                      onClick={() => {
-                        setSelectedTerrainId(t.id);
-                        setShowTerrainDropdown(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-[10px] font-medium transition-colors hover:bg-gray-50 ${t.id === selectedTerrainId ? 'text-primary font-bold bg-primary/5' : 'text-gray-600'}`}
-                    >
-                      {t.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Inbox list for Staff / Role having inbox on activeChannel */}
-          {hasInboxOnThisChannel && !activeConversationUserId ? (
-            <div className="flex-1 overflow-y-auto bg-gray-50/50 p-4 space-y-2">
-              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Messages reçus</p>
-              {inboxList.length > 0 ? (
-                inboxList.map(chat => (
-                  <button
-                    key={chat.userId}
-                    onClick={() => {
-                      setActiveConversationUserId(chat.userId);
-                      setActiveConversationUserName(chat.userName);
-                    }}
-                    className="w-full bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between text-left hover:border-primary/30 transition-all shadow-sm relative"
-                  >
-                    <div className="min-w-0 flex-1 pr-3">
-                      <h5 className="font-bold text-xs text-primary-dark truncate flex items-center gap-1.5">
-                        {chat.userName}
-                        {chat.unread > 0 && (
-                          <span className="bg-red-500 text-white text-[8px] px-1.5 py-0.5 rounded-full font-bold">
-                            {chat.unread}
-                          </span>
-                        )}
-                      </h5>
-                      <p className="text-[11px] text-gray-400 truncate mt-1">{chat.lastMessage}</p>
-                    </div>
-                    <div className="text-right shrink-0 flex flex-col items-end gap-1">
-                      <span className="text-[9px] text-gray-400 font-semibold">{chat.timestamp}</span>
-                      <IconChevronRight size={16} className="text-gray-300" />
-                    </div>
-                  </button>
-                ))
-              ) : (
-                <div className="text-center py-12 text-gray-400 text-xs">
-                  Aucun message reçu pour le moment.
-                </div>
-              )}
-            </div>
-          ) : (
-            <>
-              {activeChannel === 'bot' && (
-                <div className="bg-amber-50 text-amber-700 text-[10px] py-1.5 px-3 border-b border-amber-100 flex items-center justify-center gap-1.5 shrink-0 shadow-sm z-10">
-                  <span>⚠️</span> Je suis un assistant IA et je peux faire des erreurs.
-                </div>
-              )}
-              {chatError && (
-                <div className="bg-red-50 text-red-700 text-[10px] py-2 px-3 border-b border-red-100 flex items-center justify-between shrink-0 shadow-sm z-10 animate-in fade-in">
-                  <span>{chatError}</span>
-                  <button onClick={() => setChatError(null)} className="font-bold text-red-500 ml-2">✕</button>
-                </div>
-              )}
-              {/* Message History */}
-              <div className="flex-1 overflow-y-auto p-4 bg-gray-50/50 space-y-4 no-scrollbar">
-                {displayMessages.map((msg) => {
-                  const isUser = msg.sender_id ? (msg.sender_id === currentUser.id) : (msg.sender === 'user');
-                  const senderDisplayName = msg.sender_id ? msg.sender_name : (isUser ? 'Moi' : 'Assistant');
-                  
-                  return (
-                    <div key={msg.id || Math.random()} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}>
-                      {!isUser && (
-                        <span className="text-[9px] text-gray-400 font-bold ml-1 mb-1">{senderDisplayName}</span>
-                      )}
-                      <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs shadow-sm relative ${
-                        isUser 
-                          ? 'bg-primary text-white rounded-tr-none' 
-                          : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
-                      }`}>
-                        <p className="leading-relaxed break-words">{msg.text}</p>
-                        
-                        <div className="flex items-center justify-end gap-1 mt-1">
-                          <span className={`block text-[8px] ${isUser ? 'text-white/60' : 'text-gray-400'}`}>
-                            {msg.created_at ? new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : msg.time}
-                          </span>
-                          {isUser && msg.id && (
-                            <IconChecks 
-                              size={12} 
-                              className={msg.is_read ? 'text-secondary font-bold' : 'text-white/40'} 
-                            />
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Simulated/Real-time Typing Animation */}
-                {(isBotTyping || isOtherUserTyping) && (
-                  <div className="flex flex-col items-start animate-in fade-in duration-200">
-                    <span className="text-[9px] text-gray-400 font-bold ml-1 mb-1">
-                      {isBotTyping ? 'Assistant' : activeConversationUserName}
-                    </span>
-                    <div className="bg-white border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
-                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
-                      <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
-                    </div>
-                  </div>
+              <div className="relative pointer-events-none">
+                <IconMessageChatbot size={26} />
+                {unreadBadgeCount > 0 && !isRetracted && (
+                  <span className="absolute -top-2 -right-2 bg-red-500 text-white font-bold text-[9px] w-4.5 h-4.5 rounded-full flex items-center justify-center animate-pulse shadow-md">
+                    {unreadBadgeCount}
+                  </span>
                 )}
-                <div ref={messagesEndRef} />
               </div>
-
-              {/* Chat Input Form */}
-              <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 shrink-0">
-                <input
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => {
-                    setInputMessage(e.target.value);
-                    handleTyping();
-                  }}
-                  placeholder="Saisir un message..."
-                  className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:bg-white"
-                />
-                <button
-                  type="submit"
-                  className="bg-primary hover:bg-primary-dark text-white p-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center shrink-0 cursor-pointer"
-                >
-                  <IconSend size={16} />
-                </button>
-              </form>
-            </>
-          )}
-
+            </button>
+            {/* Petite poignée indicative quand rétracté */}
+            {isRetracted && (
+              <div className={`absolute top-1/2 -translate-y-1/2 w-1.5 h-6 bg-white/40 rounded-full animate-pulse ${
+                dockSide === 'left' ? 'right-1' : 'left-1'
+              }`} />
+            )}
+          </div>
         </div>
       )}
-    </div>
+
+      {/* Chat Window Modal (Rendered via Portal for Perfect Viewport Containment) */}
+      {isOpen && createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 sm:p-6 overflow-hidden">
+          {/* Backdrop Blur Overlay & Body Scroll Lock */}
+          <div 
+            className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity animate-in fade-in duration-200"
+            onClick={() => setIsOpen(false)}
+          />
+
+          {/* Centered Safe-Area Respecting Modal Window */}
+          <div 
+            className="relative bg-white w-full max-w-[400px] h-[calc(100dvh-32px)] max-h-[640px] rounded-[2rem] shadow-2xl border border-black/10 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200 z-10"
+            style={{
+              paddingTop: 'env(safe-area-inset-top, 0px)',
+              paddingBottom: 'env(safe-area-inset-bottom, 0px)'
+            }}
+          >
+            {/* Header */}
+            <div className="bg-[#0F2318] text-white p-4 flex items-center justify-between shrink-0 shadow-md">
+              <div className="flex items-center gap-2">
+                {hasInboxOnThisChannel && activeConversationUserId && (
+                  <button 
+                    onClick={() => { setActiveConversationUserId(null); }}
+                    className="mr-1 p-1.5 hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <IconArrowLeft size={18} />
+                  </button>
+                )}
+                <div className="w-8 h-8 rounded-xl bg-primary flex items-center justify-center text-white shrink-0">
+                  <IconMessageChatbot size={18} />
+                </div>
+                <div>
+                  <h4 className="font-bold text-sm font-display truncate max-w-[160px]">
+                    {hasInboxOnThisChannel && activeConversationUserId ? activeConversationUserName : 'PlaygroundSpot Chat'}
+                  </h4>
+                  <p className="text-[10px] text-gray-400 flex items-center gap-1">
+                    <IconCircleFilled size={6} className="text-emerald-400 animate-pulse" /> 
+                    {isOtherUserTyping ? 'En train d\'écrire...' : 'En ligne'}
+                  </p>
+                </div>
+              </div>
+              <button 
+                onClick={() => setIsOpen(false)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors cursor-pointer text-white/80 hover:text-white"
+                title="Fermer la discussion"
+              >
+                <IconX size={20} />
+              </button>
+            </div>
+
+            {/* Channel Selector */}
+            {(!hasInboxOnThisChannel || !activeConversationUserId) && (
+              <div className="flex bg-[#0A1810]/5 p-1.5 gap-1 shrink-0 border-b border-gray-100">
+                <button
+                  onClick={() => { setActiveChannel('bot'); setShowTerrainDropdown(false); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeChannel === 'bot' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  <IconRobot size={14} />
+                  <span>Assistant AI</span>
+                </button>
+                
+                <button
+                  onClick={() => { setActiveChannel('admin'); setShowTerrainDropdown(false); }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    activeChannel === 'admin' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'
+                  }`}
+                >
+                  <IconUserShield size={14} />
+                  <span>Support Admin</span>
+                </button>
+
+                <div className="relative flex-1">
+                  <button
+                    onClick={() => {
+                      if (terrains.length > 0) {
+                        setActiveChannel('gerant');
+                        setShowTerrainDropdown(!showTerrainDropdown);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-center gap-1 py-2 rounded-xl text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                      activeChannel === 'gerant' ? 'bg-primary text-white shadow-sm' : 'text-gray-500 hover:bg-gray-100'
+                    }`}
+                  >
+                    <IconBuildingStore size={14} />
+                    <span className="truncate max-w-[55px]">{selectedTerrain?.nom || 'Gérant'}</span>
+                    <IconChevronDown size={12} />
+                  </button>
+
+                  {/* Terrain Dropdown Menu */}
+                  {showTerrainDropdown && activeChannel === 'gerant' && (
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-xl z-50 overflow-hidden py-1">
+                      {terrains.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => {
+                            setSelectedTerrainId(t.id);
+                            setShowTerrainDropdown(false);
+                          }}
+                          className={`w-full text-left px-3 py-1.5 text-xs font-semibold hover:bg-gray-50 flex items-center justify-between ${
+                            t.id === selectedTerrainId ? 'text-primary bg-primary/5' : 'text-gray-700'
+                          }`}
+                        >
+                          <span className="truncate">{t.nom}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Conversation Inbox View (For Staff) */}
+            {hasInboxOnThisChannel && !activeConversationUserId ? (
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                <div className="px-3 py-2 text-[10px] font-extrabold uppercase tracking-wider text-gray-400">
+                  Discussions Récentes ({inboxList.length})
+                </div>
+                {inboxList.length > 0 ? (
+                  inboxList.map(chat => (
+                    <button
+                      key={chat.userId}
+                      onClick={() => {
+                        setActiveConversationUserId(chat.userId);
+                        setActiveConversationUserName(chat.userName);
+                      }}
+                      className="w-full text-left p-3 rounded-xl hover:bg-gray-50 transition-colors flex items-center justify-between border border-transparent hover:border-gray-100 cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 overflow-hidden">
+                        <div className="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs shrink-0">
+                          {chat.userName.charAt(0).toUpperCase()}
+                        </div>
+                        <div className="overflow-hidden">
+                          <div className="flex items-center gap-2">
+                            <h5 className="font-bold text-xs text-gray-900 truncate">{chat.userName}</h5>
+                            {chat.unreadCount > 0 && (
+                              <span className="bg-red-500 text-white font-bold text-[9px] px-1.5 py-0.2 rounded-full">
+                                {chat.unreadCount}
+                              </span>
+                            )}
+                          </div>
+                          <p className="text-[11px] text-gray-500 truncate">{chat.lastMessage}</p>
+                        </div>
+                      </div>
+                      <div className="text-right shrink-0 flex flex-col items-end gap-1">
+                        <span className="text-[9px] text-gray-400 font-semibold">{chat.timestamp}</span>
+                        <IconChevronRight size={16} className="text-gray-300" />
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="text-center py-12 text-gray-400 text-xs">
+                    Aucun message reçu pour le moment.
+                  </div>
+                )}
+              </div>
+            ) : (
+              <>
+                {activeChannel === 'bot' && (
+                  <div className="bg-amber-50 text-amber-700 text-[10px] py-1.5 px-3 border-b border-amber-100 flex items-center justify-center gap-1.5 shrink-0 shadow-sm z-10">
+                    <span>⚠️</span> Je suis un assistant IA et je peux faire des erreurs.
+                  </div>
+                )}
+                {chatError && (
+                  <div className="bg-red-50 text-red-700 text-[10px] py-2 px-3 border-b border-red-100 flex items-center justify-between shrink-0 shadow-sm z-10 animate-in fade-in">
+                    <span>{chatError}</span>
+                    <button onClick={() => setChatError(null)} className="font-bold text-red-500 ml-2">✕</button>
+                  </div>
+                )}
+                {/* Message History */}
+                <div className="flex-1 overflow-y-auto p-4 bg-gray-50/50 space-y-4 no-scrollbar">
+                  {displayMessages.map((msg) => {
+                    const isUser = msg.sender_id ? (msg.sender_id === currentUser.id) : (msg.sender === 'user');
+                    const senderDisplayName = msg.sender_id ? msg.sender_name : (isUser ? 'Moi' : 'Assistant');
+                    
+                    return (
+                      <div key={msg.id || Math.random()} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'} animate-in fade-in slide-in-from-bottom-2 duration-200`}>
+                        {!isUser && (
+                          <span className="text-[9px] text-gray-400 font-bold ml-1 mb-1">{senderDisplayName}</span>
+                        )}
+                        <div className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs shadow-sm relative ${
+                          isUser 
+                            ? 'bg-primary text-white rounded-tr-none' 
+                            : 'bg-white border border-gray-100 text-gray-800 rounded-tl-none'
+                        }`}>
+                          <p className="leading-relaxed break-words">{msg.text}</p>
+                          
+                          <div className="flex items-center justify-end gap-1 mt-1">
+                            <span className={`block text-[8px] ${isUser ? 'text-white/60' : 'text-gray-400'}`}>
+                              {msg.created_at ? new Date(msg.created_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : msg.time}
+                            </span>
+                            {isUser && msg.id && (
+                              <IconChecks 
+                                size={12} 
+                                className={msg.is_read ? 'text-secondary font-bold' : 'text-white/40'} 
+                              />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Simulated/Real-time Typing Animation */}
+                  {(isBotTyping || isOtherUserTyping) && (
+                    <div className="flex flex-col items-start animate-in fade-in duration-200">
+                      <span className="text-[9px] text-gray-400 font-bold ml-1 mb-1">
+                        {isBotTyping ? 'Assistant' : activeConversationUserName}
+                      </span>
+                      <div className="bg-[#0A1810]/5 border border-gray-100 text-gray-800 rounded-2xl rounded-tl-none px-4 py-3 shadow-sm flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                        <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+                      </div>
+                    </div>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                {/* Chat Input Form */}
+                <form onSubmit={handleSendMessage} className="p-3 bg-white border-t border-gray-100 flex gap-2 shrink-0">
+                  <input
+                    type="text"
+                    value={inputMessage}
+                    onChange={(e) => {
+                      setInputMessage(e.target.value);
+                      handleTyping();
+                    }}
+                    placeholder="Saisir un message..."
+                    className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all focus:bg-white font-medium"
+                  />
+                  <button
+                    type="submit"
+                    className="bg-primary hover:bg-primary-dark text-white p-2.5 rounded-xl transition-all shadow-md active:scale-95 flex items-center justify-center shrink-0 cursor-pointer"
+                  >
+                    <IconSend size={16} />
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 };
