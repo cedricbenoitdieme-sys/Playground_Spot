@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CustomSelect } from '../components/CustomSelect';
 import { useUser } from '../context/UserContext';
+import { supabase } from '../lib/supabase';
+import { getTerrainPrincipalPhotoUrl } from '../services/terrains';
 import { 
   IconBallFootball, 
   IconCheck, 
@@ -113,6 +115,41 @@ export const Landing = ({ setView }) => {
   const [simQuartier, setSimQuartier] = useState('Almadies');
   const [simSlot, setSimSlot] = useState('18:00');
   const [simName, setSimName] = useState('');
+
+  // Popular Terrains State from Supabase RPC
+  const [popularTerrains, setPopularTerrains] = useState([]);
+  const [loadingTerrains, setLoadingTerrains] = useState(true);
+
+  useEffect(() => {
+    const fetchPopular = async () => {
+      try {
+        const { data, error } = await supabase.rpc('get_terrains_populaires', { p_limit: 6 });
+        if (error) throw error;
+
+        if (data && data.length > 0) {
+          const terrainsWithPhotos = await Promise.all(
+            data.map(async (t) => {
+              const photoUrl = await getTerrainPrincipalPhotoUrl(t.id);
+              return {
+                ...t,
+                principalPhotoUrl: photoUrl
+              };
+            })
+          );
+          setPopularTerrains(terrainsWithPhotos);
+        } else {
+          setPopularTerrains([]);
+        }
+      } catch (err) {
+        console.error('Erreur chargement terrains populaires:', err);
+        setPopularTerrains([]);
+      } finally {
+        setLoadingTerrains(false);
+      }
+    };
+
+    fetchPopular();
+  }, []);
 
   // Scroll effect for Navbar
   useEffect(() => {
@@ -810,124 +847,94 @@ export const Landing = ({ setView }) => {
       </section>
 
       {/* TERRAINS SLIDER SECTION */}
-      <section id="terrains" className="py-24 bg-[#0F2318] text-white px-4 scroll-mt-28">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <span className="text-sm font-bold uppercase tracking-widest text-[#E8DCC8] bg-white/10 px-4 py-1.5 rounded-full inline-block">Terrains Populaires</span>
-            <h2 className="mt-6 text-3xl md:text-4xl font-display font-bold text-white">Les complexes qui font vibrer Dakar.</h2>
+      {(!loadingTerrains && popularTerrains.length === 0) ? (
+        <section id="terrains" className="py-16 bg-[#0F2318] text-white px-4 scroll-mt-28 border-t border-white/5 text-center">
+          <div className="max-w-xl mx-auto space-y-4">
+            <span className="text-xs font-bold uppercase tracking-widest text-[#E8DCC8] bg-white/10 px-4 py-1.5 rounded-full inline-block">Terrains à Dakar</span>
+            <h3 className="text-2xl font-display font-bold text-white">Bientôt de nouveaux terrains homologués à Dakar !</h3>
+            <p className="text-sm text-gray-400">
+              Nos équipes valident actuellement de nouveaux complexes sportifs. Restez à l'affût !
+            </p>
           </div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {/* Card 1 */}
-            <div 
-              onClick={() => handleGoToApp('joueur', 'discovery')}
-              className="bg-[#162D20] rounded-[2rem] overflow-hidden border border-[#E8DCC8]/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group cursor-pointer relative"
-            >
-              <div className="relative h-48 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1551958219-acbc608c6377?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Terrain Plateau" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale-[0.2] group-hover:grayscale-0" />
-                <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="text-xl font-bold font-display text-white">Arena Plateau</h3>
-                    <p className="text-[#E8DCC8]/70 text-sm flex items-center gap-1 mt-1">
-                      <IconMapPin size={14} /> Plateau, Dakar
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
-                    <IconStar size={14} className="text-[#E8DCC8] fill-[#E8DCC8]" />
-                    <span className="text-xs font-bold text-[#E8DCC8]">4.8</span>
-                  </div>
-                </div>
-                <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-                  <div>
-                    <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Tarif horaire</p>
-                    <p className="text-lg font-bold text-emerald-400">15.000 FCFA <span className="text-xs text-white/50 font-normal">/h</span></p>
-                  </div>
-                  <button className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dark transition-colors shadow-glow">
-                    <IconChevronRight size={20} />
-                  </button>
-                </div>
-              </div>
+        </section>
+      ) : (
+        <section id="terrains" className="py-24 bg-[#0F2318] text-white px-4 scroll-mt-28">
+          <div className="max-w-7xl mx-auto">
+            <div className="text-center mb-16">
+              <span className="text-sm font-bold uppercase tracking-widest text-[#E8DCC8] bg-white/10 px-4 py-1.5 rounded-full inline-block">Terrains Populaires</span>
+              <h2 className="mt-6 text-3xl md:text-4xl font-display font-bold text-white">Les complexes qui font vibrer Dakar.</h2>
             </div>
 
-            {/* Card 2 */}
-            <div 
-              onClick={() => handleGoToApp('joueur', 'discovery')}
-              className="bg-[#162D20] rounded-[2rem] overflow-hidden border border-[#E8DCC8]/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group cursor-pointer relative"
-            >
-              <div className="relative h-48 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1508098682722-e99c43a406b2?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Terrain Mermoz" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale-[0.2] group-hover:grayscale-0" />
-                <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="text-xl font-bold font-display text-white">Dakar Pitch Mermoz</h3>
-                    <p className="text-[#E8DCC8]/70 text-sm flex items-center gap-1 mt-1">
-                      <IconMapPin size={14} /> Mermoz
-                    </p>
+            <div className={`grid gap-8 ${
+              popularTerrains.length === 1 
+                ? 'max-w-md mx-auto grid-cols-1' 
+                : popularTerrains.length === 2 
+                ? 'max-w-3xl mx-auto md:grid-cols-2' 
+                : 'md:grid-cols-3'
+            }`}>
+              {popularTerrains.map((terrain) => (
+                <div 
+                  key={terrain.id}
+                  onClick={() => handleGoToApp('joueur', 'discovery')}
+                  className="bg-[#162D20] rounded-[2rem] overflow-hidden border border-[#E8DCC8]/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group cursor-pointer relative flex flex-col justify-between"
+                >
+                  <div className="relative h-48 overflow-hidden bg-[#0A1810] flex items-center justify-center">
+                    {terrain.principalPhotoUrl ? (
+                      <img 
+                        src={terrain.principalPhotoUrl} 
+                        alt={terrain.nom} 
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                      />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center">
+                        <IconBuildingStore size={36} className="text-primary/60" />
+                        <span className="text-xs font-bold text-gray-400">Terrain d'élite</span>
+                      </div>
+                    )}
+                    <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                      <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
+                    </div>
+                    {terrain.boost_actif && (
+                      <div className="absolute top-4 left-4 bg-purple-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg">
+                        ⚡ En vedette
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
-                    <IconStar size={14} className="text-[#E8DCC8] fill-[#E8DCC8]" />
-                    <span className="text-xs font-bold text-[#E8DCC8]">4.7</span>
+                  <div className="p-6 flex-1 flex flex-col justify-between">
+                    <div>
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="text-xl font-bold font-display text-white">{terrain.nom}</h3>
+                          <p className="text-[#E8DCC8]/70 text-sm flex items-center gap-1 mt-1">
+                            <IconMapPin size={14} /> {terrain.quartier || 'Dakar'}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
+                          <IconStar size={14} className="text-[#E8DCC8] fill-[#E8DCC8]" />
+                          <span className="text-xs font-bold text-[#E8DCC8]">
+                            {terrain.rating ? Number(terrain.rating).toFixed(1) : '5.0'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
+                      <div>
+                        <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Tarif horaire</p>
+                        <p className="text-lg font-bold text-emerald-400">
+                          {Number(terrain.price || 15000).toLocaleString('fr-FR')} FCFA <span className="text-xs text-white/50 font-normal">/h</span>
+                        </p>
+                      </div>
+                      <button className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dark transition-colors shadow-glow">
+                        <IconChevronRight size={20} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-                  <div>
-                    <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Tarif horaire</p>
-                    <p className="text-lg font-bold text-emerald-400">20.000 FCFA <span className="text-xs text-white/50 font-normal">/h</span></p>
-                  </div>
-                  <button className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dark transition-colors shadow-glow">
-                    <IconChevronRight size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 3 */}
-            <div 
-              onClick={() => handleGoToApp('joueur', 'discovery')}
-              className="bg-[#162D20] rounded-[2rem] overflow-hidden border border-[#E8DCC8]/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group cursor-pointer relative"
-            >
-              <div className="relative h-48 overflow-hidden">
-                <img src="https://images.unsplash.com/photo-1579952363873-27f3bade9f55?ixlib=rb-4.0.3&auto=format&fit=crop&w=600&q=80" alt="Five Almadies" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 grayscale-[0.2] group-hover:grayscale-0" />
-                <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
-                </div>
-              </div>
-              <div className="p-6">
-                <div className="flex justify-between items-start mb-2">
-                  <div>
-                    <h3 className="text-xl font-bold font-display text-white">Five Dakar Almadies</h3>
-                    <p className="text-[#E8DCC8]/70 text-sm flex items-center gap-1 mt-1">
-                      <IconMapPin size={14} /> Almadies
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
-                    <IconStar size={14} className="text-[#E8DCC8] fill-[#E8DCC8]" />
-                    <span className="text-xs font-bold text-[#E8DCC8]">4.9</span>
-                  </div>
-                </div>
-                <div className="mt-6 flex items-center justify-between border-t border-white/10 pt-4">
-                  <div>
-                    <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Tarif horaire</p>
-                    <p className="text-lg font-bold text-emerald-400">30.000 FCFA <span className="text-xs text-white/50 font-normal">/h</span></p>
-                  </div>
-                  <button className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dark transition-colors shadow-glow">
-                    <IconChevronRight size={20} />
-                  </button>
-                </div>
-              </div>
+              ))}
             </div>
           </div>
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* TESTIMONIALS SECTION */}
       <section className="py-24 bg-white px-4">

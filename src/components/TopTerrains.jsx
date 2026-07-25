@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { fetchTopTerrains } from '../services/terrains';
+import { supabase } from '../lib/supabase';
 import { TerrainImage } from './TerrainImage';
 import { formatAmountAbbreviated } from '../services/stats';
 import { IconTrophy, IconChevronRight, IconX, IconTrendingUp, IconUsers, IconLoader2 } from '@tabler/icons-react';
@@ -13,13 +13,19 @@ export const TopTerrains = () => {
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchTopTerrains(3);
-        // Enrichir avec des bookings estimés (sera remplacé par un compteur réel plus tard)
-        setTerrains(data.map((t, i) => ({
-          ...t,
-          bookings: [34, 28, 22][i] || 20,
-          revenue: formatAmountAbbreviated((t.price || 15000) * ([34, 28, 22][i] || 20)),
-        })));
+        const { data, error } = await supabase.rpc('get_terrains_populaires', { p_limit: 3 });
+        if (error) throw error;
+
+        const list = data || [];
+        setTerrains(list.map((t) => {
+          const count = t.reservations_recentes || 0;
+          return {
+            ...t,
+            name: t.nom,
+            bookings: count,
+            revenue: formatAmountAbbreviated((t.price || 15000) * count),
+          };
+        }));
       } catch (err) {
         console.error('Erreur chargement top terrains:', err.message);
       } finally {
