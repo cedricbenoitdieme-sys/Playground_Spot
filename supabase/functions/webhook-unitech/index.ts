@@ -1,16 +1,35 @@
-// Edge Function : webhook UnitechPay pour les paiements d'ABONNEMENT gérant
-// (distinct du webhook de paiement de réservation existant, api/index.js
-// POST /api/payment/unitech/webhook). Vérification de signature HMAC-SHA256
-// obligatoire (fail-closed) — contrairement au webhook réservation actuel,
-// qui est fail-open faute de UNITECH_WEBHOOK_SECRET configuré (voir
-// supabase/PROD_READINESS_CHECKLIST.md §5) : ce nouveau webhook ne doit pas
-// reproduire cette faille.
+// Edge Function : webhook UnitechPay UNIQUE pour PlaygroundSpot — gère les
+// TROIS types de paiement (abonnement gérant, boost de visibilité, ET
+// réservation joueur), distingués par le préfixe de `reference` :
+// 'SUB-' (create_pending_subscription), 'BOOST-' (create_pending_boost),
+// tout le reste (ex: 'PS-', créé par backend/routes/payments.js) → paiement
+// de réservation, délégué à handle_payment_webhook.
+//
+// Un compte marchand UnitechPay n'accepte qu'UNE SEULE URL de webhook
+// enregistrée (configurée manuellement dans leur dashboard, Paramètres →
+// Webhooks — pas un champ par appel à create_wave_payment/create_orange_maxit,
+// qui n'est d'ailleurs pas documenté comme paramètre accepté). D'où la
+// fusion ici plutôt que de garder un endpoint séparé par type de paiement
+// — même modèle que Sama Boutik (autre SaaS du même compte, déjà en
+// production), dont le webhook UnitechPay pointe vers une unique edge
+// function équivalente à celle-ci.
+//
+// Vérification de signature HMAC-SHA256 obligatoire (fail-closed) — les
+// webhooks Express historiques (api/index.js, backend/server.js,
+// backend/routes/webhooks.js) restent en place mais ne reçoivent plus
+// aucun trafic UnitechPay une fois cette URL enregistrée comme SEULE URL
+// du compte marchand PlaygroundSpot.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? ""
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-const webhookSecret = Deno.env.get("UNITECH_WEBHOOK_SECRET") ?? ""
+// Doc officielle UnitechPay : "Votre clé API est utilisée comme secret de
+// signature" — même règle que les webhooks Express (api/index.js,
+// backend/server.js, backend/routes/webhooks.js), qui retombent déjà sur
+// UNITECH_API_KEY. UNITECH_WEBHOOK_SECRET reste un override explicite si
+// UnitechPay confirme un jour un secret distinct pour ce compte marchand.
+const webhookSecret = Deno.env.get("UNITECH_WEBHOOK_SECRET") || Deno.env.get("UNITECH_API_KEY") || ""
 
 async function computeHmacHex(secret: string, message: string): Promise<string> {
   const enc = new TextEncoder()
@@ -96,26 +115,64 @@ serve(async (req) => {
     console.log(`[webhook-unitech] reference=${reference} event=${event} amount=${amount}`)
 
     // Client service_role : aucun contexte utilisateur ici (appel externe
-    // UnitechPay), activate_subscription() a son EXECUTE restreint à service_role.
+    // UnitechPay), activate_subscription()/activate_boost() ont leur EXECUTE
+    // restreint à service_role.
     const supabase = createClient(supabaseUrl, supabaseServiceKey)
 
-    const { data: result, error: rpcError } = await supabase.rpc('activate_subscription', {
-      p_unitech_reference: reference,
-      p_status: internalStatus,
-      p_phone_number: null // absent du payload UnitechPay : ne pas écraser le numéro déjà enregistré
+    // Le préfixe de reference (posé à la création : 'SUB-' pour un
+    // abonnement, 'BOOST-' pour un boost de visibilité) détermine quelle
+    // table mettre à jour. Tout le reste (ex: 'PS-') = paiement de
+    // réservation joueur.
+    const isBoost = reference.startsWith('BOOST-')
+    const isSubscription = reference.startsWith('SUB-')
+
+    if (isBoost || isSubscription) {
+      const rpcName = isBoost ? 'activate_boost' : 'activate_subscription'
+      const rpcArgs = isBoost
+        ? { p_unitech_reference: reference, p_status: internalStatus }
+        : {
+            p_unitech_reference: reference,
+            p_status: internalStatus,
+            p_phone_number: null // absent du payload UnitechPay : ne pas écraser le numéro déjà enregistré
+          }
+
+      const { data: result, error: rpcError } = await supabase.rpc(rpcName, rpcArgs)
+
+      if (rpcError) {
+        console.error(`[webhook-unitech] Erreur ${rpcName}:`, rpcError.message)
+        return new Response(JSON.stringify({ error: 'Erreur interne' }), {
+          status: 500, headers: { 'Content-Type': 'application/json' }
+        })
+      }
+
+      // handled=false = idempotence (référence inconnue/déjà traitée) : on
+      // répond quand même 200 pour éviter une tempête de retries côté UnitechPay.
+      console.log(`[webhook-unitech] Résultat:`, JSON.stringify(result))
+      return new Response(JSON.stringify({ success: true, ...result }), {
+        status: 200, headers: { 'Content-Type': 'application/json' }
+      })
+    }
+
+    // Paiement de réservation (joueur) — handle_payment_webhook recherche
+    // par ref_externe dans `paiements`, confirme la réservation associée,
+    // idempotent (ne transitionne que depuis 'en_attente', migration
+    // 20260725170000_reservation_payment_robustness.sql).
+    const { error: reservationRpcError } = await supabase.rpc('handle_payment_webhook', {
+      p_provider: 'unitechpay',
+      p_payload: payload,
+      p_reference: reference,
+      p_status: internalStatus
     })
 
-    if (rpcError) {
-      console.error('[webhook-unitech] Erreur activate_subscription:', rpcError.message)
+    if (reservationRpcError) {
+      console.error('[webhook-unitech] Erreur handle_payment_webhook:', reservationRpcError.message)
       return new Response(JSON.stringify({ error: 'Erreur interne' }), {
         status: 500, headers: { 'Content-Type': 'application/json' }
       })
     }
 
-    // handled=false = idempotence (référence inconnue/déjà traitée) : on
-    // répond quand même 200 pour éviter une tempête de retries côté UnitechPay.
-    console.log(`[webhook-unitech] Résultat:`, JSON.stringify(result))
-    return new Response(JSON.stringify({ success: true, ...result }), {
+    console.log(`[webhook-unitech] Réservation traitée pour reference=${reference}`)
+    return new Response(JSON.stringify({ success: true, handled: true }), {
       status: 200, headers: { 'Content-Type': 'application/json' }
     })
 

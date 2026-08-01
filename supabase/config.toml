@@ -1,0 +1,18 @@
+# webhook-unitech reçoit des requêtes externes (UnitechPay), jamais un JWT
+# Supabase — sans ceci, le gateway répond 401 avant même d'exécuter le code
+# de la fonction. La sécurité de cet endpoint repose sur la vérification de
+# signature HMAC (voir index.ts), pas sur le JWT.
+[functions.webhook-unitech]
+verify_jwt = false
+
+# Ces fonctions sont appelées par des utilisateurs authentifiés depuis le
+# frontend — le JWT reste la première ligne de défense (RLS + rate limit
+# ensuite), donc verify_jwt reste à sa valeur par défaut (true).
+[functions.create-payment]
+verify_jwt = true
+
+[functions.create-gerant]
+verify_jwt = true
+
+[functions.chatbot-query]
+verify_jwt = true

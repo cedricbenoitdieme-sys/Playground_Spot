@@ -24,7 +24,7 @@ export function VerifyTicket({ token: propToken }) {
 
     const verifyToken = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
         const response = await fetch(`${apiUrl}/api/reservations/verify?token=${token}`);
         const data = await response.json();
         setResult(data);

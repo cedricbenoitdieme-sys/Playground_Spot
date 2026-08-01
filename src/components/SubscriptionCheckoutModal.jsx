@@ -78,10 +78,11 @@ export const SubscriptionCheckoutModal = ({ isOpen, onClose, plan, cycle, onSucc
         startPolling(res.subscription_id);
       }
 
-      if (res?.checkout_url) {
-        setCheckoutUrl(res.checkout_url);
+      const url = res?.payment_url || res?.deep_links?.MAXIT || res?.deep_links?.OM;
+      if (url) {
+        setCheckoutUrl(url);
         // Ouvrir automatiquement dans une nouvelle fenêtre si pas bloqué
-        window.open(res.checkout_url, '_blank');
+        window.open(url, '_blank');
       }
     } catch (err) {
       console.error('Erreur checkout abonnement:', err);

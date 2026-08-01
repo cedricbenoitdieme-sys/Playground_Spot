@@ -3,10 +3,14 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
+import crypto from 'crypto';
 
 import webhooksRouter from '../backend/routes/webhooks.js';
 import paymentsRouter from '../backend/routes/payments.js';
 import verifyRouter from '../backend/routes/verify.js';
+import terrainsRouter from '../backend/routes/terrains.js';
+import statsRouter from '../backend/routes/stats.js';
+import { normalizeSenegalPhone } from '../backend/lib/phone.js';
 
 const app = express();
 
@@ -28,11 +32,19 @@ app.use(cors({
 // Webhooks mounted BEFORE express.json() for raw body parsing
 app.use('/api/webhooks', webhooksRouter);
 
-app.use(express.json());
+// `verify` conserve les octets bruts sur req.rawBody — nécessaire pour
+// vérifier une signature HMAC UnitechPay calculée sur le corps brut exact
+// (JSON.stringify() d'un objet reconstruit après parsing ne donne PAS les
+// mêmes octets : ordre des clés différent, champs absents, etc.).
+app.use(express.json({
+  verify: (req, res, buf) => { req.rawBody = buf; }
+}));
 
 // Routes
 app.use('/api/payments', paymentsRouter);
 app.use('/api/reservations', verifyRouter);
+app.use('/api/terrains', terrainsRouter);
+app.use('/api/stats', statsRouter);
 
 // Supabase Admin Client
 const supabaseUrl = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
@@ -335,7 +347,12 @@ app.post('/api/create-gerant', authMiddleware, async (req, res) => {
 });
 
 const unitechApiKey = process.env.UNITECH_API_KEY;
-const unitechWebhookSecret = process.env.UNITECH_WEBHOOK_SECRET;
+// Doc officielle UnitechPay : "Votre clé API est utilisée comme secret de
+// signature" — le HMAC des webhooks se calcule avec la clé API elle-même,
+// pas un secret dédié séparé. UNITECH_WEBHOOK_SECRET reste supporté comme
+// override explicite si UnitechPay confirme un jour un secret distinct
+// pour ce compte marchand, mais le défaut suit la doc.
+const unitechWebhookSecret = process.env.UNITECH_WEBHOOK_SECRET || unitechApiKey;
 
 // Initiate Pay Unitech Payment
 app.post('/api/payment/unitech/initiate', async (req, res) => {
@@ -387,7 +404,12 @@ app.post('/api/payment/unitech/initiate', async (req, res) => {
     }
 
     const url = `https://api.unitech.sn/api.php?action=${action}`;
-    const cleanedPhone = numero_tel.replace(/\D/g, '');
+    let cleanedPhone;
+    try {
+      cleanedPhone = normalizeSenegalPhone(numero_tel);
+    } catch (phoneErr) {
+      return res.status(400).json({ error: phoneErr.message });
+    }
     const referer = req.headers.referer || `${req.protocol}://${req.get('host')}`;
     const cleanReferer = referer.endsWith('/') ? referer.slice(0, -1) : referer;
     const callback_success = `${cleanReferer}?payment_success=true`;
@@ -406,7 +428,11 @@ app.post('/api/payment/unitech/initiate', async (req, res) => {
         description: `Réservation PlaygroundSpot #${paiement_id.substring(0, 8)}`,
         callback_success,
         callback_cancel,
-        webhook_url: `${req.protocol}://${req.get('host')}/api/payment/unitech/webhook`
+        // Le compte marchand UnitechPay n'a qu'UNE SEULE URL de webhook,
+        // configurée dans leur dashboard vers webhook-unitech (voir
+        // supabase/functions/webhook-unitech/index.ts) — renseigné ici
+        // aussi par cohérence, au cas où un override par-requête est honoré.
+        webhook_url: `${supabaseUrl}/functions/v1/webhook-unitech`
       })
     });
 
@@ -433,7 +459,11 @@ app.post('/api/payment/unitech/initiate', async (req, res) => {
 
 // Webhook Pay Unitech
 app.post('/api/payment/unitech/webhook', async (req, res) => {
-  const { reference, status, signature } = req.body;
+  const { reference, status } = req.body;
+  // Doc UnitechPay : signature envoyée dans l'en-tête x-unitechpay-signature
+  // (le champ `signature` parfois présent dans le corps est un doublon
+  // informatif, pas ce que leur propre exemple de vérification compare).
+  const signature = req.headers['x-unitechpay-signature'] || req.body.signature;
 
   try {
     console.log('[UnitechPay Webhook] Payload reçu:', JSON.stringify(req.body));
@@ -443,16 +473,29 @@ app.post('/api/payment/unitech/webhook', async (req, res) => {
       return res.json({ success: true, message: 'Simulation de démo traitée avec succès' });
     }
 
-    if (unitechWebhookSecret && signature) {
-      const computedSignature = crypto
-        .createHmac('sha256', unitechWebhookSecret)
-        .update(JSON.stringify({ reference, status }))
-        .digest('hex');
+    // Fail-closed : contrairement au comportement précédent (vérification
+    // ignorée silencieusement si le secret n'était pas configuré), un
+    // webhook non signé ou mal configuré est désormais TOUJOURS rejeté.
+    if (!unitechWebhookSecret) {
+      console.error('[UnitechPay Webhook] UNITECH_WEBHOOK_SECRET non configuré — requête rejetée');
+      return res.status(500).json({ error: 'Webhook non configuré' });
+    }
+    if (!signature) {
+      console.warn('[UnitechPay Webhook] Signature manquante');
+      return res.status(401).json({ error: 'Signature manquante' });
+    }
+    // HMAC calculé sur le corps BRUT (req.rawBody, capturé par le verify()
+    // de express.json() ci-dessus) — pas sur un objet JS reconstruit après
+    // parsing, dont la sérialisation ne correspond jamais aux octets
+    // originaux signés côté UnitechPay.
+    const computedSignature = crypto
+      .createHmac('sha256', unitechWebhookSecret)
+      .update(req.rawBody || JSON.stringify(req.body))
+      .digest('hex');
 
-      if (computedSignature !== signature) {
-        console.error('[UnitechPay Webhook] Signature invalide');
-        return res.status(401).json({ error: 'Signature invalide' });
-      }
+    if (computedSignature !== signature) {
+      console.error('[UnitechPay Webhook] Signature invalide');
+      return res.status(401).json({ error: 'Signature invalide' });
     }
 
     const { error: rpcError } = await supabase.rpc('handle_payment_webhook', {

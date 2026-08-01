@@ -1,6 +1,7 @@
 import express from 'express';
 import { createClient } from '@supabase/supabase-js';
 import crypto from 'crypto';
+import { normalizeSenegalPhone } from '../lib/phone.js';
 
 const router = express.Router();
 
@@ -84,9 +85,23 @@ router.post('/initiate', async (req, res) => {
 
     // 5. Appel réel UnitechPay
     const action = paiement.mode === 'orange_money' ? 'create_orange_om' : 'create_wave_payment';
-    const cleanedPhone = customer.phone.replace(/\D/g, '');
+    let cleanedPhone;
+    try {
+      cleanedPhone = normalizeSenegalPhone(customer.phone);
+    } catch (phoneErr) {
+      return res.status(400).json({ error: phoneErr.message });
+    }
     const referer = req.headers.referer || `${req.protocol}://${req.get('host')}`;
     const cleanReferer = referer.endsWith('/') ? referer.slice(0, -1) : referer;
+
+    // Le compte marchand UnitechPay n'a qu'UNE SEULE URL de webhook (voir
+    // supabase/functions/webhook-unitech/index.ts) — configurée manuellement
+    // dans leur dashboard, pas par ce champ (non documenté comme paramètre
+    // accepté par create_wave_payment/create_orange_om). On le renseigne
+    // quand même par cohérence, au cas où UnitechPay honore un override
+    // par-requête en plus de la config dashboard.
+    const supabaseUrlForWebhook = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+    const webhookUrl = `${supabaseUrlForWebhook}/functions/v1/webhook-unitech`;
 
     const response = await fetch(`https://api.unitech.sn/api.php?action=${action}`, {
       method: 'POST',
@@ -97,11 +112,14 @@ router.post('/initiate', async (req, res) => {
       body: JSON.stringify({
         amount: paiement.montant,
         customer_number: cleanedPhone,
-        reference: ref_externe,
+        // Pas de `reference` envoyée : create_wave_payment/create_orange_om
+        // ne l'acceptent pas en entrée (confirmé par le code de Sama Boutik,
+        // qui ne l'envoie pas non plus) — UnitechPay génère toujours SA
+        // PROPRE référence, relue ci-dessous.
         description: `Réservation PlaygroundSpot`,
-        callback_success: `${cleanReferer}?payment_success=true`,
-        callback_cancel: `${cleanReferer}?payment_cancel=true`,
-        webhook_url: `${req.protocol}://${req.get('host')}/api/payment/unitech/webhook`
+        callback_success: `${cleanReferer}?payment_success=true&ref=${encodeURIComponent(ref_externe)}`,
+        callback_cancel: `${cleanReferer}?payment_cancel=true&ref=${encodeURIComponent(ref_externe)}`,
+        webhook_url: webhookUrl
       })
     });
 
@@ -119,7 +137,31 @@ router.post('/initiate', async (req, res) => {
       return res.status(502).json({ error: 'Paiement non initialisé' });
     }
 
-    return res.json({ success: true, payment_url: paymentUrl, transaction_ref: ref_externe });
+    // UnitechPay génère sa PROPRE référence — on la relit et on écrase
+    // notre ref_externe pré-générée par la leur (service_role, pas de
+    // souci RLS ici), sinon le webhook ne retrouvera jamais ce paiement.
+    // On stocke aussi payment_url (utile pour "renvoyer le lien" côté
+    // front sans rappeler l'API si l'utilisateur revient sur la page).
+    let finalRef = ref_externe;
+    const unitechOwnReference = result.reference || result.data?.reference;
+    const paymentRowUpdate = { payment_url: paymentUrl };
+    if (unitechOwnReference && unitechOwnReference !== ref_externe) {
+      paymentRowUpdate.ref_externe = unitechOwnReference;
+    }
+    {
+      const { error: refUpdateErr } = await supabase
+        .from('paiements')
+        .update(paymentRowUpdate)
+        .eq('id', paiement_id);
+      if (refUpdateErr) {
+        console.error('[Payments] Erreur mise à jour paiement (ref_externe/payment_url):', refUpdateErr);
+      } else if (paymentRowUpdate.ref_externe) {
+        console.log(`[Payments] ref_externe mise à jour: ${ref_externe} → ${unitechOwnReference}`);
+        finalRef = unitechOwnReference;
+      }
+    }
+
+    return res.json({ success: true, payment_url: paymentUrl, transaction_ref: finalRef });
 
   } catch (error) {
     console.error('[Payments] Erreur initiation:', error);

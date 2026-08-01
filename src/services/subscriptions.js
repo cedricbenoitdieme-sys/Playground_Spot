@@ -78,10 +78,10 @@ export const initiateSubscriptionPayment = async ({ plan_id, cycle, phone_number
 
     const { data, error } = await supabase.functions.invoke('create-payment', {
       body: {
-        plan_id,
-        cycle,
-        phone_number,
-        mode,
+        plan: plan_id,
+        billing_period: cycle === 'annuel' ? 'annual' : 'monthly',
+        payment_method: mode,
+        customer_number: phone_number,
       },
     });
 
@@ -121,21 +121,50 @@ export const fetchSubscriptionStatus = async (subscriptionId) => {
 };
 
 /**
- * Crée un nouveau boost de visibilité
+ * Initie le paiement d'une campagne de boost (Wave/Orange) via UnitechPay.
  */
-export const createVisibilityBoost = async ({ gerant_id, terrain_id, montant, duree }) => {
+export const initiateBoostPayment = async ({ terrain_id, budget_fcfa, duree_jours, phone_number, mode = 'wave' }) => {
   try {
-    const { data, error } = await supabase.rpc('create_visibility_boost', {
-      p_gerant_id: gerant_id,
-      p_terrain_id: terrain_id,
-      p_montant: montant,
-      p_duree: duree,
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) {
+      throw new Error('Vous devez être connecté pour activer un boost.');
+    }
+
+    const { data, error } = await supabase.functions.invoke('create-payment', {
+      body: {
+        payment_type: 'boost',
+        terrain_id,
+        budget_fcfa,
+        duree_jours,
+        payment_method: mode,
+        customer_number: phone_number,
+      },
     });
 
+    if (error) throw new Error(error.message || "Impossible d'initialiser le paiement.");
+    if (data?.error) throw new Error(data.error);
+    return data; // { success, payment_url, deep_links, boost_id, unitech_reference, montant }
+  } catch (err) {
+    return handleServiceError(err, 'Échec de l\'initialisation du paiement de boost');
+  }
+};
+
+/**
+ * Statut d'un boost par ID (pour le polling post-paiement).
+ */
+export const fetchBoostStatus = async (boostId) => {
+  try {
+    if (!boostId) return null;
+    const { data, error } = await supabase
+      .from('visibility_boosts')
+      .select('id, statut, date_debut, date_fin, duree_jours, unitech_reference')
+      .eq('id', boostId)
+      .single();
     if (error) throw error;
     return data;
   } catch (err) {
-    return handleServiceError(err, 'Erreur lors de la création du boost de visibilité');
+    console.error('Erreur lecture statut boost:', err);
+    return null;
   }
 };
 
@@ -179,6 +208,8 @@ export const fetchGerantBoosts = async (gerantId) => {
         budget_alloue,
         date_debut,
         date_fin,
+        duree_jours,
+        unitech_reference,
         statut,
         vues_generees,
         created_at,
