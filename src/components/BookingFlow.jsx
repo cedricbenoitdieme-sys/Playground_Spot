@@ -94,6 +94,7 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
   // The real token will be set after successful backend creation
   const [verifyToken, setVerifyToken] = useState('');
+  const [pendingReservationId, setPendingReservationId] = useState(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [toast, setToast] = useState(null);
   const [wantedSlots, setWantedSlots] = useState([]);
@@ -565,13 +566,37 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               )}
               <button 
                 disabled={!paymentMethod || isSubmitting} 
-                onClick={() => setIsPaymentModalOpen(true)} 
-                className="btn-primary w-full max-w-sm h-14 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                onClick={async () => {
+                  setIsSubmitting(true);
+                  try {
+                    const date_slot = new Date().toISOString().split('T')[0];
+                    const resObj = await createReservation({
+                      terrain_id: terrain?.id,
+                      terrain_nom: terrain?.name || 'Terrain',
+                      joueur_id: currentUser?.id,
+                      joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || currentUser?.nom || 'Joueur',
+                      date_slot,
+                      heure_slot: selectedSlot + ':00',
+                      montant: totalPrice,
+                      duree_heures: duration
+                    });
+                    if (resObj?.id) {
+                      setPendingReservationId(resObj.id);
+                      setVerifyToken(resObj.qr_token || resObj.id);
+                      setIsPaymentModalOpen(true);
+                    }
+                  } catch (err) {
+                    console.error('Erreur création réservation:', err);
+                  } finally {
+                    setIsSubmitting(false);
+                  }
+                }} 
+                className="btn-primary w-full max-w-sm h-14 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
               >
                 {isSubmitting ? (
                   <>
                     <IconLoader2 className="animate-spin" size={20} />
-                    <span>Traitement en cours...</span>
+                    <span>Création de la réservation...</span>
                   </>
                 ) : (
                   'Confirmer le paiement'
@@ -584,25 +609,12 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               onClose={() => setIsPaymentModalOpen(false)}
               type_flux="reservation"
               terrain_id={terrain?.id}
+              reservation_id={pendingReservationId}
               amount={totalPrice}
               title={`Réservation ${terrain?.name || ''}`}
-              onSuccess={async () => {
+              onSuccess={() => {
                 setIsPaymentModalOpen(false);
-                const date_slot = new Date().toISOString().split('T')[0];
-                const resObj = await createReservation({
-                  terrain_id: terrain?.id,
-                  terrain_nom: terrain?.name || 'Terrain',
-                  joueur_id: currentUser?.id,
-                  joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || currentUser?.nom || 'Joueur',
-                  date_slot,
-                  heure_slot: selectedSlot + ':00',
-                  montant: totalPrice,
-                  duree_heures: duration
-                });
-                if (resObj?.id) {
-                  setVerifyToken(resObj.qr_token || resObj.id);
-                  setStep(4);
-                }
+                setStep(4);
               }}
             />
           </div>
