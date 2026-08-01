@@ -21,7 +21,7 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
-import { PaymentModal } from './PaymentModal';
+import { PaymentFlow } from './PaymentFlow';
 import { CustomAlertModal } from './CustomAlertModal';
 import { createReservation, createPaiement } from '../services/reservations';
 import waveLogo from '../assets/wave.png';
@@ -579,7 +579,32 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               </button>
               <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
             </div>
-            <PaymentModal isOpen={isPaymentModalOpen} method={paymentMethod} amount={totalPrice} onClose={() => setIsPaymentModalOpen(false)} onConfirm={handlePaymentConfirm} />
+            <PaymentFlow
+              isOpen={isPaymentModalOpen}
+              onClose={() => setIsPaymentModalOpen(false)}
+              type_flux="reservation"
+              terrain_id={terrain?.id}
+              amount={totalPrice}
+              title={`Réservation ${terrain?.name || ''}`}
+              onSuccess={async () => {
+                setIsPaymentModalOpen(false);
+                const date_slot = new Date().toISOString().split('T')[0];
+                const resObj = await createReservation({
+                  terrain_id: terrain?.id,
+                  terrain_nom: terrain?.name || 'Terrain',
+                  joueur_id: currentUser?.id,
+                  joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || currentUser?.nom || 'Joueur',
+                  date_slot,
+                  heure_slot: selectedSlot + ':00',
+                  montant: totalPrice,
+                  duree_heures: duration
+                });
+                if (resObj?.id) {
+                  setVerifyToken(resObj.qr_token || resObj.id);
+                  setStep(4);
+                }
+              }}
+            />
           </div>
         )}
 
