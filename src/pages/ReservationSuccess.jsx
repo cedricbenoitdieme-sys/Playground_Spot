@@ -3,6 +3,7 @@
 // <Route path="/reservation/success" element={<ReservationSuccess />} />
 
 import React, { useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
 
 export default function ReservationSuccess() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -24,11 +25,9 @@ export default function ReservationSuccess() {
 
     const checkStatus = async () => {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const response = await fetch(`${apiUrl}/api/payments/status?ref=${ref}`);
-        if (!response.ok) throw new Error('Erreur de validation du paiement');
-        const data = await response.json();
-        setStatus(data.status);
+        const { data, error } = await supabase.rpc('get_reservation_payment_status', { p_reference: ref });
+        if (error || !data) throw new Error('Erreur de validation du paiement');
+        setStatus(data.statut_paiement === 'valide' ? 'success' : 'failed');
       } catch (err) {
         console.error('Erreur vérification statut:', err);
         setStatus('failed');

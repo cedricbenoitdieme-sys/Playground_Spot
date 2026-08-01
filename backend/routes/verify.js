@@ -31,6 +31,7 @@ router.get('/verify', async (req, res) => {
     const { data: reservation, error } = await supabase
       .from('reservations')
       .select(`
+        statut,
         date_slot,
         heure_slot,
         terrains ( nom ),
@@ -47,6 +48,20 @@ router.get('/verify', async (req, res) => {
     // 4. Si aucun résultat
     if (!reservation) {
       return res.status(404).json({ valid: false, reason: 'QR invalide' });
+    }
+
+    // qr_token est généré dès la création de la réservation (avant tout
+    // paiement) — sans ce garde-fou, un ticket jamais payé ('en_attente')
+    // ou déjà annulé/remboursé scannerait comme "valid: true" à l'entrée
+    // du terrain. Seule une réservation réellement confirmée (paiement
+    // validé par webhook) donne un ticket valide.
+    if (reservation.statut !== 'confirmee') {
+      return res.status(200).json({
+        valid: false,
+        reason: reservation.statut === 'en_attente'
+          ? 'Paiement non confirmé'
+          : `Réservation ${reservation.statut}`
+      });
     }
 
     // 5. Si trouvé

@@ -92,6 +92,8 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
     horaires: '08:00 - 00:00',
     lat: 14.7167,
     lng: -17.4677,
+    payoutPhone: '',
+    payoutOperator: 'wave',
     photos: []
   });
 
@@ -434,6 +436,10 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
     }
     if (!formData.adresse.trim()) {
       setFormError("L'adresse exacte est requise.");
+      return;
+    }
+    if (!formData.payoutPhone || !/^7[0-9]{8}$/.test(formData.payoutPhone.replace(/\s+/g, ''))) {
+      setFormError('Un numéro de versement Wave/Orange Money valide à 9 chiffres est obligatoire pour recevoir vos revenus.');
       return;
     }
     if (formData.photos.length === 0) {
@@ -944,6 +950,43 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
                 Aucun document justificatif joint pour le moment.
               </div>
             )}
+          </div>
+
+          {/* Section 6 : Coordonnées de Versement & Transparence Commission */}
+          <div className="space-y-4 pt-4 border-t border-gray-100 bg-[#0F2318]/5 p-5 rounded-2xl border border-[#1A7A4A]/20">
+            <h4 className="font-bold text-sm text-[#0F2318] flex items-center gap-2">
+              <IconCash size={18} className="text-[#1A7A4A]" />
+              6. Coordonnées de Versement des Revenus *
+            </h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Opérateur de versement</label>
+                <select
+                  value={formData.payoutOperator}
+                  onChange={(e) => setFormData(prev => ({ ...prev, payoutOperator: e.target.value }))}
+                  className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-[#1A7A4A]"
+                >
+                  <option value="wave">Wave Mobile Money</option>
+                  <option value="orange_money">Orange Money Sénégal</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-700 mb-1">Numéro de téléphone *</label>
+                <input
+                  type="tel"
+                  value={formData.payoutPhone}
+                  onChange={(e) => setFormData(prev => ({ ...prev, payoutPhone: e.target.value }))}
+                  placeholder="77 123 45 67"
+                  className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-[#1A7A4A]"
+                />
+              </div>
+            </div>
+
+            {/* Message de transparence obligatoire sur les commissions */}
+            <div className="p-3.5 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-900 leading-relaxed font-medium">
+              💡 <span className="font-bold">Informations sur les versements :</span> Une commission de <span className="font-bold">X%</span> (selon votre plan d'abonnement : Free 12%, Starter 8%, Pro 2%, Entreprise 0%) ainsi que les frais du fournisseur d'accès Wave/Orange Money (~2.5%) sont déduits automatiquement de chaque réservation avant versement sur votre compte. Précision : même avec le plan Entreprise (0% de commission), les frais de l'opérateur mobile money restent prélevés.
+            </div>
           </div>
 
           {/* Submit Actions */}

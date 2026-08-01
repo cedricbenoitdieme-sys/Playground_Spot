@@ -3,14 +3,10 @@ import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
-import crypto from 'crypto';
 
-import webhooksRouter from '../backend/routes/webhooks.js';
-import paymentsRouter from '../backend/routes/payments.js';
 import verifyRouter from '../backend/routes/verify.js';
 import terrainsRouter from '../backend/routes/terrains.js';
 import statsRouter from '../backend/routes/stats.js';
-import { normalizeSenegalPhone } from '../backend/lib/phone.js';
 
 const app = express();
 
@@ -29,19 +25,14 @@ app.use(cors({
   credentials: true,
 }));
 
-// Webhooks mounted BEFORE express.json() for raw body parsing
-app.use('/api/webhooks', webhooksRouter);
-
-// `verify` conserve les octets bruts sur req.rawBody — nécessaire pour
-// vérifier une signature HMAC UnitechPay calculée sur le corps brut exact
-// (JSON.stringify() d'un objet reconstruit après parsing ne donne PAS les
-// mêmes octets : ordre des clés différent, champs absents, etc.).
-app.use(express.json({
-  verify: (req, res, buf) => { req.rawBody = buf; }
-}));
+// Paiements : UnitechPay (webhook Express /api/webhooks/unitech + route
+// /api/payments) retiré — remplacé par SenePay via les Edge Functions
+// supabase/functions/senepay-initiate, senepay-webhook, senepay-payout-webhook,
+// qui gèrent directement les 3 flux (abonnement/boost/réservation) sans
+// intermédiaire Express. req.rawBody n'est donc plus nécessaire.
+app.use(express.json());
 
 // Routes
-app.use('/api/payments', paymentsRouter);
 app.use('/api/reservations', verifyRouter);
 app.use('/api/terrains', terrainsRouter);
 app.use('/api/stats', statsRouter);
@@ -346,228 +337,11 @@ app.post('/api/create-gerant', authMiddleware, async (req, res) => {
   }
 });
 
-const unitechApiKey = process.env.UNITECH_API_KEY;
-// Doc officielle UnitechPay : "Votre clé API est utilisée comme secret de
-// signature" — le HMAC des webhooks se calcule avec la clé API elle-même,
-// pas un secret dédié séparé. UNITECH_WEBHOOK_SECRET reste supporté comme
-// override explicite si UnitechPay confirme un jour un secret distinct
-// pour ce compte marchand, mais le défaut suit la doc.
-const unitechWebhookSecret = process.env.UNITECH_WEBHOOK_SECRET || unitechApiKey;
-
-// Initiate Pay Unitech Payment
-app.post('/api/payment/unitech/initiate', async (req, res) => {
-  const { paiement_id, mode: reqMode, montant, numero_tel } = req.body;
-  if (!paiement_id || !numero_tel) {
-    return res.status(400).json({ error: 'paiement_id et numero_tel requis' });
-  }
-
-  const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(paiement_id);
-
-  try {
-    let mode = reqMode || 'wave';
-    let finalMontant = montant || 10000;
-
-    if (isUUID) {
-      // 1. Récupérer le mode et le montant vérifié depuis la base de données (Sécurité RLS/Anti-triche)
-      const { data: paiement, error: dbError } = await supabase
-        .from('paiements')
-        .select('mode, montant')
-        .eq('id', paiement_id)
-        .single();
-
-      if (dbError || !paiement) {
-        console.error('[UnitechPay] Impossible de récupérer le paiement en BDD:', dbError);
-        return res.status(404).json({ error: 'Paiement introuvable en base de données' });
-      }
-
-      mode = paiement.mode;
-      finalMontant = paiement.montant;
-    } else {
-      console.warn(`[UnitechPay] Identifiant de paiement non-UUID reçu (${paiement_id}), fallback simulation.`);
-    }
-
-    // 2. Déterminer l'action Pay Unitech
-    let action = 'create_wave_payment';
-    if (mode === 'orange_money') {
-      action = 'create_orange_om';
-    }
-
-    console.log(`[UnitechPay] Initialisation du paiement ${paiement_id} (${mode}) via action ${action} pour le montant ${finalMontant} FCFA sur le numéro ${numero_tel}`);
-
-    if (!unitechApiKey) {
-      console.warn("[UnitechPay] Clé API UNITECH_API_KEY non configurée. Simulation de la redirection.");
-      return res.json({
-        success: true,
-        simulation: true,
-        checkout_url: `/api/payment/unitech/mock-redirect?paiement_id=${paiement_id}&montant=${finalMontant}`
-      });
-    }
-
-    const url = `https://api.unitech.sn/api.php?action=${action}`;
-    let cleanedPhone;
-    try {
-      cleanedPhone = normalizeSenegalPhone(numero_tel);
-    } catch (phoneErr) {
-      return res.status(400).json({ error: phoneErr.message });
-    }
-    const referer = req.headers.referer || `${req.protocol}://${req.get('host')}`;
-    const cleanReferer = referer.endsWith('/') ? referer.slice(0, -1) : referer;
-    const callback_success = `${cleanReferer}?payment_success=true`;
-    const callback_cancel = `${cleanReferer}?payment_cancel=true`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${unitechApiKey}`
-      },
-      body: JSON.stringify({
-        amount: finalMontant,
-        customer_number: cleanedPhone,
-        reference: paiement_id,
-        description: `Réservation PlaygroundSpot #${paiement_id.substring(0, 8)}`,
-        callback_success,
-        callback_cancel,
-        // Le compte marchand UnitechPay n'a qu'UNE SEULE URL de webhook,
-        // configurée dans leur dashboard vers webhook-unitech (voir
-        // supabase/functions/webhook-unitech/index.ts) — renseigné ici
-        // aussi par cohérence, au cas où un override par-requête est honoré.
-        webhook_url: `${supabaseUrl}/functions/v1/webhook-unitech`
-      })
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Erreur API Unitech: ${response.status} - ${errorText}`);
-    }
-
-    const result = await response.json();
-    console.log('[UnitechPay] Réponse API reçue:', JSON.stringify(result));
-
-    const realUrl = result.checkout_url || result.payment_url || result.data?.payment_url || result.data?.checkout_url;
-
-    return res.json({
-      success: true,
-      checkout_url: realUrl || `/api/payment/unitech/mock-redirect?paiement_id=${paiement_id}&montant=${finalMontant}`
-    });
-
-  } catch (error) {
-    console.error('[UnitechPay] Erreur initiation:', error);
-    return res.status(500).json({ error: 'Impossible d\'initier le paiement' });
-  }
-});
-
-// Webhook Pay Unitech
-app.post('/api/payment/unitech/webhook', async (req, res) => {
-  const { reference, status } = req.body;
-  // Doc UnitechPay : signature envoyée dans l'en-tête x-unitechpay-signature
-  // (le champ `signature` parfois présent dans le corps est un doublon
-  // informatif, pas ce que leur propre exemple de vérification compare).
-  const signature = req.headers['x-unitechpay-signature'] || req.body.signature;
-
-  try {
-    console.log('[UnitechPay Webhook] Payload reçu:', JSON.stringify(req.body));
-
-    if (reference && reference.startsWith('mock-')) {
-      console.log(`[UnitechPay Webhook] Simulation de succès reçue pour le paiement mock ${reference}.`);
-      return res.json({ success: true, message: 'Simulation de démo traitée avec succès' });
-    }
-
-    // Fail-closed : contrairement au comportement précédent (vérification
-    // ignorée silencieusement si le secret n'était pas configuré), un
-    // webhook non signé ou mal configuré est désormais TOUJOURS rejeté.
-    if (!unitechWebhookSecret) {
-      console.error('[UnitechPay Webhook] UNITECH_WEBHOOK_SECRET non configuré — requête rejetée');
-      return res.status(500).json({ error: 'Webhook non configuré' });
-    }
-    if (!signature) {
-      console.warn('[UnitechPay Webhook] Signature manquante');
-      return res.status(401).json({ error: 'Signature manquante' });
-    }
-    // HMAC calculé sur le corps BRUT (req.rawBody, capturé par le verify()
-    // de express.json() ci-dessus) — pas sur un objet JS reconstruit après
-    // parsing, dont la sérialisation ne correspond jamais aux octets
-    // originaux signés côté UnitechPay.
-    const computedSignature = crypto
-      .createHmac('sha256', unitechWebhookSecret)
-      .update(req.rawBody || JSON.stringify(req.body))
-      .digest('hex');
-
-    if (computedSignature !== signature) {
-      console.error('[UnitechPay Webhook] Signature invalide');
-      return res.status(401).json({ error: 'Signature invalide' });
-    }
-
-    const { error: rpcError } = await supabase.rpc('handle_payment_webhook', {
-      p_provider: 'pay_unitech',
-      p_payload: req.body,
-      p_reference: reference,
-      p_status: status
-    });
-
-    if (rpcError) {
-      console.error('[UnitechPay Webhook] Erreur rpc handle_payment_webhook:', rpcError);
-      return res.status(500).json({ error: 'Erreur mise à jour paiement en BDD' });
-    }
-
-    console.log(`[UnitechPay Webhook] Statut de paiement ${reference} mis à jour avec succès : ${status}`);
-    return res.json({ success: true });
-
-  } catch (error) {
-    console.error('[UnitechPay Webhook] Erreur traitement:', error);
-    return res.status(500).json({ error: 'Erreur interne du serveur' });
-  }
-});
-
-// Route de redirection de simulation
-app.get('/api/payment/unitech/mock-redirect', (req, res) => {
-  const { ref, montant } = req.query;
-  res.send(`
-    <html>
-      <head>
-        <title>Simulation UnitechPay</title>
-        <style>
-          body { font-family: sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; background: #FAF9F6; margin: 0; }
-          .card { background: white; padding: 2.5rem; border: 1px solid rgba(0,0,0,0.1); border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); text-align: center; max-width: 400px; }
-          h2 { color: #0F2318; margin-top: 0; }
-          button { background: #6366F1; color: white; border: none; padding: 12px 24px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 1rem; width: 100%; margin-top: 1rem; }
-          button.fail { background: #EF4444; margin-top: 0.5rem; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <h2>Portail de Paiement Pay Unitech (Simulateur)</h2>
-          <p>Réf: <strong>${ref}</strong></p>
-          <p>Montant: <strong>${montant} FCFA</strong></p>
-          <button onclick="sendWebhook('success')">Simuler Succès (Payer)</button>
-          <button class="fail" onclick="sendWebhook('failed')">Simuler Échec</button>
-        </div>
-        <script>
-          async function sendWebhook(status) {
-            try {
-              const res = await fetch('/api/payment/unitech/webhook', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  reference: '${ref}',
-                  status: status
-                })
-              });
-              if (res.ok) {
-                alert('Webhook de simulation envoyé! Vous pouvez fermer cette fenêtre.');
-                window.close();
-              } else {
-                alert('Erreur lors de l\\'envoi du webhook');
-              }
-            } catch (e) {
-              alert('Erreur réseau');
-            }
-          }
-        </script>
-      </body>
-    </html>
-  `);
-});
+// Paiements réservation joueur : UnitechPay retiré (routes
+// /api/payment/unitech/initiate, /webhook, /mock-redirect) — remplacé par
+// SenePay via les Edge Functions senepay-initiate/senepay-webhook, qui
+// gèrent directement les 3 flux (abonnement/boost/réservation) sans
+// intermédiaire Express.
 
 // Health check
 app.get('/api/health', (req, res) => {

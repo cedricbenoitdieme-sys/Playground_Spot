@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { validateAmount } from '../lib/validators';
+import { useReservationPaymentPolling } from '../hooks/useReservationPaymentPolling';
 import { 
   IconMapPin, 
   IconClock, 
@@ -13,7 +14,9 @@ import {
   IconDownload,
   IconCircleCheckFilled,
   IconTicket,
-  IconCalendar
+  IconCalendar,
+  IconLoader2,
+  IconExternalLink
 } from '@tabler/icons-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
@@ -96,6 +99,14 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const [wantedSlots, setWantedSlots] = useState([]);
   const wantedSlotsRef = useRef([]);
   const [alertConfig, setAlertConfig] = useState(null);
+  const { status: paymentPollStatus, error: paymentPollError, startPolling: startPaymentPolling, stopPolling: stopPaymentPolling } = useReservationPaymentPolling();
+  const [activePaymentRef, setActivePaymentRef] = useState(null);
+
+  useEffect(() => {
+    if (paymentPollStatus === 'success') {
+      nextStep();
+    }
+  }, [paymentPollStatus]);
 
   const showAlert = (title, message, type = 'info') => {
     setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
@@ -257,7 +268,8 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
       if (isMobilePayment && !isMockPayment) {
         try {
-          const initRes = await fetch(`${import.meta.env.VITE_API_URL || 'http://localhost:3000'}/api/payments/initiate`, {
+          const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+          const initRes = await fetch(`${apiUrl}/api/payments/initiate`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -272,7 +284,13 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
           if (initRes.ok) {
             const initData = await initRes.json();
             if (initData.payment_url) {
-              window.location.href = initData.payment_url;
+              setVerifyToken(result.qr_token || result.id);
+              // Ouvrir l'application de paiement dans un nouvel onglet
+              window.open(initData.payment_url, '_blank');
+              // Lancer le polling sur la référence externe de transaction
+              const refToPoll = initData.transaction_ref || paymentResult.id;
+              setActivePaymentRef(refToPoll);
+              startPaymentPolling(refToPoll);
               return;
             } else {
               throw new Error("L'API de paiement n'a pas renvoyé de lien.");
@@ -603,6 +621,71 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
           </div>
         )}
       </div>
+      {/* Modal de suivi de paiement en direct (Wave / Orange Money) */}
+      {paymentPollStatus !== 'idle' && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+          <div className="bg-[#0F2318] text-white rounded-3xl border border-white/20 p-8 max-w-md w-full text-center shadow-2xl animate-in zoom-in duration-300">
+            {paymentPollStatus === 'polling' && (
+              <>
+                <div className="w-16 h-16 bg-[#1A7A4A]/20 rounded-full flex items-center justify-center text-[#1A7A4A] mx-auto mb-6">
+                  <IconLoader2 className="animate-spin" size={36} />
+                </div>
+                <h3 className="text-2xl font-display font-bold mb-2">Attente de confirmation...</h3>
+                <p className="text-[#E8DCC8]/80 text-sm mb-6">
+                  Veuillez valider la transaction sur votre application de paiement (Wave / Orange Money).
+                </p>
+                <div className="bg-white/5 border border-white/10 rounded-2xl p-4 mb-6 text-xs text-gray-300 text-left space-y-1">
+                  <p><span className="text-gray-400">Référence :</span> <strong className="text-white">{activePaymentRef || '...' }</strong></p>
+                  <p><span className="text-gray-400">Montant :</span> <strong className="text-white">{totalPrice?.toLocaleString()} FCFA</strong></p>
+                </div>
+                <button
+                  onClick={() => stopPaymentPolling()}
+                  className="w-full bg-white/10 hover:bg-white/20 text-white font-semibold py-3 px-6 rounded-2xl text-sm transition-all"
+                >
+                  Annuler le suivi
+                </button>
+              </>
+            )}
+
+            {paymentPollStatus === 'failed' && (
+              <>
+                <div className="w-16 h-16 bg-red-500/20 text-red-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl">✕</span>
+                </div>
+                <h3 className="text-2xl font-display font-bold mb-2 text-red-400">Paiement non confirmé</h3>
+                <p className="text-[#E8DCC8]/80 text-sm mb-6">
+                  {paymentPollError || "La transaction a été refusée ou annulée."}
+                </p>
+                <button
+                  onClick={() => stopPaymentPolling()}
+                  className="w-full bg-[#1A7A4A] hover:bg-[#15633b] text-white font-semibold py-3.5 px-6 rounded-2xl text-sm transition-all"
+                >
+                  Réessayer
+                </button>
+              </>
+            )}
+
+            {paymentPollStatus === 'timeout' && (
+              <>
+                <div className="w-16 h-16 bg-amber-500/20 text-amber-500 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <span className="text-2xl">⏱</span>
+                </div>
+                <h3 className="text-2xl font-display font-bold mb-2 text-amber-400">Délai dépassé</h3>
+                <p className="text-[#E8DCC8]/80 text-sm mb-6">
+                  {paymentPollError || "Le délai de confirmation est dépassé."}
+                </p>
+                <button
+                  onClick={() => stopPaymentPolling()}
+                  className="w-full bg-[#1A7A4A] hover:bg-[#15633b] text-white font-semibold py-3.5 px-6 rounded-2xl text-sm transition-all"
+                >
+                  Fermer
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Toast Notification */}
       {toast && (
         <div className="fixed bottom-36 lg:bottom-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-in slide-in-from-bottom-5 duration-300 z-[9999]">

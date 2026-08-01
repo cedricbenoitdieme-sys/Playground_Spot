@@ -15,10 +15,10 @@ import {
 import { useUser } from '../context/UserContext';
 import { TerrainImage } from '../components/TerrainImage';
 import { useGerantTerrains } from '../hooks/useGerantTerrains';
+import { BoostCheckoutModal } from '../components/BoostCheckoutModal';
 import {
   fetchUserPlanAndLimits,
   fetchGerantBoosts,
-  createVisibilityBoost,
   getBoostStats
 } from '../services/subscriptions';
 
@@ -35,7 +35,7 @@ export const GerantVisibilityBoost = ({ setView }) => {
   const [selectedTerrainId, setSelectedTerrainId] = useState('');
   const [budget, setBudget] = useState(5000); // FCFA
   const [duration, setDuration] = useState(7); // Jours
-  const [submitting, setSubmitting] = useState(false);
+  const [showCheckout, setShowCheckout] = useState(false);
   const [errorMsg, setErrorMsg] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
 
@@ -75,7 +75,10 @@ export const GerantVisibilityBoost = ({ setView }) => {
   // Estimation de vues : ~100 vues par 1000 FCFA alloués
   const estimatedViews = Math.round((budget / 1000) * 100 * (duration / 7));
 
-  const handleCreateBoost = async (e) => {
+  const isBoostCurrentlyActive = (b) =>
+    b.statut === 'actif' && b.date_fin && new Date(b.date_fin) >= new Date(new Date().toDateString());
+
+  const handleCreateBoost = (e) => {
     e.preventDefault();
     if (isFreePlan) return;
     if (!selectedTerrainId) {
@@ -83,30 +86,9 @@ export const GerantVisibilityBoost = ({ setView }) => {
       return;
     }
 
-    setSubmitting(true);
     setErrorMsg(null);
     setSuccessMsg(null);
-
-    try {
-      const res = await createVisibilityBoost({
-        gerant_id: currentUser.id,
-        terrain_id: selectedTerrainId,
-        montant: budget,
-        duree: duration,
-      });
-
-      if (res?.id) {
-        setSuccessMsg('Boost de visibilité activé avec succès ! Votre terrain est désormais mis en avant.');
-        // Recharger les boosts
-        const updatedBoosts = await fetchGerantBoosts(currentUser.id);
-        setBoosts(updatedBoosts);
-      }
-    } catch (err) {
-      console.error('Erreur création boost:', err);
-      setErrorMsg(err.message || 'Impossible d\'activer le boost.');
-    } finally {
-      setSubmitting(false);
-    }
+    setShowCheckout(true);
   };
 
   return (
@@ -333,20 +315,11 @@ export const GerantVisibilityBoost = ({ setView }) => {
                 {/* Submit */}
                 <button
                   type="submit"
-                  disabled={submitting || isFreePlan}
+                  disabled={isFreePlan}
                   className="w-full py-4 bg-primary hover:bg-primary-hover disabled:opacity-40 text-white font-bold rounded-2xl transition-all shadow-lg shadow-primary/25 flex items-center justify-center gap-2 text-base cursor-pointer"
                 >
-                  {submitting ? (
-                    <>
-                      <IconLoader2 size={20} className="animate-spin" />
-                      <span>Activation du boost...</span>
-                    </>
-                  ) : (
-                    <>
-                      <IconRocket size={20} />
-                      <span>Activer le Boost ({budget.toLocaleString('fr-FR')} FCFA)</span>
-                    </>
-                  )}
+                  <IconRocket size={20} />
+                  <span>Continuer vers le paiement ({budget.toLocaleString('fr-FR')} FCFA)</span>
                 </button>
               </form>
             </div>
@@ -377,11 +350,13 @@ export const GerantVisibilityBoost = ({ setView }) => {
                           {b.terrains?.nom || 'Terrain'}
                         </span>
                         <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${
-                          b.statut === 'actif'
+                          isBoostCurrentlyActive(b)
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : b.statut === 'en_attente'
+                            ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
                             : 'bg-white/10 text-white/50'
                         }`}>
-                          {b.statut}
+                          {b.statut === 'en_attente' ? 'En attente de paiement' : isBoostCurrentlyActive(b) ? 'Actif' : 'Terminé'}
                         </span>
                       </div>
 
@@ -396,7 +371,7 @@ export const GerantVisibilityBoost = ({ setView }) => {
 
                       <div className="flex items-center justify-between text-[11px] text-white/50">
                         <span>Budget : {b.budget_alloue?.toLocaleString('fr-FR')} FCFA</span>
-                        <span>Jusqu'au {b.date_fin}</span>
+                        <span>{b.date_fin ? `Jusqu'au ${b.date_fin}` : `${b.duree_jours || 7} jours`}</span>
                       </div>
                     </div>
                   ))}
@@ -406,6 +381,21 @@ export const GerantVisibilityBoost = ({ setView }) => {
           </div>
         </div>
       )}
+
+      {/* Checkout Modal */}
+      <BoostCheckoutModal
+        isOpen={showCheckout}
+        onClose={() => setShowCheckout(false)}
+        terrainId={selectedTerrainId}
+        budgetFcfa={budget}
+        dureeJours={duration}
+        onSuccess={async () => {
+          setShowCheckout(false);
+          setSuccessMsg('Boost de visibilité activé avec succès ! Votre terrain est désormais mis en avant.');
+          const updatedBoosts = await fetchGerantBoosts(currentUser.id);
+          setBoosts(updatedBoosts);
+        }}
+      />
     </div>
   );
 };

@@ -34,6 +34,7 @@ const GerantTarifs = lazy(() => import('./pages/GerantTarifs').then(m => ({ defa
 const GerantVisibilityBoost = lazy(() => import('./pages/GerantVisibilityBoost').then(m => ({ default: m.GerantVisibilityBoost })));
 const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess').then(m => ({ default: m.PaymentSuccess })));
 const PaymentCancel = lazy(() => import('./pages/PaymentCancel').then(m => ({ default: m.PaymentCancel })));
+const ReservationSuccess = lazy(() => import('./pages/ReservationSuccess'));
 const Abonnement = lazy(() => import('./pages/Abonnement').then(m => ({ default: m.Abonnement })));
 
 import { TrialBanner } from './components/TrialBanner';
@@ -59,6 +60,7 @@ function App() {
     if (window.location.pathname === '/scan-ticket') return 'scan';
     if (window.location.pathname === '/payment/success') return 'payment-success';
     if (window.location.pathname === '/payment/cancel') return 'payment-cancel';
+    if (window.location.pathname === '/reservation/success') return 'reservation-success';
     const urlParams = new URLSearchParams(window.location.search);
     const viewParam = urlParams.get('view');
     const validViews = [
@@ -66,7 +68,7 @@ function App() {
       'dashboard','reservations','gerants','utilisateurs','parametres','menu', 'telemetrie',
       'gerant-dashboard','gerant-terrain','gerant-planning','gerant-reservations','gerant-stats','gerant-parametres', 'gerant-tarifs', 'gerant-boost',
       'joueur-home','joueur-reservations','joueur-favoris','joueur-profile','tickets',
-      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan', 'payment-success', 'payment-cancel'
+      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan', 'payment-success', 'payment-cancel', 'reservation-success'
     ];
     if (viewParam && validViews.includes(viewParam)) return viewParam;
     return 'landing';
@@ -534,6 +536,10 @@ function App() {
       ) : view === 'payment-cancel' ? (
         <ProtectedRoute allowedRoles={['gerant', 'admin', 'joueur']} onDenied={handleDenied}>
           <PaymentCancel setView={setView} />
+        </ProtectedRoute>
+      ) : view === 'reservation-success' ? (
+        <ProtectedRoute allowedRoles={['joueur', 'admin']} onDenied={handleDenied}>
+          <ReservationSuccess />
         </ProtectedRoute>
       ) : view === 'joueur-home' ? (
         <ProtectedRoute allowedRoles={['joueur']} onDenied={handleDenied}>

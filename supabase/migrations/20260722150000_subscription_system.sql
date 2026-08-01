@@ -697,6 +697,7 @@ GRANT EXECUTE ON FUNCTION public.increment_boost_views(UUID) TO anon, authentica
 -- Vue dédiée pour l'affichage prioritaire pondéré par budget (Tâche 6).
 -- Nouvelle vue plutôt que modification de v_terrains_details, pour ne pas
 -- casser le contrat de colonnes déjà consommé ailleurs dans le frontend.
+DROP VIEW IF EXISTS public.v_terrains_discovery CASCADE;
 CREATE OR REPLACE VIEW public.v_terrains_discovery AS
 SELECT
   t.*,
