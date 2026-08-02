@@ -7,7 +7,7 @@ import {
   IconLoader2
 } from '@tabler/icons-react';
 import { fetchJoueurs, updateProfileStatut, fetchProfileWithHistory } from '../services/profiles';
-import { niveau } from '../lib/loyalty';
+import { fetchLoyaltyTiers, getRangClient } from '../lib/loyalty';
 
 /* ── Helpers ── */
 const fmt = (n) => {
@@ -46,8 +46,8 @@ const Sheet = ({ open, onClose, title, children }) => {
 };
 
 /* ── User Card ── */
-const UserCard = ({ u, onClick }) => {
-  const niv = niveau(u.reservations);
+const UserCard = ({ u, tiers, onClick }) => {
+  const niv = getRangClient(u.reservations, tiers);
   const [imgError, setImgError] = useState(false);
   const hasAvatarUrl = u.avatar && (u.avatar.startsWith('http') || u.avatar.startsWith('/'));
 
@@ -70,7 +70,7 @@ const UserCard = ({ u, onClick }) => {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
           <p className="font-bold text-primary-dark truncate">{u.nom}</p>
-          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${niv.color}`}>{niv.label}</span>
+          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${niv.color}`}>{niv.label} {niv.emoji}</span>
           <StatutBadge s={u.statut} />
         </div>
         <p className="text-[11px] text-gray-400 font-medium">{u.quartier || 'Dakar'} · inscrit le {u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—'}</p>
@@ -102,6 +102,7 @@ export const Utilisateurs = () => {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [toast, setToast]     = useState(null);
   const [users, setUsers]     = useState([]);
+  const [tiers, setTiers]     = useState([]);
   const [loading, setLoading] = useState(true);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
@@ -109,8 +110,12 @@ export const Utilisateurs = () => {
   const loadUsers = async () => {
     try {
       setLoading(true);
-      const data = await fetchJoueurs();
+      const [data, tiersData] = await Promise.all([
+        fetchJoueurs(),
+        fetchLoyaltyTiers()
+      ]);
       setUsers(data);
+      setTiers(tiersData);
     } catch (err) {
       console.error(err);
       showToast("Erreur de chargement des utilisateurs");
@@ -187,7 +192,7 @@ export const Utilisateurs = () => {
     totalDepenses: users.reduce((s, u) => s + (u.depenses || 0), 0),
   };
 
-  const niv = selected ? niveau(selected.reservations) : null;
+  const niv = selected ? getRangClient(selected.reservations, tiers) : null;
 
   return (
     <div className="flex-1 overflow-y-auto pb-28 lg:pb-12">
@@ -260,7 +265,7 @@ export const Utilisateurs = () => {
           </div>
         ) : filtered.map((u, i) => (
           <div key={u.id} style={{ animationDelay: `${i * 0.05}s` }}>
-            <UserCard u={u} onClick={setSelected} />
+            <UserCard u={u} tiers={tiers} onClick={setSelected} />
           </div>
         ))}
       </div>
@@ -298,7 +303,7 @@ export const Utilisateurs = () => {
                     <div>
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-bold text-lg text-primary-dark">{selectedFull.nom}</p>
-                        {niv && <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${niv.color}`}>{niv.label}</span>}
+                        {niv && <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${niv.color}`}>{niv.label} {niv.emoji}</span>}
                       </div>
                       <StatutBadge s={selectedFull.statut} />
                       <p className="text-xs text-gray-400 mt-1">Inscrit le {selectedFull.created_at ? new Date(selectedFull.created_at).toLocaleDateString('fr-FR') : '—'}</p>

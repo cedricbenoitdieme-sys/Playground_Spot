@@ -138,7 +138,15 @@ export const JoueurProfile = () => {
     }
   };
 
-  const rank = getLoyaltyBadge(stats.matchs_joues);
+  const rank = stats.rang || getRangClient(stats.matchs_joues);
+  const nextTier = rank.prochain_palier;
+  const currentSeuil = rank.seuil_matchs ?? 0;
+  const nextSeuil = nextTier?.seuil_matchs ?? currentSeuil;
+  const range = nextSeuil - currentSeuil;
+  const progressPercent = (nextTier && range > 0)
+    ? Math.min(100, Math.max(0, Math.round(((stats.matchs_joues - currentSeuil) / range) * 100)))
+    : 100;
+
   const formattedSpent = stats.montant_depense > 0 
     ? `${formatAmountAbbreviated(stats.montant_depense)} FCFA` 
     : '0 FCFA';
@@ -179,14 +187,30 @@ export const JoueurProfile = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
-          <div className={`px-4 py-2 rounded-2xl flex items-center gap-2 border ${rank.color}`}>
+        <div className="flex flex-col items-center md:items-end gap-2">
+          <div className={`px-4 py-2 rounded-2xl flex items-center gap-2 border ${rank.color || 'bg-secondary/15 border-secondary/25 text-secondary'}`}>
             <IconTrophy size={16} />
             <div>
               <p className="text-[8px] font-black uppercase tracking-widest text-gray-400">Rang Fidélité</p>
               <p className="text-xs font-black">{rank.label} {rank.emoji}</p>
             </div>
           </div>
+
+          {nextTier ? (
+            <div className="w-full max-w-[210px] space-y-1 text-center md:text-right">
+              <p className="text-[11px] text-gray-500 font-medium">
+                <strong className="text-primary-dark">{nextTier.matchs_restants}</strong> match(s) avant <span className="font-bold text-primary-dark">{nextTier.label} {nextTier.emoji}</span>
+              </p>
+              <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div 
+                  className="h-full bg-primary rounded-full transition-all duration-500"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <p className="text-[10px] text-emerald-600 font-bold">🏆 Palier maximum atteint !</p>
+          )}
         </div>
       </div>
 
