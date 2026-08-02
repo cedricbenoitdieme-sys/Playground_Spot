@@ -173,8 +173,12 @@ export const BottomNav = ({ currentView, setView }) => {
             {/* En-tête Tiroir */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-md shadow-primary/20">
-                  {currentUser.avatar || currentUser.nom?.substring(0, 2).toUpperCase()}
+                <div className="w-10 h-10 rounded-2xl bg-primary text-white flex items-center justify-center font-black text-sm shadow-md shadow-primary/20 overflow-hidden shrink-0">
+                  {currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/')) ? (
+                    <img src={currentUser.avatar} alt={currentUser.nom} className="w-full h-full object-cover" />
+                  ) : (
+                    currentUser.initiales || currentUser.nom?.substring(0, 2).toUpperCase()
+                  )}
                 </div>
                 <div>
                   <h3 className="text-base font-bold font-display text-primary-dark">{currentUser.nom}</h3>

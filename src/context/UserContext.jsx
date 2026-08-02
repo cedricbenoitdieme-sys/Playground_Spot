@@ -35,6 +35,11 @@ export const UserProvider = ({ children }) => {
     }
   }, [currentUser]);
 
+  const getInitiales = (nom) => {
+    if (!nom) return '??';
+    return nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+  };
+
   // ── Helper pour construire l'objet user ──
   const buildUser = (userId, profile) => ({
     id: userId,
@@ -43,7 +48,8 @@ export const UserProvider = ({ children }) => {
     role: profile.role,
     quartier: profile.quartier,
     tel: profile.tel,
-    avatar: profile.avatar || getInitiales(profile.nom),
+    avatar: profile.avatar,
+    initiales: getInitiales(profile.nom),
     statut: profile.statut,
   });
 

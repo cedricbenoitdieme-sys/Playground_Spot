@@ -157,9 +157,22 @@ export const Sidebar = ({ currentView, setView }) => {
           }}
           className="flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 cursor-pointer transition-all active:scale-[0.97] group/profile"
         >
-          <div className="relative">
-            <div className="w-10 h-10 rounded-full bg-primary text-white font-black text-sm flex items-center justify-center border-2 border-primary/20 group-hover/profile:border-primary transition-all duration-300">
-              {currentUser.avatar}
+          <div className="relative shrink-0">
+            {currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/')) ? (
+              <img 
+                src={currentUser.avatar} 
+                alt={currentUser.nom} 
+                className="w-10 h-10 rounded-full object-cover border-2 border-primary/20 group-hover/profile:border-primary transition-all duration-300"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  if (e.currentTarget.nextSibling) {
+                    e.currentTarget.nextSibling.style.display = 'flex';
+                  }
+                }}
+              />
+            ) : null}
+            <div className={`w-10 h-10 rounded-full bg-primary text-white font-black text-sm flex items-center justify-center border-2 border-primary/20 group-hover/profile:border-primary transition-all duration-300 ${currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/')) ? 'hidden' : ''}`}>
+              {currentUser.initiales || (currentUser.nom || '').substring(0, 2).toUpperCase()}
             </div>
             <div className="absolute -bottom-0.5 -right-0.5 w-3.5 h-3.5 bg-status-confirmed border-2 border-[#0F2318] rounded-full"></div>
           </div>

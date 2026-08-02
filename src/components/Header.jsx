@@ -240,9 +240,13 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
         {/* Mobile Avatar */}
         <div 
           onClick={handleProfileClick}
-          className="lg:hidden w-10 h-10 rounded-full border-2 border-primary/20 flex-shrink-0 flex items-center justify-center bg-primary text-white font-black text-sm cursor-pointer hover:scale-105 active:scale-95 transition-transform"
+          className="lg:hidden w-10 h-10 rounded-full border-2 border-primary/20 flex-shrink-0 flex items-center justify-center bg-primary text-white font-black text-sm cursor-pointer hover:scale-105 active:scale-95 transition-transform overflow-hidden"
         >
-          {currentUser.avatar}
+          {currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/')) ? (
+            <img src={currentUser.avatar} alt={currentUser.nom} className="w-full h-full object-cover" />
+          ) : (
+            currentUser.initiales || (currentUser.nom || '').substring(0, 2).toUpperCase()
+          )}
         </div>
       </div>
 

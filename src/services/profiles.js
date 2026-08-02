@@ -53,7 +53,7 @@ export const fetchProfiles = async ({ role, statut, limit = 100, currentUserId =
   
   return data.map(p => ({
     ...maskSensitiveData(p, currentUserId, currentUserRole),
-    initiales: p.avatar || getInitiales(p.nom),
+    initiales: getInitiales(p.nom),
   }));
 };
 
@@ -84,7 +84,7 @@ export const fetchGerants = async ({ currentUserId = null, currentUserRole = nul
     const stats = statsByGerant[g.id];
     return {
       ...maskSensitiveData(g, currentUserId, currentUserRole),
-      initiales: g.avatar || getInitiales(g.nom),
+      initiales: getInitiales(g.nom),
       terrains: stats?.terrains || [],
       terrainCount: stats?.terrain_count || 0,
     };
@@ -92,7 +92,7 @@ export const fetchGerants = async ({ currentUserId = null, currentUserRole = nul
 };
 
 /**
- * Récupérer les joueurs (utilisateurs).
+ * Récupérer les joueurs (utilisateurs) avec calcul des réservations et dépenses.
  */
 export const fetchJoueurs = async ({ currentUserId = null, currentUserRole = null } = {}) => {
   const { data, error } = await supabase
@@ -102,9 +102,28 @@ export const fetchJoueurs = async ({ currentUserId = null, currentUserRole = nul
     .order('nom');
   if (error) throw handleServiceError(error, 'fetchJoueurs');
   
+  // Agrégation des statistiques de réservations et dépenses par joueur
+  const { data: resData } = await supabase
+    .from('reservations')
+    .select('joueur_id, montant, statut');
+
+  const resByJoueur = {};
+  const depensesByJoueur = {};
+
+  (resData || []).forEach(r => {
+    if (r.joueur_id) {
+      resByJoueur[r.joueur_id] = (resByJoueur[r.joueur_id] || 0) + 1;
+      if (r.statut === 'confirmee' || r.statut === 'terminee') {
+        depensesByJoueur[r.joueur_id] = (depensesByJoueur[r.joueur_id] || 0) + (r.montant || 0);
+      }
+    }
+  });
+
   return data.map(j => ({
     ...maskSensitiveData(j, currentUserId, currentUserRole),
-    initiales: j.avatar || getInitiales(j.nom),
+    initiales: getInitiales(j.nom),
+    reservations: resByJoueur[j.id] || 0,
+    depenses: depensesByJoueur[j.id] || 0,
   }));
 };
 
@@ -163,7 +182,7 @@ export const fetchProfileWithHistory = async (profileId, { currentUserId = null,
   
   return {
     ...maskedProfile,
-    initiales: profile.avatar || getInitiales(profile.nom),
+    initiales: getInitiales(profile.nom),
     historique: reservations.map(r => ({
       date: new Date(r.date_slot).toLocaleDateString('fr-FR'),
       terrain: r.terrains?.nom || r.terrain_nom,

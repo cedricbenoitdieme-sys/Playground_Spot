@@ -54,13 +54,25 @@ const Sheet = ({ open, onClose, title, children }) => {
 /* ── User Card ── */
 const UserCard = ({ u, onClick }) => {
   const niv = niveau(u.reservations);
+  const [imgError, setImgError] = useState(false);
+  const hasAvatarUrl = u.avatar && (u.avatar.startsWith('http') || u.avatar.startsWith('/'));
+
   return (
     <button onClick={() => onClick(u)}
-      className="w-full bg-white rounded-2xl border border-black/5 shadow-subtle p-4 flex items-center gap-4 text-left hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200"
+      className="w-full bg-white rounded-2xl border border-black/5 shadow-subtle p-4 flex items-center gap-4 text-left hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
       style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
-      <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${u.statut === 'suspendu' ? 'bg-red-50 text-red-500' : u.statut === 'inactif' ? 'bg-gray-100 text-gray-400' : 'bg-primary/10 text-primary'}`}>
-        {u.initiales || (u.nom || '').substring(0,2).toUpperCase()}
-      </div>
+      {hasAvatarUrl && !imgError ? (
+        <img 
+          src={u.avatar} 
+          alt={u.nom} 
+          className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-black/5"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${u.statut === 'suspendu' ? 'bg-red-50 text-red-500' : u.statut === 'inactif' ? 'bg-gray-100 text-gray-400' : 'bg-primary/10 text-primary'}`}>
+          {u.initiales || (u.nom || '').substring(0, 2).toUpperCase()}
+        </div>
+      )}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
           <p className="font-bold text-primary-dark truncate">{u.nom}</p>
@@ -68,7 +80,7 @@ const UserCard = ({ u, onClick }) => {
           <StatutBadge s={u.statut} />
         </div>
         <p className="text-[11px] text-gray-400 font-medium">{u.quartier || 'Dakar'} · inscrit le {u.created_at ? new Date(u.created_at).toLocaleDateString('fr-FR') : '—'}</p>
-        <div className="flex items-center gap-3 mt-1.5">
+        <div className="flex items-center gap-3 mt-1.5 flex-wrap">
           <span className="text-xs font-bold text-primary">{u.reservations || 0} résa</span>
           <span className="text-xs text-gray-500 font-semibold">{fmt(u.depenses || 0)}</span>
           {u.note && <span className="flex items-center gap-0.5 text-xs font-bold text-amber-500"><IconStarFilled size={10} />{u.note}</span>}
@@ -164,21 +176,21 @@ export const Utilisateurs = () => {
 
   const filtered = users
     .filter(u => {
-      const ms = u.nom.toLowerCase().includes(search.toLowerCase()) || u.quartier.toLowerCase().includes(search.toLowerCase());
+      const ms = (u.nom || '').toLowerCase().includes(search.toLowerCase()) || (u.quartier || '').toLowerCase().includes(search.toLowerCase());
       const mf = filtre === 'tous' || u.statut === filtre;
       return ms && mf;
     })
-    .sort((a, b) => tri === 'dateInscription'
-      ? new Date(b.dateInscription.split('/').reverse().join('-')) - new Date(a.dateInscription.split('/').reverse().join('-'))
-      : b[tri] - a[tri]
-    );
+    .sort((a, b) => {
+      if (tri === 'nom') return (a.nom || '').localeCompare(b.nom || '');
+      return (b[tri] || 0) - (a[tri] || 0);
+    });
 
   const stats = {
     total: users.length,
     actifs: users.filter(u => u.statut === 'actif').length,
     suspendus: users.filter(u => u.statut === 'suspendu').length,
     inactifs: users.filter(u => u.statut === 'inactif').length,
-    totalDepenses: users.reduce((s, u) => s + u.depenses, 0),
+    totalDepenses: users.reduce((s, u) => s + (u.depenses || 0), 0),
   };
 
   const niv = selected ? niveau(selected.reservations) : null;
@@ -201,12 +213,12 @@ export const Utilisateurs = () => {
             { label: 'Inactifs',  val: stats.inactifs,  color: 'text-gray-500',  bg: 'bg-gray-100',  filter: 'inactif'  },
           ].map((s, i) => (
             <button key={i} onClick={() => setFiltre(f => f === s.filter ? 'tous' : s.filter)}
-              className={`${s.bg} rounded-2xl p-3 text-center transition-all active:scale-95 cursor-pointer min-h-[72px] ${
+              className={`${s.bg} rounded-2xl p-3 text-center transition-all active:scale-95 cursor-pointer min-h-[72px] flex flex-col justify-center items-center overflow-hidden min-w-0 ${
                 filtre === s.filter ? 'ring-2 ring-offset-1 ring-current shadow-md scale-[1.02]' : 'hover:opacity-80'
               }`}
               style={{ animation: `slideUp 0.4s ${i*0.08}s cubic-bezier(.22,1,.36,1) both` }}>
-              <p className={`text-2xl font-display font-black ${s.color}`}>{s.val}</p>
-              <p className="text-[11px] text-gray-500 font-semibold mt-0.5">{s.label}</p>
+              <p className={`text-xl sm:text-2xl font-display font-black truncate w-full ${s.color}`}>{s.val}</p>
+              <p className="text-[10px] sm:text-[11px] text-gray-500 font-semibold mt-0.5 truncate w-full">{s.label}</p>
             </button>
           ))}
         </div>
@@ -273,7 +285,20 @@ export const Utilisateurs = () => {
                 {/* Header profil */}
                 <div className="p-5 bg-gradient-to-br from-primary/5 to-transparent border-b border-gray-100">
                   <div className="flex items-center gap-4">
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black flex-shrink-0 ${selectedFull.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-primary/10 text-primary'}`}>
+                    {selectedFull.avatar && (selectedFull.avatar.startsWith('http') || selectedFull.avatar.startsWith('/')) ? (
+                      <img 
+                        src={selectedFull.avatar} 
+                        alt={selectedFull.nom} 
+                        className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 border border-black/5 shadow-sm"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                          if (e.currentTarget.nextSibling) {
+                            e.currentTarget.nextSibling.style.display = 'flex';
+                          }
+                        }}
+                      />
+                    ) : null}
+                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black flex-shrink-0 ${selectedFull.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-primary/10 text-primary'} ${selectedFull.avatar && (selectedFull.avatar.startsWith('http') || selectedFull.avatar.startsWith('/')) ? 'hidden' : ''}`}>
                       {selectedFull.initiales || (selectedFull.nom || '').substring(0,2).toUpperCase()}
                     </div>
                     <div>
