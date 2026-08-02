@@ -3,10 +3,13 @@ import { DiscoveryFilters } from '../components/DiscoveryFilters';
 import { TerrainCard } from '../components/TerrainCard';
 import { MapDiscovery } from '../components/MapDiscovery';
 import { fetchTerrains } from '../services/terrains';
+import { fetchFavorisSet, toggleFavori } from '../services/favoris';
+import { useUser } from '../context/UserContext';
 import { IconCheck, IconLoader2 } from '@tabler/icons-react';
 import { DiscoverySkeleton } from '../components/Skeletons';
 
 export const Discovery = ({ setView, setSelectedTerrain }) => {
+  const { currentUser } = useUser();
   const [viewMode, setViewMode] = useState('list'); // 'list' or 'map'
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilters, setActiveFilters] = useState([]);
@@ -14,13 +17,23 @@ export const Discovery = ({ setView, setSelectedTerrain }) => {
   const [visibleCount, setVisibleCount] = useState(4);
   const [toast, setToast] = useState(null);
   const [terrains, setTerrains] = useState([]);
+  const [favorisSet, setFavorisSet] = useState(new Set());
   const [loading, setLoading] = useState(true);
+
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 3000);
+  };
 
   useEffect(() => {
     const load = async () => {
       try {
-        const data = await fetchTerrains();
+        const [data, favSet] = await Promise.all([
+          fetchTerrains(),
+          currentUser?.id ? fetchFavorisSet(currentUser.id) : Promise.resolve(new Set())
+        ]);
         setTerrains(data);
+        setFavorisSet(favSet);
       } catch (err) {
         console.error('Erreur chargement terrains:', err.message);
       } finally {
@@ -28,7 +41,28 @@ export const Discovery = ({ setView, setSelectedTerrain }) => {
       }
     };
     load();
-  }, []);
+  }, [currentUser?.id]);
+
+  const handleToggleFav = async (terrainId) => {
+    if (!currentUser?.id) {
+      showToast('Connectez-vous pour enregistrer des favoris');
+      return;
+    }
+    const isFav = favorisSet.has(terrainId);
+    try {
+      await toggleFavori(currentUser.id, terrainId, isFav);
+      setFavorisSet(prev => {
+        const next = new Set(prev);
+        if (isFav) next.delete(terrainId);
+        else next.add(terrainId);
+        return next;
+      });
+      showToast(isFav ? 'Retiré de vos favoris' : 'Ajouté à vos favoris !');
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors de la mise à jour des favoris');
+    }
+  };
 
   if (loading) {
     return <DiscoverySkeleton />;
@@ -67,11 +101,6 @@ export const Discovery = ({ setView, setSelectedTerrain }) => {
         return prev.includes(filter) ? [] : [filter];
       }
     });
-  };
-
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(null), 3000);
   };
 
   const handleNearby = () => {
@@ -143,7 +172,11 @@ export const Discovery = ({ setView, setSelectedTerrain }) => {
               setSelectedTerrain(terrain);
               setView('terrain-detail');
             }}>
-              <TerrainCard terrain={terrain} />
+              <TerrainCard 
+                terrain={terrain} 
+                isFavori={favorisSet.has(terrain.id)}
+                onToggleFavori={handleToggleFav}
+              />
             </div>
           ))}
         </div>

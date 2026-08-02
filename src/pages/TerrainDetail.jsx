@@ -17,7 +17,8 @@ import {
   IconBrandSnapchat,
   IconLink,
   IconX,
-  IconNavigation
+  IconNavigation,
+  IconHeart
 } from '@tabler/icons-react';
 import { MapContainer, TileLayer, Marker } from 'react-leaflet';
 import L from 'leaflet';
@@ -26,6 +27,7 @@ import { TerrainImage } from '../components/TerrainImage';
 import { useUser } from '../context/UserContext';
 import { fetchTerrains } from '../services/terrains';
 import { fetchAvisByTerrain, fetchReviewableReservation, submitAvis } from '../services/avis';
+import { fetchFavorisSet, toggleFavori } from '../services/favoris';
 
 export const TerrainDetail = ({ terrain, onBack, onBook, setSelectedTerrain }) => {
   const { currentUser } = useUser();
@@ -37,6 +39,29 @@ export const TerrainDetail = ({ terrain, onBack, onBook, setSelectedTerrain }) =
   const [reviewsList, setReviewsList] = useState([]);
   const [reviewableReservationId, setReviewableReservationId] = useState(null);
   const [nearbyTerrains, setNearbyTerrains] = useState([]);
+  const [isFavori, setIsFavori] = useState(false);
+
+  useEffect(() => {
+    if (!terrain?.id || !currentUser?.id) return;
+    fetchFavorisSet(currentUser.id).then(favSet => {
+      setIsFavori(favSet.has(terrain.id));
+    }).catch(() => {});
+  }, [terrain?.id, currentUser?.id]);
+
+  const handleToggleFav = async () => {
+    if (!currentUser?.id) {
+      showToast('Connectez-vous pour ajouter aux favoris');
+      return;
+    }
+    try {
+      await toggleFavori(currentUser.id, terrain.id, isFavori);
+      setIsFavori(!isFavori);
+      showToast(!isFavori ? 'Ajouté à vos favoris !' : 'Retiré de vos favoris');
+    } catch (err) {
+      console.error(err);
+      showToast('Erreur lors de la mise à jour des favoris');
+    }
+  };
 
   // Charge les vrais avis du terrain, et la réservation "terminée" éligible à un
   // avis pour le joueur connecté (RLS exige un reservation_id lié, cf. avis_insert_joueur).
@@ -176,8 +201,19 @@ export const TerrainDetail = ({ terrain, onBack, onBook, setSelectedTerrain }) =
         </button>
         <div className="flex gap-2">
           <button 
+            onClick={handleToggleFav}
+            title={isFavori ? "Retirer des favoris" : "Ajouter aux favoris"}
+            className={`p-2 rounded-full border transition-all active:scale-95 shadow-sm cursor-pointer ${
+              isFavori 
+                ? 'bg-red-50 border-red-200 text-red-500' 
+                : 'border-gray-200 bg-white hover:bg-gray-50 text-gray-600'
+            }`}
+          >
+            <IconHeart size={20} fill={isFavori ? "currentColor" : "none"} />
+          </button>
+          <button 
             onClick={handleShare}
-            className="p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition-all active:scale-95 shadow-sm"
+            className="p-2 rounded-full border border-gray-200 bg-white hover:bg-gray-50 transition-all active:scale-95 shadow-sm cursor-pointer"
           >
             <IconShare size={20} className="text-gray-600" />
           </button>

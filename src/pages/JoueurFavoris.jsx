@@ -6,23 +6,27 @@ import {
   IconBallFootball,
   IconLoader2
 } from '@tabler/icons-react';
-import { fetchTopTerrains } from '../services/terrains';
+import { useUser } from '../context/UserContext';
+import { fetchMesFavoris, toggleFavori } from '../services/favoris';
 import { formatAmountAbbreviated } from '../services/stats';
 import { TerrainImage } from '../components/TerrainImage';
 
 export const JoueurFavoris = ({ setView, setSelectedTerrain }) => {
+  const { currentUser } = useUser();
   const [favoriteTerrains, setFavoriteTerrains] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!currentUser?.id) {
+      setFavoriteTerrains([]);
+      setLoading(false);
+      return;
+    }
     const load = async () => {
       try {
-        // TODO: remplacer par une vraie table favoris quand elle existe
-        const data = await fetchTopTerrains(2);
-        setFavoriteTerrains(data.map((t, i) => ({
-          ...t,
-          bookings: [34, 28][i] || 20,
-        })));
+        setLoading(true);
+        const data = await fetchMesFavoris(currentUser.id);
+        setFavoriteTerrains(data);
       } catch (err) {
         console.error('Erreur chargement favoris:', err.message);
       } finally {
@@ -30,7 +34,27 @@ export const JoueurFavoris = ({ setView, setSelectedTerrain }) => {
       }
     };
     load();
-  }, []);
+  }, [currentUser?.id]);
+
+  const handleRemoveFavori = async (e, terrainId) => {
+    e.stopPropagation();
+    if (!currentUser?.id) return;
+    try {
+      await toggleFavori(currentUser.id, terrainId, true);
+      setFavoriteTerrains(prev => prev.filter(t => t.id !== terrainId));
+    } catch (err) {
+      console.error('Erreur retrait favori:', err);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex-1 flex items-center justify-center p-12 text-gray-400 gap-3">
+        <IconLoader2 className="animate-spin text-primary" size={32} />
+        <p className="text-sm font-semibold">Chargement de vos favoris...</p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex-1 space-y-6 pb-28 overflow-y-auto px-6 lg:px-8 py-6">
@@ -65,20 +89,24 @@ export const JoueurFavoris = ({ setView, setSelectedTerrain }) => {
                   iconSize={24}
                   className="w-full h-full group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-1.5 rounded-full shadow-sm cursor-pointer hover:scale-110 text-red-500">
+                <button
+                  onClick={(e) => handleRemoveFavori(e, terrain.id)}
+                  title="Retirer des favoris"
+                  className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-2 rounded-full shadow-sm hover:scale-110 active:scale-95 transition-all text-red-500 cursor-pointer z-10"
+                >
                   <IconHeart size={16} fill="currentColor" />
-                </div>
+                </button>
               </div>
               <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                 <div className="space-y-1">
-                  <span className="text-[9px] font-bold text-primary uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded-full border border-primary/20">Dakar</span>
+                  <span className="text-[9px] font-bold text-primary uppercase tracking-widest bg-primary/5 px-2 py-0.5 rounded-full border border-primary/20">{terrain.quartier || 'Dakar'}</span>
                   <h4 className="font-bold text-sm text-primary-dark truncate mt-1">{terrain.name}</h4>
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-0.5 text-secondary">
                       <IconStar size={12} fill="currentColor" />
-                      <span className="text-[10px] font-bold text-primary-dark">4.9</span>
+                      <span className="text-[10px] font-bold text-primary-dark">{terrain.rating || '—'}</span>
                     </div>
-                    <span className="text-[10px] text-gray-400 font-semibold">• {terrain.bookings} réservations</span>
+                    <span className="text-[10px] text-gray-400 font-semibold">• {terrain.reservations_count || 0} réservations</span>
                   </div>
                 </div>
 

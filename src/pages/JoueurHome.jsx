@@ -13,6 +13,7 @@ import {
 } from '@tabler/icons-react';
 import { fetchTopTerrains } from '../services/terrains';
 import { fetchReservations } from '../services/reservations';
+import { fetchFavorisSet, toggleFavori } from '../services/favoris';
 import { formatAmountAbbreviated } from '../services/stats';
 import { useUser } from '../context/UserContext';
 import { JoueurHomeSkeleton } from '../components/Skeletons';
@@ -23,6 +24,7 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [featuredTerrains, setFeaturedTerrains] = useState([]);
   const [nextMatch, setNextMatch] = useState(null);
+  const [favorisSet, setFavorisSet] = useState(new Set());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -38,6 +40,28 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
     };
     load();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    fetchFavorisSet(currentUser.id).then(setFavorisSet).catch(() => {});
+  }, [currentUser?.id]);
+
+  const handleToggleFav = async (e, terrainId) => {
+    e.stopPropagation();
+    if (!currentUser?.id) return;
+    const isFav = favorisSet.has(terrainId);
+    try {
+      await toggleFavori(currentUser.id, terrainId, isFav);
+      setFavorisSet(prev => {
+        const next = new Set(prev);
+        if (isFav) next.delete(terrainId);
+        else next.add(terrainId);
+        return next;
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   useEffect(() => {
     if (!currentUser?.id) return;
@@ -161,9 +185,17 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
                   iconSize={24}
                   className="w-full h-full group-hover:scale-105 transition-transform duration-500"
                 />
-                <div className="absolute top-3 right-3 bg-white/95 backdrop-blur-md p-1.5 rounded-full shadow-sm cursor-pointer hover:bg-white hover:scale-110 active:scale-90 transition-all text-red-500">
-                  <IconHeart size={16} fill="currentColor" />
-                </div>
+                <button 
+                  onClick={(e) => handleToggleFav(e, terrain.id)}
+                  title={favorisSet.has(terrain.id) ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  className={`absolute top-3 right-3 p-1.5 rounded-full backdrop-blur-md shadow-sm cursor-pointer hover:scale-110 active:scale-90 transition-all ${
+                    favorisSet.has(terrain.id)
+                      ? 'bg-red-500 text-white'
+                      : 'bg-white/95 text-gray-400 hover:text-red-500'
+                  }`}
+                >
+                  <IconHeart size={16} fill={favorisSet.has(terrain.id) ? "currentColor" : "none"} />
+                </button>
                 <div className="absolute bottom-3 left-3 bg-primary-dark/80 backdrop-blur-md px-2 py-0.5 rounded-full text-[9px] font-bold text-white flex items-center gap-0.5">
                   <IconMapPin size={10} className="text-primary" /> Dakar
                 </div>

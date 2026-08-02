@@ -35,7 +35,7 @@ const filterGerantContact = (terrain, currentUserRole = null, currentUserId = nu
 export const fetchTerrains = async ({ currentUserRole = null, currentUserId = null } = {}) => {
   const { data, error } = await supabase
     .from('terrains')
-    .select('id, nom, quartier, adresse, price, rating, reviews_count, image_url, lat, lng, surface, size, gerant_id')
+    .select('id, nom, quartier, adresse, price, rating, reviews_count, reservations_count, image_url, lat, lng, surface, size, gerant_id')
     .eq('statut', 'actif')
     .order('rating', { ascending: false });
   if (error) throw handleServiceError(error, 'fetchTerrains');
