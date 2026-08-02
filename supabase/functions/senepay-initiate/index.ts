@@ -27,10 +27,9 @@
 // Second appel OTP (nextAction='OTP_REQUIRED', Orange Money en SN/CI/BF/GN) :
 // le front rappelle cette même fonction avec { type_flux, order_id, otp_code }
 // — la ligne senepay_payments correspondante est relue pour reconstituer
-// l'appel SenePay. ASSOMPTION non confirmée dans la doc fournie : SenePay
-// pourrait exposer un endpoint OTP dédié plutôt qu'un second POST sur
-// /payments/initiate — à vérifier contre la doc/sandbox réelle avant mise en
-// prod.
+// l'appel SenePay. Confirmé par la doc officielle (section "3. USSD & OTP") :
+// même endpoint /payments/initiate rappelé avec otp_code en plus, pas
+// d'endpoint dédié.
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.7.1"
 
@@ -60,10 +59,10 @@ const BILLING_PERIOD_TO_CYCLE: Record<string, 'mensuel' | 'annuel'> = {
   annual: 'annuel'
 }
 
-// Vocabulaire opérateur SenePay déduit du brief ("wave", "orange dans SN/CI/
-// BF/GN", "mtn/moov/free/airtel/tmoney") — nos payment_method internes
-// ('wave'/'orange_money') sont mappés dessus. ASSOMPTION sur la valeur exacte
-// 'orange' (vs 'orange_money') : à confirmer contre la doc SenePay réelle.
+// Vocabulaire opérateur SenePay (confirmé par la doc officielle, table
+// "Pays et méthodes de paiement supportés", Sénégal → wave, orange, free,
+// emoney) — nos payment_method internes ('wave'/'orange_money') sont
+// mappés dessus.
 const PAYMENT_METHOD_TO_SENEPAY_OPERATOR: Record<string, string> = {
   wave: 'wave',
   orange_money: 'orange'
@@ -75,12 +74,21 @@ const PAYMENT_METHOD_TO_MODE: Record<string, string> = {
   orange_money: 'orange_money'
 }
 
+// La doc SenePay attend customer_phone au format international complet
+// (ex: "221771234567", cf. exemples curl payin/payout) — nos formulaires ne
+// collectent que le numéro local sénégalais à 9 chiffres (7XXXXXXXX).
+function toSenepayPhone(localNumber: string): string {
+  return `221${localNumber}`
+}
+
 type SenepayInitiateResponse = {
   status?: string
   nextAction?: string
   redirectUrl?: string
   token?: string
   internalId?: string
+  errorCode?: string | null
+  failedReason?: string | null
   [key: string]: unknown
 }
 
@@ -156,7 +164,7 @@ serve(async (req) => {
         amount: pendingRow.amount,
         country_code: 'SN',
         operator: pendingRow.operator,
-        customer_phone: pendingRow.phone
+        customer_phone: toSenepayPhone(pendingRow.phone)
       })
 
       if (!ok) {
@@ -179,7 +187,9 @@ serve(async (req) => {
         status: result.status,
         next_action: result.nextAction,
         redirect_url: result.redirectUrl ?? null,
-        token: result.token ?? null
+        token: result.token ?? null,
+        error_code: result.errorCode ?? null,
+        failed_reason: result.failedReason ?? null
       })
     }
 
@@ -317,7 +327,7 @@ serve(async (req) => {
       amount,
       country_code: 'SN',
       operator: PAYMENT_METHOD_TO_SENEPAY_OPERATOR[paymentMethod],
-      customer_phone: customerNumber,
+      customer_phone: toSenepayPhone(customerNumber),
       order_id: orderId,
       webhook_url: `${supabaseUrl}/functions/v1/senepay-webhook`,
       metadata: { type_flux, gerant_id: gerantId, terrain_id: terrainId, reservation_id: reservationId, description }
@@ -350,7 +360,9 @@ serve(async (req) => {
       next_action: result.nextAction,
       redirect_url: result.nextAction === 'REDIRECT_TO_PROVIDER_LINK' ? result.redirectUrl : null,
       token: result.nextAction === 'USSD_PUSH' || result.nextAction === 'OTP_REQUIRED' ? result.token : null,
-      otp_required: result.nextAction === 'OTP_REQUIRED'
+      otp_required: result.nextAction === 'OTP_REQUIRED',
+      error_code: result.errorCode ?? null,
+      failed_reason: result.failedReason ?? null
     })
 
   } catch (err) {

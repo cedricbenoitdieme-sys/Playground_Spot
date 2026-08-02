@@ -97,8 +97,19 @@ serve(async (req) => {
     }
 
     // Ne JAMAIS se fier à un éventuel champ `statut` (toujours true côté
-    // SenePay) — seul `status` fait foi, exactement comme à l'initiation.
-    const internalStatus = ['success', 'completed', 'paid', 'approved'].includes(status.toLowerCase()) ? 'success' : 'failed'
+    // SenePay) — seul `status` (et `event`) fait foi, exactement comme à
+    // l'initiation. Doc officielle : le Checkout hébergé renvoie
+    // status="Complete" (SANS "d"), alors que l'API Direct (utilisée ici)
+    // renvoie "Completed" (AVEC "d") sur /payments/{token}/status — les deux
+    // flux partagent pourtant le même format de webhook d'après la doc, donc
+    // les deux orthographes sont acceptées par prudence. `event` (
+    // "checkout.session.completed"/"checkout.session.failed") est vérifié en
+    // priorité quand présent, `status` sert de repli.
+    const statusLower = status.toLowerCase()
+    const eventLower = (payload.event || '').toLowerCase()
+    const internalStatus = eventLower === 'checkout.session.completed'
+      || ['success', 'complete', 'completed', 'paid', 'approved'].includes(statusLower)
+      ? 'success' : 'failed'
 
     console.log(`[senepay-webhook] order_id=${orderId} status=${status}`)
 
