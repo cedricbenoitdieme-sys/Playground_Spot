@@ -254,50 +254,53 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
                     </div>
 
                     {/* Retention percentage */}
-                    <div className="p-3 rounded-2xl bg-white/5 border border-white/5 text-xs space-y-1">
-                      <div className="flex items-center justify-between">
+                    <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs space-y-1.5">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <span className="text-white/70 font-medium">Rétention ventes :</span>
                         <span className="font-bold text-emerald-400">
                           Gardez {getRetentionPercentage(plan.commission_rate)} de vos ventes
                         </span>
                       </div>
+                      <p className="text-[11px] text-white/50 leading-normal">
+                        Frais de plateforme : {plan.commission_rate}%
+                      </p>
                     </div>
 
                     {/* Feature Checklist */}
-                    <ul className="space-y-3 pt-2 text-xs">
-                      <li className="flex items-center gap-2.5">
-                        <IconCheck size={16} className="text-primary shrink-0" />
-                        <span>
+                    <ul className="space-y-3 pt-2 text-xs leading-relaxed flex-1">
+                      <li className="flex items-start gap-2.5">
+                        <IconCheck size={16} className="text-primary shrink-0 mt-0.5" />
+                        <span className="text-white/90">
                           <strong>
                             {plan.max_terrains ? `${plan.max_terrains} terrain${plan.max_terrains > 1 ? 's' : ''}` : 'Terrains illimités'}
                           </strong>
                         </span>
                       </li>
-                      <li className="flex items-center gap-2.5">
-                        <IconCheck size={16} className="text-primary shrink-0" />
-                        <span>
+                      <li className="flex items-start gap-2.5">
+                        <IconCheck size={16} className="text-primary shrink-0 mt-0.5" />
+                        <span className="text-white/90">
                           {plan.max_reservations_mois
                             ? `${plan.max_reservations_mois} réservations / mois`
                             : 'Réservations mensuelles illimitées'}
                         </span>
                       </li>
-                      <li className="flex items-center gap-2.5">
-                        <IconCheck size={16} className={plan.pdf_export ? 'text-primary' : 'text-white/20'} />
+                      <li className="flex items-start gap-2.5">
+                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.pdf_export ? 'text-primary' : 'text-white/20'}`} />
                         <span className={plan.pdf_export ? 'text-white/90' : 'text-white/40 line-through'}>
-                          Export PDF des factures
+                          Export PDF des factures & tickets
                         </span>
                       </li>
-                      <li className="flex items-center gap-2.5">
-                        <IconCheck size={16} className={plan.dashboard_avance ? 'text-primary' : 'text-white/20'} />
+                      <li className="flex items-start gap-2.5">
+                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.dashboard_avance ? 'text-primary' : 'text-white/20'}`} />
                         <span className={plan.dashboard_avance ? 'text-white/90' : 'text-white/40 line-through'}>
-                          Tableau de bord avancé
+                          Tableau de bord statistique avancé
                         </span>
                       </li>
                     </ul>
                   </div>
 
                   {/* Call to action button */}
-                  <div className="pt-6 space-y-2">
+                  <div className="pt-6 space-y-2 mt-auto">
                     {isFree ? (
                       <button
                         disabled

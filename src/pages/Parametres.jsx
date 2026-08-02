@@ -37,9 +37,9 @@ const Section = ({ title, icon: Icon, children, delay = 0 }) => (
 /* ── Row item ── */
 const Row = ({ label, sub, children, onClick }) => (
   <div onClick={onClick} className={`flex items-center justify-between px-5 py-4 gap-4 ${onClick ? 'cursor-pointer hover:bg-gray-50 active:bg-gray-100 transition-colors' : ''} min-h-[56px]`}>
-    <div className="min-w-0">
+    <div className="min-w-0 flex-1">
       <p className="text-sm font-semibold text-gray-800">{label}</p>
-      {sub && <p className="text-[11px] text-gray-400 font-medium mt-0.5">{sub}</p>}
+      {sub && <p className="text-[11px] text-gray-500 font-medium mt-0.5">{sub}</p>}
     </div>
     <div className="flex-shrink-0">{children}</div>
   </div>

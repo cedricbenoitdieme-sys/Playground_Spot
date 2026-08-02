@@ -553,7 +553,7 @@ export const GerantStats = () => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-bold text-primary-dark">Revenus par jour</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">7 derniers jours · {terrainLabel}</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">7 derniers jours · {terrainLabel}</p>
             </div>
             <span className="text-[11px] bg-primary/10 text-primary font-bold px-3 py-1 rounded-full">FCFA</span>
           </div>
@@ -565,7 +565,7 @@ export const GerantStats = () => {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h3 className="font-bold text-primary-dark">Réservations par créneau</h3>
-              <p className="text-[11px] text-gray-400 mt-0.5">Cliquez sur une barre pour voir le détail</p>
+              <p className="text-[11px] text-gray-500 mt-0.5">Cliquez sur une barre pour voir le détail</p>
             </div>
             {picCreneau && (
               <span className="inline-flex items-center gap-1.5 text-[11px] bg-orange-50 text-orange-600 border border-orange-200/80 font-bold px-3 py-1 rounded-full shadow-xs">

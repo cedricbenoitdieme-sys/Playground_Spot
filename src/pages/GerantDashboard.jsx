@@ -439,13 +439,13 @@ export const GerantDashboard = ({ setView }) => {
 
           <div className="space-y-3">
             {liveSlots.length === 0 ? (
-              <p className="text-xs text-gray-400 py-6 text-center">Aucun créneau configuré pour aujourd'hui.</p>
+              <p className="text-xs text-gray-500 py-6 text-center">Aucun créneau configuré pour aujourd'hui.</p>
             ) : (
               liveSlots.map((slot) => (
                 <button
                   key={slot.id}
                   onClick={() => setSelectedSlotDetail(slot)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer ${
+                  className={`w-full flex items-center justify-between p-3 rounded-xl border text-left transition-all hover:-translate-y-0.5 hover:shadow-md cursor-pointer gap-2 ${
                     slot.status === 'available'
                       ? 'bg-green-50/50 hover:bg-green-50 border-green-100 text-primary'
                       : slot.status === 'reserved'
@@ -453,14 +453,14 @@ export const GerantDashboard = ({ setView }) => {
                       : 'bg-red-50/30 border-red-50 text-red-500 hover:bg-red-50'
                   }`}
                 >
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold">{slot.time}</span>
-                    <span className="text-[10px] font-semibold">{slot.label}</span>
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                    <span className="text-xs font-bold shrink-0">{slot.time}</span>
+                    <span className="text-[10px] font-semibold truncate min-w-0">{slot.label}</span>
                   </div>
                   {slot.status === 'available' ? (
-                    <IconCheck size={14} className="text-primary" />
+                    <IconCheck size={14} className="text-primary shrink-0" />
                   ) : (
-                    <IconChevronRight size={14} className="opacity-50" />
+                    <IconChevronRight size={14} className="opacity-50 shrink-0" />
                   )}
                 </button>
               ))

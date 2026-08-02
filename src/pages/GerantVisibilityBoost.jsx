@@ -114,11 +114,12 @@ export const GerantVisibilityBoost = ({ setView }) => {
         {/* Social Proof & Urgency Badge */}
         <div className="relative z-10 flex items-center gap-3.5 p-4 bg-black/30 backdrop-blur-md border border-amber-500/40 rounded-2xl shadow-lg shrink-0">
           <div className="w-11 h-11 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center font-bold shrink-0 border border-amber-500/30">
-            <IconFlame size={24} className="animate-bounce text-amber-400" />
+            <IconFlame size={24} className="animate-flame-pulse text-amber-400" />
           </div>
           <div className="text-xs">
-            <span className="font-bold text-amber-300 block text-xs">
-              🔥 {socialProofCount} gérants à Dakar
+            <span className="font-bold text-amber-300 flex items-center gap-1 text-xs">
+              <IconFlame size={14} className="text-amber-400 shrink-0" />
+              <span>{socialProofCount} gérants à Dakar</span>
             </span>
             <p className="text-amber-100/90 text-xs font-medium">boostent leurs terrains cette semaine</p>
           </div>

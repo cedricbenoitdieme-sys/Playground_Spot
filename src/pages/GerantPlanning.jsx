@@ -409,9 +409,9 @@ export const GerantPlanning = () => {
             <h3 className="text-sm font-bold text-primary-dark uppercase tracking-wider">
               Créneaux horaires — {selectedDay} {MONTH_NAMES[currentMonthIdx]}
             </h3>
-            <p className="text-[10px] font-bold text-gray-400 mt-1">Personnalisez, bloquez ou générez en masse vos horaires de match</p>
+            <p className="text-[10px] font-bold text-gray-500 mt-1">Personnalisez, bloquez ou générez en masse vos horaires de match</p>
           </div>
-          <div className="flex gap-2 self-start sm:self-auto">
+          <div className="flex flex-wrap gap-2 self-start sm:self-auto">
             <button 
               onClick={() => setShowBulkGenerate(true)}
               className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
@@ -434,7 +434,7 @@ export const GerantPlanning = () => {
         ) : slots.length === 0 ? (
           <div className="text-center py-12 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <IconClock size={32} className="text-gray-300 mx-auto mb-2" />
-            <p className="text-xs font-bold text-gray-400">Aucun créneau ouvert pour cette journée</p>
+            <p className="text-xs font-bold text-gray-500">Aucun créneau ouvert pour cette journée</p>
             <button 
               onClick={() => setShowAddSlot(true)}
               className="text-xs font-black text-primary hover:underline mt-2 inline-block"
@@ -448,7 +448,7 @@ export const GerantPlanning = () => {
               <div
                 key={slot.id}
                 onClick={() => setSelectedSlotForEdit(slot)}
-                className={`flex items-center justify-between p-4 rounded-2xl border text-left transition-all active:scale-[0.99] hover:shadow-md cursor-pointer ${
+                className={`flex items-center justify-between p-4 rounded-2xl border text-left transition-all active:scale-[0.99] hover:shadow-md cursor-pointer gap-2 ${
                   slot.booker
                     ? 'bg-primary-dark/5 border-primary-dark/15 text-primary-dark'
                     : slot.open
@@ -460,8 +460,8 @@ export const GerantPlanning = () => {
                   animationDelay: `${index * 0.05}s`
                 }}
               >
-                <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${
+                <div className="flex items-center gap-3 min-w-0 flex-1">
+                  <div className={`p-2.5 rounded-xl shrink-0 ${
                     slot.booker 
                       ? 'bg-primary-dark/10 text-primary-dark' 
                       : slot.open 
@@ -470,22 +470,22 @@ export const GerantPlanning = () => {
                   }`}>
                     {slot.booker ? <IconCalendar size={18} /> : slot.open ? <IconClock size={18} /> : <IconLock size={18} />}
                   </div>
-                  <div>
-                    <p className="font-bold text-xs text-primary-dark">{slot.time}</p>
-                    <p className="text-[10px] font-semibold text-gray-400 mt-0.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold text-xs text-primary-dark truncate">{slot.time}</p>
+                    <p className="text-[10px] font-semibold text-gray-500 mt-0.5 truncate">
                       {slot.booker ? `Réservé par ${slot.booker}` : slot.open ? 'Créneau Libre' : slot.reason || 'Créneau Fermé'}
                     </p>
                   </div>
                 </div>
 
                 {slot.open && !slot.booker && (
-                  <span className="text-[9px] font-black uppercase tracking-wider bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20">Ouvert</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-primary/10 text-primary px-2.5 py-1 rounded-full border border-primary/20 shrink-0">Ouvert</span>
                 )}
                 {!slot.open && !slot.booker && (
-                  <span className="text-[9px] font-black uppercase tracking-wider bg-red-100 text-red-500 px-2.5 py-1 rounded-full">Bloqué</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-red-100 text-red-500 px-2.5 py-1 rounded-full shrink-0">Bloqué</span>
                 )}
                 {slot.booker && (
-                  <span className="text-[9px] font-black uppercase tracking-wider bg-status-confirmed/15 text-status-confirmed px-2.5 py-1 rounded-full">Réservé</span>
+                  <span className="text-[9px] font-black uppercase tracking-wider bg-status-confirmed/15 text-status-confirmed px-2.5 py-1 rounded-full shrink-0">Réservé</span>
                 )}
               </div>
             ))}

@@ -110,22 +110,22 @@ export const ReservationsTable = () => {
                   animationDelay: `${index * 0.06}s`
                 }}
               >
-                <div className="flex justify-between items-start mb-2">
-                  <span className="font-bold text-primary-dark text-sm">{res.terrain}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm inline-flex items-center justify-center transition-all ${getStatusStyles(res.status)}`}>
+                <div className="flex justify-between items-start mb-2 gap-2">
+                  <span className="font-bold text-primary-dark text-sm truncate min-w-0 flex-1">{res.terrain}</span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold shadow-sm inline-flex items-center justify-center transition-all shrink-0 ${getStatusStyles(res.status)}`}>
                     {res.status}
                   </span>
                 </div>
-                <div className="flex items-center justify-between text-xs">
-                  <div className="flex items-center gap-2">
+                <div className="flex items-center justify-between text-xs gap-2">
+                  <div className="flex items-center gap-2 min-w-0 flex-1">
                     <div className="w-6 h-6 rounded-full bg-secondary-light flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-secondary border border-secondary/10">
                       {res.player?.split(' ').map(n => n[0]).join('').slice(0, 2)}
                     </div>
-                    <span className="font-semibold text-gray-600">{res.player}</span>
+                    <span className="font-semibold text-gray-700 truncate min-w-0">{res.player}</span>
                   </div>
-                  <span className="font-bold text-primary-dark">{res.amount}</span>
+                  <span className="font-bold text-primary-dark shrink-0">{res.amount}</span>
                 </div>
-                <div className="text-[10px] text-gray-400 mt-2 font-medium">{res.slot}</div>
+                <div className="text-[10px] text-gray-500 mt-2 font-medium">{res.slot}</div>
               </div>
             ))}
           </div>
