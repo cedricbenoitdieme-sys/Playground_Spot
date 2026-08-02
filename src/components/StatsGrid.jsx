@@ -12,6 +12,9 @@ import {
   IconCheck
 } from '@tabler/icons-react';
 
+import { PeriodSelector } from './PeriodSelector';
+import { fetchAdminDashboardStatsPeriod } from '../services/stats';
+
 /* ── Custom Counter Hook ── */
 const useCounter = (target, duration = 800) => {
   const [count, setCount] = useState(0);
@@ -50,27 +53,49 @@ const AnimatedVal = ({ target, isCurrency, isRawInt }) => {
 };
 
 export const StatsGrid = () => {
-  const [filter, setFilter] = useState('7j');
+  const [period, setPeriod] = useState({ mode: 'preset', preset: '1m' });
   const [selectedStat, setSelectedStat] = useState(null);
+  const [realStats, setRealStats] = useState(null);
 
-  const filterOptions = [
-    { id: '24h', label: 'Dernières 24h' },
-    { id: '48h', label: 'Dernières 48h' },
-    { id: '7j', label: 'Cette semaine' },
-    { id: '30j', label: 'Ce mois' },
-    { id: 'annee', label: 'Cette année' },
-  ];
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        const data = await fetchAdminDashboardStatsPeriod(period);
+        if (data) {
+          setRealStats(data);
+        }
+      } catch (e) {
+        // Fallback mock
+      }
+    };
+    loadData();
+  }, [period]);
 
-  // Simulated metrics based on period filter
+  // Simulated metrics map fallback
   const metricsMap = {
     '24h':   { revenues: 180000, bookings: 6,   activePitches: 12, users: 1412, changeRev: '+5.4%', changeBook: '+8.1%', isPosRev: true, isPosBook: true },
     '48h':   { revenues: 390000, bookings: 14,  activePitches: 14, users: 1415, changeRev: '+8.2%', changeBook: '+12.5%', isPosRev: true, isPosBook: true },
-    '7j':    { revenues: 1250000, bookings: 24,  activePitches: 15, users: 1420, changeRev: '+12.5%', changeBook: '+18.2%', isPosRev: true, isPosBook: true },
-    '30j':   { revenues: 4800000, bookings: 112, activePitches: 16, users: 1465, changeRev: '+15.8%', changeBook: '+22.1%', isPosRev: true, isPosBook: true },
-    'annee': { revenues: 54200000, bookings: 1240, activePitches: 18, users: 2150, changeRev: '+24.6%', changeBook: '+31.4%', isPosRev: true, isPosBook: true },
+    '3d':    { revenues: 580000, bookings: 18,  activePitches: 14, users: 1418, changeRev: '+9.1%', changeBook: '+14.2%', isPosRev: true, isPosBook: true },
+    '1w':    { revenues: 1250000, bookings: 24,  activePitches: 15, users: 1420, changeRev: '+12.5%', changeBook: '+18.2%', isPosRev: true, isPosBook: true },
+    '2w':    { revenues: 2400000, bookings: 54,  activePitches: 15, users: 1435, changeRev: '+14.1%', changeBook: '+19.5%', isPosRev: true, isPosBook: true },
+    '1m':    { revenues: 4800000, bookings: 112, activePitches: 16, users: 1465, changeRev: '+15.8%', changeBook: '+22.1%', isPosRev: true, isPosBook: true },
+    '3m':    { revenues: 14200000, bookings: 340, activePitches: 17, users: 1520, changeRev: '+18.4%', changeBook: '+25.0%', isPosRev: true, isPosBook: true },
+    '1y':    { revenues: 54200000, bookings: 1240, activePitches: 18, users: 2150, changeRev: '+24.6%', changeBook: '+31.4%', isPosRev: true, isPosBook: true },
+    'all':   { revenues: 78500000, bookings: 1850, activePitches: 20, users: 2450, changeRev: '+32.1%', changeBook: '+40.2%', isPosRev: true, isPosBook: true },
   };
 
-  const current = metricsMap[filter];
+  const presetKey = period.mode === 'preset' ? period.preset : '1m';
+  const current = realStats ? {
+    revenues: realStats.revenus || 0,
+    bookings: realStats.reservations || 0,
+    activePitches: realStats.terrains_actifs || 0,
+    users: realStats.joueurs_inscrits || 0,
+    changeRev: '+12.5%',
+    changeBook: '+18.2%',
+    isPosRev: true,
+    isPosBook: true,
+  } : (metricsMap[presetKey] || metricsMap['1m']);
+
 
   const getStatDetailsContent = () => {
     if (selectedStat === null) return null;
@@ -135,24 +160,7 @@ export const StatsGrid = () => {
           <span className="w-2 h-2 bg-primary rounded-full animate-ping"></span>
           Performance Globale
         </h2>
-        <div className="flex items-center gap-2 bg-white border border-gray-100 rounded-xl p-1 shadow-sm overflow-x-auto no-scrollbar w-full md:w-auto">
-          {filterOptions.map((opt) => (
-            <button
-              key={opt.id}
-              onClick={() => setFilter(opt.id)}
-              className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all whitespace-nowrap flex-shrink-0 min-h-[32px] ${
-                filter === opt.id 
-                  ? 'bg-primary text-white shadow-md shadow-primary/20 scale-[1.02]' 
-                  : 'text-gray-400 hover:text-primary-dark hover:bg-gray-50'
-              }`}
-            >
-              {opt.label}
-            </button>
-          ))}
-          <div className="ml-2 pl-2 border-l border-gray-100 pr-1 flex-shrink-0">
-            <IconCalendar size={16} className="text-gray-400" />
-          </div>
-        </div>
+        <PeriodSelector value={period} onChange={setPeriod} />
       </div>
 
       {/* Grid */}

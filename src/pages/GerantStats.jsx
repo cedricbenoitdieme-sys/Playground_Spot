@@ -2,7 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown, IconLoader2, IconFileTypePdf, IconDownload } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
-import { fetchGerantKpis, fetchRepartitionPaiements, fetchRevenusParJour, fetchReservationsParCreneau, fetchTopJoueurs } from '../services/stats';
+import { fetchGerantStatsPeriod } from '../services/stats';
+import { PeriodSelector, PRESET_OPTIONS } from '../components/PeriodSelector';
 import { exportCSV, exportPDFReport } from '../utils/exportReports';
 import { supabase } from '../lib/supabase';
 import './gerantStats.css';
@@ -214,7 +215,7 @@ const PERIODES = [
 
 export const GerantStats = () => {
   const { currentUser } = useUser();
-  const [periode, setPeriode]       = useState('month');
+  const [periode, setPeriode]       = useState({ mode: 'preset', preset: '1m' });
   const [terrain, setTerrain]       = useState('all');
   const [showTerrainDD, setDD]      = useState(false);
   const [kpiSheet, setKpiSheet]     = useState(null);
@@ -232,6 +233,7 @@ export const GerantStats = () => {
   const [topJoueurs, setTopJoueurs] = useState([]);
   const [loading, setLoading]       = useState(true);
   const [statsError, setStatsError] = useState(null);
+  const [rangeDates, setRangeDates] = useState({ dateDebut: null, dateFin: null });
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
@@ -258,7 +260,7 @@ export const GerantStats = () => {
     loadTerrains();
   }, [currentUser]);
 
-  // Load KPIs, paiements, graphiques et top joueurs — toutes des données réelles
+  // Load KPIs, paiements, graphiques et top joueurs via la RPC unifiée get_gerant_stats_period
   useEffect(() => {
     if (!currentUser?.id) return;
     const loadStats = async () => {
@@ -266,18 +268,92 @@ export const GerantStats = () => {
         setLoading(true);
         setStatsError(null);
         const tId = terrain === 'all' ? null : terrain;
-        const [liveKpi, livePay, liveRevenus, liveCreneaux, liveTop] = await Promise.all([
-          fetchGerantKpis(currentUser.id, tId, periode),
-          fetchRepartitionPaiements(currentUser.id),
-          fetchRevenusParJour(currentUser.id, tId, periode),
-          fetchReservationsParCreneau(currentUser.id, tId, periode),
-          fetchTopJoueurs(currentUser.id, tId, periode),
-        ]);
-        setKpi(liveKpi);
-        setRepartPay(livePay || []);
-        setRevenusParJour(liveRevenus || []);
-        setReservationsParCreneau(liveCreneaux || []);
-        setTopJoueurs(liveTop || []);
+        const resData = await fetchGerantStatsPeriod(currentUser.id, tId, periode);
+
+        if (resData) {
+          setRangeDates({ dateDebut: resData.date_debut, dateFin: resData.date_fin });
+
+          // 1. KPI
+          setKpi({
+            revenus: resData.kpi?.revenus || 0,
+            reservations: resData.kpi?.reservations || 0,
+            tauxOccupation: resData.kpi?.tauxOccupation || 0,
+            noteMoyenne: resData.kpi?.noteMoyenne || null,
+            parStatut: resData.kpi?.parStatut || null,
+            noteDistribution: resData.kpi?.noteDistribution || null,
+          });
+
+          // 2. Revenus par jour
+          const formattedRevenus = (resData.revenus_par_jour || []).map(d => {
+            let jourLabel = '';
+            if (d.date_slot) {
+              const parts = String(d.date_slot).split('-');
+              if (parts.length === 3) {
+                jourLabel = `${parts[2]}/${parts[1]}`;
+              } else {
+                const dateObj = new Date(d.date_slot);
+                jourLabel = `${String(dateObj.getDate()).padStart(2, '0')}/${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+              }
+            }
+            return {
+              ...d,
+              jour: jourLabel,
+              montant: d.montant || 0,
+              all: d.all || d.all_montant || 0,
+            };
+          });
+          setRevenusParJour(formattedRevenus);
+
+          // 3. Réservations par créneau
+          const mapStatutLabel = (s) => ({
+            en_attente: 'En attente',
+            confirmee: 'Confirmée',
+            terminee: 'Terminée',
+            annulee: 'Annulée',
+          }[s] || s);
+
+          const formattedCreneaux = (resData.reservations_par_creneau || []).map(c => ({
+            heure: c.heure,
+            nb: c.nb || 0,
+            reservations: (c.reservations || []).map(r => ({
+              ...r,
+              montant: typeof r.montant === 'number' ? `${r.montant.toLocaleString('fr-FR')} FCFA` : r.montant,
+              statut: mapStatutLabel(r.statut),
+            }))
+          }));
+          setReservationsParCreneau(formattedCreneaux);
+
+          // 4. Top joueurs
+          const formattedJoueurs = (resData.top_joueurs || []).map(j => ({
+            id: j.id,
+            nom: j.nom || 'Joueur Anonyme',
+            reservations: j.reservations || 0,
+            montant: j.montant || 0,
+            initiales: (j.nom || '??').split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+            historique: (j.historique || []).map(h => ({
+              date: h.date && h.date.includes('-') ? new Date(h.date).toLocaleDateString('fr-FR') : h.date,
+              terrain: h.terrain,
+              montant: typeof h.montant === 'number' ? `${h.montant.toLocaleString('fr-FR')} FCFA` : h.montant,
+              statut: mapStatutLabel(h.statut),
+            }))
+          }));
+          setTopJoueurs(formattedJoueurs);
+
+          // 5. Répartition paiements
+          const rawPaiements = resData.repartition_paiements || [];
+          const totalPay = rawPaiements.reduce((s, g) => s + (g.montant || 0), 0);
+          const colors = { wave: '#2563EB', orange_money: '#F97316', sur_place: '#1A7A4A', carte: '#8B5CF6', pay_unitech: '#6366F1' };
+          const labels = { wave: 'Wave', orange_money: 'Orange Money', sur_place: 'Sur place', carte: 'Carte', pay_unitech: 'Pay Unitech' };
+
+          const formattedPay = rawPaiements.map(p => ({
+            label: labels[p.mode] || p.mode,
+            value: totalPay > 0 ? Math.round(((p.montant || 0) / totalPay) * 100) : 0,
+            color: colors[p.mode] || '#666',
+            montant: p.montant || 0,
+            transactions: p.transactions || p.cnt || 0,
+          }));
+          setRepartPay(formattedPay);
+        }
       } catch (err) {
         console.error("Error loading statistics:", err);
         setStatsError(err.userMessage || err.message || 'Impossible de charger les statistiques.');
@@ -292,9 +368,25 @@ export const GerantStats = () => {
 
   /* Re-trigger animations on filter change */
   const changeTerrain = (id) => { setTerrain(id); setDD(false); setAnimKey(k => k + 1); };
-  const changePeriode = (key) => { setPeriode(key); setAnimKey(k => k + 1); };
+  const changePeriode = (val) => { setPeriode(val); setAnimKey(k => k + 1); };
 
-  /* Meilleur jour / pic-creux dérivés des données réelles déjà chargées (pas de requête supplémentaire) */
+  /* Formattage du libellé de période pour les exports */
+  const getPeriodDisplayLabel = () => {
+    if (periode.mode === 'preset') {
+      const found = PRESET_OPTIONS.find(p => p.key === periode.preset);
+      if (found) return found.label;
+      return periode.preset;
+    }
+    if (rangeDates.dateDebut && rangeDates.dateFin) {
+      return `${new Date(rangeDates.dateDebut).toLocaleDateString('fr-FR')} au ${new Date(rangeDates.dateFin).toLocaleDateString('fr-FR')}`;
+    }
+    if (periode.startDate && periode.endDate) {
+      return `${new Date(periode.startDate).toLocaleDateString('fr-FR')} au ${new Date(periode.endDate).toLocaleDateString('fr-FR')}`;
+    }
+    return 'Période personnalisée';
+  };
+
+  /* Meilleur jour / pic-creux dérivés des données réelles */
   const meilleurJour = revenusParJour.length > 0
     ? revenusParJour.reduce((best, d) => (d.montant > best.montant ? d : best))
     : null;
@@ -320,11 +412,12 @@ export const GerantStats = () => {
       j.date_slot || 'N/A',
       j.statut || 'Terminée'
     ]);
-    exportCSV(`rapport_financier_gerant_${periode}_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
+    const periodSlug = periode.mode === 'preset' ? periode.preset : `${periode.startDate}_${periode.endDate}`;
+    exportCSV(`rapport_financier_gerant_${periodSlug}_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
   };
 
   const handleExportPDF = () => {
-    const periodLabel = PERIODES.find(p => p.key === periode)?.label || periode;
+    const periodLabel = getPeriodDisplayLabel();
     exportPDFReport({
       title: 'Rapport Financier & Statistiques Gérant',
       subtitle: `Terrain: ${terrainLabel} | Période: ${periodLabel}`,
@@ -339,7 +432,7 @@ export const GerantStats = () => {
         j.nom,
         j.terrain_nom || terrainLabel,
         (j.montant || 0).toLocaleString('fr-FR') + ' FCFA',
-        j.date_slot || 'Mois en cours',
+        j.date_slot || 'Période sélectionnée',
         j.statut || 'Confirmé'
       ]),
       summaryFooter: `Total Revenus Période (${periodLabel}) : ${kpi.revenus.toLocaleString('fr-FR')} FCFA`
@@ -396,15 +489,8 @@ export const GerantStats = () => {
             </div>
           )}
         </div>
-        {/* Période */}
-        <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
-          {PERIODES.map(p => (
-            <button key={p.key} onClick={() => changePeriode(p.key)}
-              className={`px-3 py-2 rounded-lg text-sm font-bold transition-all duration-300 min-h-[40px] ${periode === p.key ? 'bg-white text-primary-dark shadow-sm scale-105' : 'text-gray-500 hover:text-gray-700'}`}>
-              {p.label}
-            </button>
-          ))}
-        </div>
+        {/* Filtre Période Unifié */}
+        <PeriodSelector value={periode} onChange={changePeriode} />
       </div>
 
       <div key={animKey} className="px-5 lg:px-8 space-y-5 gs-fade-key">

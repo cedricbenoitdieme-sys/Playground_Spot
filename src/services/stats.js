@@ -120,7 +120,53 @@ export const fetchRecentReservations = async (limit = 10) => {
 };
 
 /**
- * Stats gérant : KPIs par terrain et période
+ * Statistiques gérant filtrées par période (RPC Postgres get_gerant_stats_period).
+ * Un seul appel RPC remplaçant l'agrégation côté client.
+ */
+export const fetchGerantStatsPeriod = async (gerantId, terrainId = null, period = { mode: 'preset', preset: '1m' }) => {
+  const pTerrainId = terrainId && terrainId !== 'all' ? terrainId : null;
+  const pPreset = period?.mode === 'preset' ? period.preset : (typeof period === 'string' ? (period === 'week' ? '1w' : period === 'quarter' ? '3m' : '1m') : null);
+  const pStartDate = period?.mode === 'custom' ? period.startDate : null;
+  const pEndDate = period?.mode === 'custom' ? period.endDate : null;
+
+  const { data, error } = await supabase.rpc('get_gerant_stats_period', {
+    p_terrain_id: pTerrainId,
+    p_preset: pPreset,
+    p_start_date: pStartDate,
+    p_end_date: pEndDate,
+  });
+
+  if (error) {
+    console.warn("Erreur RPC get_gerant_stats_period:", error.message);
+    throw handleServiceError(error, 'fetchGerantStatsPeriod');
+  }
+
+  return data;
+};
+
+/**
+ * Statistiques dashboard admin filtrées par période (RPC get_admin_dashboard_stats_period).
+ */
+export const fetchAdminDashboardStatsPeriod = async (period = { mode: 'preset', preset: '1m' }) => {
+  const pPreset = period?.mode === 'preset' ? period.preset : (typeof period === 'string' ? period : null);
+  const pStartDate = period?.mode === 'custom' ? period.startDate : null;
+  const pEndDate = period?.mode === 'custom' ? period.endDate : null;
+
+  const { data, error } = await supabase.rpc('get_admin_dashboard_stats_period', {
+    p_preset: pPreset,
+    p_start_date: pStartDate,
+    p_end_date: pEndDate,
+  });
+
+  if (error) {
+    console.warn("RPC get_admin_dashboard_stats_period non disponible:", error.message);
+    return null;
+  }
+  return data;
+};
+
+/**
+ * Stats gérant : KPIs par terrain et période (Legacy fallback)
  */
 export const fetchGerantKpis = async (gerantId, terrainId = null, periode = 'month') => {
   const now = new Date();
