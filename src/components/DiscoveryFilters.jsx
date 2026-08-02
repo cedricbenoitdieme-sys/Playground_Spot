@@ -4,20 +4,23 @@ import { IconSearch, IconAdjustmentsHorizontal, IconCurrentLocation, IconX } fro
 const FILTER_TOOLTIPS = {
   'Synthétique': 'Type de surface du terrain (gazon synthétique)',
   'Naturel': 'Terrain en gazon naturel',
-  'Béton': 'Terrain à surface bétonnée (futsal)',
-  '5v5': 'Format de match à 5 contre 5 (10 joueurs)',
-  '7v7': 'Format de match à 7 contre 7 (14 joueurs)',
-  '11v11': 'Format de match officiel à 11 contre 11',
-  'Éclairage': 'Terrain équipé pour jouer en soirée ou de nuit',
+  'Béton': 'Terrain à surface bétonnée',
+  '5v5': 'Format de match (5 joueurs par équipe)',
+  '7v7': 'Format de match (7 joueurs par équipe)',
+  '11v11': 'Format de match (11 joueurs par équipe)',
+  'Éclairage': 'Terrain équipé pour jouer en soirée/nuit',
   'Parking': 'Présence d\'un parking à proximité du terrain',
 };
 
 export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearchQuery, activeFilters, onToggleFilter, onNearby }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [pressingFilter, setPressingFilter] = useState(null);
   const filterContainerRef = useRef(null);
-  const timerRef = useRef(null);
+  const hoverTimerRef = useRef(null);
+  const longPressTimerRef = useRef(null);
+  const isLongPressRef = useRef(false);
 
-  // Tap outside to dismiss tooltip on mobile & desktop
+  // Fermer le tooltip en tapant n'importe où en dehors
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (filterContainerRef.current && !filterContainerRef.current.contains(e.target)) {
@@ -32,22 +35,48 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
     };
   }, []);
 
+  // ── Gestion du survol desktop (hover 200ms) ──
   const handleMouseEnter = (filter) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+    hoverTimerRef.current = setTimeout(() => {
       setActiveTooltip(filter);
-    }, 200);
+    }, 250);
   };
 
   const handleMouseLeave = (filter) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
+    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     setActiveTooltip(prev => (prev === filter ? null : prev));
   };
 
-  const handleChipClick = (filter) => {
+  // ── Gestion du tactile mobile (Appui long 3s) ──
+  const handleTouchStart = (filter) => {
+    isLongPressRef.current = false;
+    setPressingFilter(filter);
+
+    if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+
+    longPressTimerRef.current = setTimeout(() => {
+      isLongPressRef.current = true;
+      setActiveTooltip(filter);
+      setPressingFilter(null);
+    }, 3000);
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    setPressingFilter(null);
+  };
+
+  const handleClick = (filter) => {
+    // Si c'était un appui long de 3s, ne pas basculer l'état du filtre
+    if (isLongPressRef.current) {
+      isLongPressRef.current = false;
+      return;
+    }
     onToggleFilter(filter);
-    // Option A: Le clic/tap sélectionne le filtre ET affiche l'information contextuelle
-    setActiveTooltip(filter);
   };
 
   return (
@@ -97,7 +126,7 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
         </div>
       </div>
 
-      {/* Quick Filter Chips avec Tooltips contextuels d'information */}
+      {/* Quick Filter Chips avec Tooltips d'information contextuelle */}
       <div 
         ref={filterContainerRef}
         className="flex items-center gap-2 overflow-x-auto py-1.5 no-scrollbar relative"
@@ -105,6 +134,7 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
         {['Synthétique', 'Naturel', 'Béton', '5v5', '7v7', '11v11', 'Éclairage', 'Parking'].map((filter) => {
           const isSelected = activeFilters.includes(filter);
           const isTooltipOpen = activeTooltip === filter;
+          const isPressing = pressingFilter === filter;
           const tooltipText = FILTER_TOOLTIPS[filter];
 
           return (
@@ -116,20 +146,33 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
             >
               <button 
                 type="button"
-                onClick={() => handleChipClick(filter)}
-                className={`whitespace-nowrap px-4 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer ${
+                onClick={() => handleClick(filter)}
+                onTouchStart={() => handleTouchStart(filter)}
+                onTouchEnd={handleTouchEnd}
+                onTouchCancel={handleTouchEnd}
+                className={`whitespace-nowrap relative overflow-hidden px-4 py-1.5 rounded-full border text-xs font-semibold transition-all cursor-pointer select-none ${
                   isSelected 
                     ? 'bg-primary border-primary text-white shadow-md' 
                     : 'border-gray-100 text-gray-600 hover:border-primary/30 hover:text-primary hover:bg-primary/5'
                 }`}
               >
-                {filter}
+                {/* Feedback visuel lors de l'appui long (remplissage progressif 3s) */}
+                {isPressing && (
+                  <span 
+                    className="absolute inset-0 bg-primary/30 pointer-events-none rounded-full animate-pulse"
+                    style={{
+                      animationDuration: '3000ms',
+                    }}
+                  />
+                )}
+
+                <span className="relative z-10">{filter}</span>
               </button>
 
-              {/* Tooltip d'information contextuelle */}
+              {/* Box d'info Tooltip */}
               {isTooltipOpen && tooltipText && (
                 <div 
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-52 bg-[#0F2318] text-white p-2.5 rounded-xl shadow-2xl border border-white/10 text-[11px] font-medium leading-tight z-[60] animate-in fade-in zoom-in-95 duration-150 flex items-start justify-between gap-1.5 pointer-events-auto"
+                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-[#0F2318] text-white p-2.5 rounded-xl shadow-2xl border border-white/10 text-[11px] font-medium leading-tight z-[60] animate-in fade-in zoom-in-95 duration-150 flex items-start justify-between gap-2 pointer-events-auto"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <span>{tooltipText}</span>
@@ -140,7 +183,7 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
                       setActiveTooltip(null);
                     }}
                     className="text-white/50 hover:text-white p-0.5 rounded transition-colors shrink-0 cursor-pointer"
-                    title="Fermer l'information"
+                    title="Fermer"
                   >
                     <IconX size={13} />
                   </button>
