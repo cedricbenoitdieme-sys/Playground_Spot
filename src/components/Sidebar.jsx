@@ -41,6 +41,7 @@ export const Sidebar = ({ currentView, setView }) => {
   const getNavItems = () => {
     switch (currentUser.role) {
       case 'admin':
+      case 'super_admin':
         return [
           { id: 'landing', label: 'Site Vitrine', icon: IconHome },
           { id: 'dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
@@ -81,6 +82,21 @@ export const Sidebar = ({ currentView, setView }) => {
 
   const navItems = getNavItems();
 
+  // Détection dynamique de l'onglet actif (incluant les sous-vues)
+  const isItemActive = (itemId) => {
+    if (currentView === itemId) return true;
+    
+    // Vues filles de détails de réservations
+    if (itemId === 'reservations' && currentView === 'reservation-detail' && ['admin', 'super_admin'].includes(currentUser.role)) return true;
+    if (itemId === 'gerant-reservations' && currentView === 'reservation-detail' && currentUser.role === 'gerant') return true;
+    if (itemId === 'joueur-reservations' && currentView === 'reservation-detail' && currentUser.role === 'joueur') return true;
+    
+    // Vues filles de terrain
+    if (itemId === 'discovery' && ['terrain-detail', 'booking-flow'].includes(currentView)) return true;
+
+    return false;
+  };
+
   return (
     <aside className="hidden lg:flex flex-col w-64 bg-[#0F2318] h-screen fixed top-0 left-0 border-r border-white/5 z-40">
       {/* Logo & Switcher */}
@@ -107,24 +123,28 @@ export const Sidebar = ({ currentView, setView }) => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-2 space-y-2 sidebar-scroll overflow-y-auto">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => setView(item.id)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-left cursor-pointer ${
-              currentView === item.id 
-                ? 'bg-primary/10 text-white border-l-4 border-primary' 
-                : 'text-white/60 hover:bg-white/5 hover:text-white'
-            }`}
-          >
-            <item.icon 
-              size={22} 
-              className={currentView === item.id ? 'text-primary' : 'text-white/60 group-hover:text-white'} 
-            />
-            <span className="font-medium">{item.label}</span>
-          </button>
-        ))}
+      <nav className="flex-1 px-4 py-2 space-y-1.5 sidebar-scroll overflow-y-auto">
+        {navItems.map((item) => {
+          const active = isItemActive(item.id);
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => setView(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group text-left cursor-pointer border-l-4 ${
+                active 
+                  ? 'bg-primary/15 text-white border-primary font-bold shadow-xs' 
+                  : 'border-transparent text-white/60 hover:bg-white/5 hover:text-white font-medium'
+              }`}
+            >
+              <item.icon 
+                size={22} 
+                className={active ? 'text-primary' : 'text-white/60 group-hover:text-white'} 
+              />
+              <span className={active ? 'font-bold text-white' : 'font-medium'}>{item.label}</span>
+            </button>
+          );
+        })}
       </nav>
 
       {/* Profile Indicator */}

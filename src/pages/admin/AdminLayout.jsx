@@ -112,20 +112,23 @@ export const AdminLayout = ({ onExit }) => {
 
         {/* Navigation list */}
         <nav className="flex flex-col gap-1.5 flex-1 pt-4">
-          {navItems.map(item => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`h-11 px-3.5 rounded-xl text-xs font-bold uppercase tracking-wide flex items-center gap-3 transition-all active:scale-[0.98] cursor-pointer ${
-                activeTab === item.id
-                  ? 'bg-primary text-white shadow-md'
-                  : 'text-white/60 hover:text-white hover:bg-white/5'
-              }`}
-            >
-              <item.icon size={20} />
-              {item.label}
-            </button>
-          ))}
+          {navItems.map(item => {
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setActiveTab(item.id)}
+                className={`h-11 px-3.5 rounded-xl text-xs font-bold uppercase tracking-wide flex items-center gap-3 transition-all active:scale-[0.98] cursor-pointer border-l-4 ${
+                  isActive
+                    ? 'bg-primary/15 text-white border-primary shadow-xs font-black'
+                    : 'border-transparent text-white/60 hover:text-white hover:bg-white/5 font-bold'
+                }`}
+              >
+                <item.icon size={20} className={isActive ? 'text-primary' : 'text-white/60'} />
+                {item.label}
+              </button>
+            );
+          })}
         </nav>
 
         {/* Back to App */}

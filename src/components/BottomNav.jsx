@@ -32,6 +32,7 @@ export const BottomNav = ({ currentView, setView }) => {
   const getNavItems = () => {
     switch (currentUser.role) {
       case 'admin':
+      case 'super_admin':
         return [
           { id: 'dashboard', icon: IconLayoutDashboard, label: 'Dashboard' },
           { id: 'discovery', icon: IconBuildingStore, label: 'Terrains' },
@@ -73,6 +74,7 @@ export const BottomNav = ({ currentView, setView }) => {
           { id: 'gerant-parametres', label: 'Paramètres & Sécurité', sub: 'Informations du gérant, mot de passe & alertes', icon: IconSettings, color: 'bg-gray-100 text-gray-700' },
         ];
       case 'admin':
+      case 'super_admin':
         return [
           { id: 'dashboard', label: 'Super Admin Dashboard', sub: 'Statistiques globales du réseau Dakar', icon: IconLayoutDashboard, color: 'bg-primary/10 text-primary' },
           { id: 'discovery', label: 'Terrains & Homologation', sub: 'Consulter le réseau de terrains', icon: IconBuildingStore, color: 'bg-teal-50 text-teal-600' },
