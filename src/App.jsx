@@ -36,6 +36,9 @@ const PaymentSuccess = lazy(() => import('./pages/PaymentSuccess').then(m => ({ 
 const PaymentCancel = lazy(() => import('./pages/PaymentCancel').then(m => ({ default: m.PaymentCancel })));
 const ReservationSuccess = lazy(() => import('./pages/ReservationSuccess'));
 const Abonnement = lazy(() => import('./pages/Abonnement').then(m => ({ default: m.Abonnement })));
+const PaiementAttente = lazy(() => import('./pages/PaiementAttente').then(m => ({ default: m.PaiementAttente })));
+const PaiementAnnule = lazy(() => import('./pages/PaiementAnnule').then(m => ({ default: m.PaiementAnnule })));
+const ReservationFailed = lazy(() => import('./pages/ReservationFailed'));
 
 import { TrialBanner } from './components/TrialBanner';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -61,6 +64,10 @@ function App() {
     if (window.location.pathname === '/payment/success') return 'payment-success';
     if (window.location.pathname === '/payment/cancel') return 'payment-cancel';
     if (window.location.pathname === '/reservation/success') return 'reservation-success';
+    if (window.location.pathname === '/paiement/attente') return 'paiement-attente';
+    if (window.location.pathname === '/paiement/annule') return 'paiement-annule';
+    if (window.location.pathname === '/reservation/echec') return 'reservation-failed';
+    if (window.location.pathname.startsWith('/reservation/') && window.location.pathname.endsWith('/ticket')) return 'reservation-ticket';
     const urlParams = new URLSearchParams(window.location.search);
     const viewParam = urlParams.get('view');
     const validViews = [
@@ -68,7 +75,8 @@ function App() {
       'dashboard','reservations','gerants','utilisateurs','parametres','menu', 'telemetrie',
       'gerant-dashboard','gerant-terrain','gerant-planning','gerant-reservations','gerant-stats','gerant-parametres', 'gerant-tarifs', 'gerant-boost',
       'joueur-home','joueur-reservations','joueur-favoris','joueur-profile','tickets',
-      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan', 'payment-success', 'payment-cancel', 'reservation-success'
+      'discovery','terrain-detail','booking-flow','reservation-detail', 'scan', 'payment-success', 'payment-cancel', 'reservation-success',
+      'paiement-attente', 'paiement-annule', 'reservation-failed', 'reservation-ticket'
     ];
     if (viewParam && validViews.includes(viewParam)) return viewParam;
     return 'landing';
@@ -540,6 +548,19 @@ function App() {
       ) : view === 'reservation-success' ? (
         <ProtectedRoute allowedRoles={['joueur', 'admin']} onDenied={handleDenied}>
           <ReservationSuccess />
+        </ProtectedRoute>
+      ) : view === 'paiement-attente' ? (
+        <PaiementAttente />
+      ) : view === 'paiement-annule' ? (
+        <PaiementAnnule />
+      ) : view === 'reservation-failed' ? (
+        <ReservationFailed />
+      ) : view === 'reservation-ticket' ? (
+        <ProtectedRoute allowedRoles={['joueur', 'admin']} onDenied={handleDenied}>
+          <ReservationDetail 
+            reservation={selectedReservation} 
+            onBack={() => setView('joueur-reservations')} 
+          />
         </ProtectedRoute>
       ) : view === 'joueur-home' ? (
         <ProtectedRoute allowedRoles={['joueur']} onDenied={handleDenied}>

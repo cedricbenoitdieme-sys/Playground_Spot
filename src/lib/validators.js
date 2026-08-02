@@ -13,9 +13,9 @@ const MIN_PAYMENT_AMOUNT = 100;     // 100 FCFA min
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 // Format téléphone Sénégal : +221 7X XXX XX XX ou 7X XXX XX XX
-const SENEGAL_PHONE_REGEX = /^(?:\+221)?[[:space:]-]?7[0-9678][[:space:]-]?\d{3}[[:space:]-]?\d{2}[[:space:]-]?\d{2}$/;
+const SENEGAL_PHONE_REGEX = /^(?:\+221)?[[:space:]-]?7[0678][[:space:]-]?\d{3}[[:space:]-]?\d{2}[[:space:]-]?\d{2}$/;
 // Version simplifiée pour le JS
-const PHONE_REGEX = /^(\+221\s?)?7[0-9678]\s?\d{3}\s?\d{2}\s?\d{2}$/;
+const PHONE_REGEX = /^(\+221\s?)?7[0678]\s?\d{3}\s?\d{2}\s?\d{2}$/;
 
 const ALLOWED_ROLES = ['admin', 'super_admin', 'gerant', 'joueur'];
 
@@ -63,7 +63,7 @@ export const validatePhone = (tel) => {
   // Vérifier le pattern sénégalais
   if (!PHONE_REGEX.test(tel.trim())) {
     // Tenter avec le numéro nettoyé
-    const cleanedCheck = /^(\+221)?7[0-9678]\d{7}$/.test(cleaned);
+    const cleanedCheck = /^(\+221)?7[0678]\d{7}$/.test(cleaned);
     if (!cleanedCheck) {
       return { valid: false, error: 'Format invalide. Attendu : +221 7X XXX XX XX ou 7X XXX XX XX' };
     }

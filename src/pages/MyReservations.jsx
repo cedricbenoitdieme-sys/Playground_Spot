@@ -24,6 +24,10 @@ const getStatusColor = (status) => {
     case 'terminee': return 'bg-gray-100 text-gray-500 border-gray-200';
     case 'Annulée':
     case 'annulee': return 'bg-red-50 text-red-500 border-red-100';
+    case 'Expiré':
+    case 'expire': return 'bg-red-50 text-red-600 border-red-200';
+    case 'En attente':
+    case 'en_attente': return 'bg-amber-50 text-amber-700 border-amber-200';
     default: return 'bg-yellow-50 text-yellow-600 border-yellow-200';
   }
 };
@@ -174,10 +178,22 @@ export const MyReservations = ({ onSelect }) => {
 
               <div className="bg-gray-50 px-5 py-4 border-t border-gray-100 flex items-center justify-between group-hover:bg-primary transition-colors">
                 <span className="text-sm font-bold text-primary group-hover:text-white transition-colors">{res.amount}</span>
-                <div className="flex items-center gap-1 text-primary group-hover:text-white text-xs font-bold uppercase tracking-wider transition-colors">
-                  Détails
-                  <IconChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
-                </div>
+                {res.status === 'En attente' || res.statut === 'en_attente' ? (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.location.href = `/paiement/attente?resa=${res.id}`;
+                    }}
+                    className="px-3 py-1.5 bg-amber-500 text-white text-xs font-bold rounded-xl shadow-sm hover:bg-amber-600 transition-colors"
+                  >
+                    Payer maintenant →
+                  </button>
+                ) : (
+                  <div className="flex items-center gap-1 text-primary group-hover:text-white text-xs font-bold uppercase tracking-wider transition-colors">
+                    Détails
+                    <IconChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
+                  </div>
+                )}
               </div>
             </div>
           ))}

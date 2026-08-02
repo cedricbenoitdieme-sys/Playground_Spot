@@ -23,8 +23,10 @@ import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
 import { CustomAlertModal } from './CustomAlertModal';
 import { createReservation, createPaiement } from '../services/reservations';
+import { fetchCreneauxDisponibles } from '../services/stats';
 import waveLogo from '../assets/wave.png';
 import orangeMoneyLogo from '../assets/orange_money.png';
+import { ChoixPaiement } from './paiement/ChoixPaiement';
 import * as amplitude from '@amplitude/unified';
 
 const IconCaptainArmband = ({ size = 24, className = "" }) => (
@@ -93,6 +95,9 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
   const [duration, setDuration] = useState(1);
   const [players, setPlayers] = useState(10);
   const [selectedSlot, setSelectedSlot] = useState(null);
+  const [selectedCreneau, setSelectedCreneau] = useState(null);
+  const [creneaux, setCreneaux] = useState([]);
+  const [loadingCreneaux, setLoadingCreneaux] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState(null);
   const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const [showDownloadOptions, setShowDownloadOptions] = useState(false);
@@ -150,22 +155,40 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
     );
   }
 
+  // ── Chargement des créneaux disponibles réels depuis la base de données ──
+  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    const loadCreneaux = async () => {
+      if (!terrain?.id) return;
+      setLoadingCreneaux(true);
+      try {
+        const data = await fetchCreneauxDisponibles(terrain.id, selectedDate);
+        setCreneaux(data || []);
+      } catch (err) {
+        console.error('Erreur lors du chargement des créneaux:', err);
+        setCreneaux([]);
+      } finally {
+        setLoadingCreneaux(false);
+      }
+    };
+    loadCreneaux();
+  }, [terrain?.id, selectedDate]);
+
   // ── Règle Anti-Double Réservation : Récupération des créneaux occupés ──
   useEffect(() => {
     const fetchBookedSlots = async () => {
       if (!terrain?.id) return;
-      const today = new Date().toISOString().split('T')[0];
       try {
         const { data, error } = await supabase
           .from('reservations')
-          .select('heure_slot')
+          .select('heure_slot, creneau_id')
           .eq('terrain_id', terrain.id)
-          .eq('date_slot', today)
+          .eq('date_slot', selectedDate)
           .in('statut', ['en_attente', 'confirmee', 'terminee']);
           
         if (data && !error) {
-          // On extrait l'heure au format 'HH:mm'
-          const booked = data.map(r => r.heure_slot.slice(0, 5));
+          const booked = data.map(r => r.heure_slot?.slice(0, 5)).filter(Boolean);
           setBookedSlots(booked);
         }
       } catch (err) {
@@ -177,7 +200,6 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
     // ── Temps Réel : Notification de libération de créneau ──
     if (!terrain?.id) return;
-    const today = new Date().toISOString().split('T')[0];
 
     const channel = supabase
       .channel(`reservations_flow_${terrain.id}`)
@@ -190,16 +212,13 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
           filter: `terrain_id=eq.${terrain.id}`
         },
         (payload) => {
-          const isToday = payload.new?.date_slot === today || payload.old?.date_slot === today;
-          if (!isToday) return;
+          const isSelectedDate = payload.new?.date_slot === selectedDate || payload.old?.date_slot === selectedDate;
+          if (!isSelectedDate) return;
 
-          const oldStatus = payload.old?.statut;
-          const newStatus = payload.new?.statut;
           const timeSlot = (payload.new?.heure_slot || payload.old?.heure_slot)?.slice(0, 5);
-
           if (!timeSlot) return;
 
-          const isNowFree = newStatus === 'annulee' || payload.eventType === 'DELETE';
+          const isNowFree = payload.new?.statut === 'annulee' || payload.eventType === 'DELETE';
 
           if (isNowFree) {
             setBookedSlots(prev => prev.filter(t => t !== timeSlot));
@@ -210,7 +229,9 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
             } else {
               showToast(`💡 Le créneau de ${timeSlot} vient de se libérer !`);
             }
-          } else if (['en_attente', 'confirmee', 'terminee'].includes(newStatus)) {
+            // Recharger les créneaux disponibles
+            fetchCreneauxDisponibles(terrain.id, selectedDate).then(setCreneaux).catch(() => {});
+          } else if (['en_attente', 'confirmee', 'terminee'].includes(payload.new?.statut)) {
             setBookedSlots(prev => {
               if (!prev.includes(timeSlot)) {
                 return [...prev, timeSlot];
@@ -225,7 +246,7 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [terrain]);
+  }, [terrain?.id, selectedDate]);
 
   const nextStep = () => setStep(prev => prev + 1);
   const prevStep = () => setStep(prev => prev - 1);
@@ -488,44 +509,58 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
                 </div>
               </div>
               <div className="bg-white p-6 rounded-card shadow-subtle border border-black/5">
-                <h3 className="text-sm font-bold text-primary-dark uppercase tracking-wider mb-4">Créneaux</h3>
-                <div className="grid grid-cols-3 gap-2">
-                  {['08:00', '10:00', '12:00', '16:00', '18:00', '20:00', '21:00', '22:00', '23:00'].map(t => {
-                    const isBooked = bookedSlots.includes(t);
-                    return (
-                      <button 
-                        key={t} 
-                        onClick={() => {
-                          if (isBooked) {
-                            if (!wantedSlots.includes(t)) {
-                              setWantedSlots(prev => [...prev, t]);
-                              showToast(`🔔 Vous serez notifié si le créneau de ${t} se libère !`);
+                <h3 className="text-sm font-bold text-primary-dark uppercase tracking-wider mb-4">Créneaux Disponibles</h3>
+                {loadingCreneaux ? (
+                  <div className="flex items-center justify-center py-8 text-primary">
+                    <IconLoader2 className="animate-spin" size={24} />
+                  </div>
+                ) : creneaux.length === 0 ? (
+                  <div className="text-center py-8 text-gray-400 text-xs font-semibold">
+                    Aucun créneau disponible pour cette date.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {creneaux.map(c => {
+                      const t = c.heure_debut?.slice(0, 5);
+                      const isBooked = bookedSlots.includes(t);
+                      const isSelected = selectedCreneau?.id === c.id;
+
+                      return (
+                        <button 
+                          key={c.id} 
+                          onClick={() => {
+                            if (isBooked) {
+                              if (!wantedSlots.includes(t)) {
+                                setWantedSlots(prev => [...prev, t]);
+                                showToast(`🔔 Vous serez notifié si le créneau de ${t} se libère !`);
+                              } else {
+                                showToast(`🔔 Déjà abonné aux alertes pour le créneau de ${t}.`);
+                              }
                             } else {
-                              showToast(`🔔 Déjà abonné aux alertes pour le créneau de ${t}.`);
+                              setSelectedSlot(t);
+                              setSelectedCreneau(c);
                             }
-                          } else {
-                            setSelectedSlot(t);
-                          }
-                        }}
-                        className={`py-3 rounded-xl font-bold text-xs border-2 transition-all ${
-                          isBooked 
-                            ? 'bg-gray-100 border-gray-100 text-gray-400 opacity-50 cursor-pointer line-through' 
-                            : selectedSlot === t 
-                              ? 'bg-secondary border-secondary text-white shadow-lg' 
-                              : 'bg-white border-gray-100 text-gray-700 hover:border-secondary/30'
-                        }`}
-                      >
-                        {t}
-                      </button>
-                    );
-                  })}
-                </div>
+                          }}
+                          className={`py-3 rounded-xl font-bold text-xs border-2 transition-all ${
+                            isBooked 
+                              ? 'bg-gray-100 border-gray-100 text-gray-400 opacity-50 cursor-pointer line-through' 
+                              : isSelected
+                                ? 'bg-secondary border-secondary text-white shadow-lg' 
+                                : 'bg-white border-gray-100 text-gray-700 hover:border-secondary/30'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 
             <div className="flex items-center justify-between pt-4">
               <button onClick={onBack} className="text-gray-400 font-bold hover:text-gray-600 flex items-center gap-2"><IconChevronLeft size={20} /> Retour</button>
-              <button disabled={!selectedSlot} onClick={nextStep} className="btn-primary px-12 h-14 disabled:opacity-50">Suivant</button>
+              <button disabled={!selectedCreneau} onClick={nextStep} className="btn-primary px-12 h-14 disabled:opacity-50">Suivant</button>
             </div>
           </div>
         )}
@@ -538,10 +573,10 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
               </div>
               <div className="p-8 space-y-6">
                 <div className="grid grid-cols-2 gap-8 text-center">
-                  <DetailItem label="Terrain" value={terrain?.name} />
-                  <DetailItem label="Heure" value={selectedSlot} />
-                  <DetailItem label="Date" value="15 Mai 2026" />
-                  <DetailItem label="Total" value={`${totalPrice.toLocaleString()} FCFA`} />
+                  <DetailItem label="Terrain" value={terrain?.name || terrain?.nom} />
+                  <DetailItem label="Heure" value={`${selectedCreneau?.heure_debut?.slice(0, 5)} - ${selectedCreneau?.heure_fin?.slice(0, 5)}`} />
+                  <DetailItem label="Date" value={new Date(selectedDate).toLocaleDateString('fr-FR')} />
+                  <DetailItem label="Total" value={`${(selectedCreneau?.prix_override ?? totalPrice).toLocaleString('fr-FR')} FCFA`} />
                 </div>
               </div>
             </div>
@@ -554,95 +589,32 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
         {step === 3 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold text-primary-dark text-center mb-8">Mode de paiement</h2>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-xl mx-auto">
-              <PaymentCard 
-                name="Sur place" 
-                selected={paymentMethod === 'Sur place'} 
-                onClick={() => setPaymentMethod('Sur place')} 
-                icon={<IconShieldCheck size={32} className="text-primary" />} 
-              />
-              <PaymentCard 
-                name="Wave" 
-                disabled={true}
-                badge="Indisponible"
-                selected={false} 
-                onClick={() => {}} 
-                icon={<img src={waveLogo} alt="Wave Logo" className="w-full h-full object-cover grayscale opacity-50" />} 
-              />
-              <PaymentCard 
-                name="Orange Money" 
-                disabled={true}
-                badge="Indisponible"
-                selected={false} 
-                onClick={() => {}} 
-                icon={<img src={orangeMoneyLogo} alt="Orange Money Logo" className="w-full h-full object-cover grayscale opacity-50" />} 
-              />
-            </div>
-
-            <p className="text-xs text-gray-500 text-center max-w-sm mx-auto">
-              Le paiement en ligne (Wave / Orange Money) est temporairement indisponible. Le règlement s'effectue directement au terrain.
-            </p>
-
-            <div className="flex flex-col items-center gap-4 pt-6">
-              {!amountCheck.valid && (
-                <p className="text-red-500 text-xs font-bold text-center mb-2">{amountCheck.error}</p>
-              )}
-              <button 
-                disabled={!paymentMethod || isSubmitting} 
-                onClick={async () => {
-                  setIsSubmitting(true);
-                  try {
-                    const date_slot = new Date().toISOString().split('T')[0];
-                    const resObj = await createReservation({
-                      terrain_id: terrain?.id,
-                      terrain_nom: terrain?.name || 'Terrain',
-                      joueur_id: currentUser?.id,
-                      joueur_nom: currentUser?.user_metadata?.nom || currentUser?.email || currentUser?.nom || 'Joueur',
-                      date_slot,
-                      heure_slot: selectedSlot + ':00',
-                      montant: totalPrice,
-                      duree_heures: duration
-                    });
-                    
-                    if (resObj?.id) {
-                      await createPaiement({
-                        reservation_id: resObj.id,
-                        montant: totalPrice,
-                        mode: 'sur_place',
-                        numero_tel: currentUser?.user_metadata?.telephone || null
-                      });
-
-                      amplitude.track('Réservation Effectuée', {
-                        terrain: terrain?.name,
-                        montant: totalPrice,
-                        duree: duration,
-                        moyenPaiement: 'Sur place'
-                      });
-
-                      setVerifyToken(resObj.qr_token || resObj.id);
-                      setStep(4);
-                    }
-                  } catch (err) {
-                    console.error('Erreur création réservation:', err);
-                    showAlert("Erreur", "Impossible de valider votre réservation. Veuillez réessayer.", "error");
-                  } finally {
-                    setIsSubmitting(false);
-                  }
-                }} 
-                className="btn-primary w-full max-w-sm h-14 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
-              >
-                {isSubmitting ? (
-                  <>
-                    <IconLoader2 className="animate-spin" size={20} />
-                    <span>Création de la réservation...</span>
-                  </>
-                ) : (
-                  'Confirmer la réservation (Paiement sur place)'
-                )}
+            <h2 className="text-2xl font-bold text-primary-dark text-center mb-6">Paiement Sécurisé</h2>
+            <ChoixPaiement
+              creneau={{
+                id: selectedCreneau?.id,
+                date: selectedCreneau?.date || selectedDate,
+                heure_debut: selectedCreneau?.heure_debut,
+                heure_fin: selectedCreneau?.heure_fin,
+                prix_override: selectedCreneau?.prix_override ?? totalPrice
+              }}
+              terrain={{
+                id: terrain?.id,
+                nom: terrain?.name || terrain?.nom,
+                price: terrain?.price
+              }}
+              onRefreshPlanning={() => {
+                fetchCreneauxDisponibles(terrain?.id, selectedDate).then(setCreneaux).catch(() => {});
+                setStep(1);
+              }}
+              onPaymentInitiated={(res) => {
+                console.log('[BookingFlow] Paiement initialisé:', res);
+              }}
+            />
+            <div className="flex justify-center pt-2">
+              <button onClick={prevStep} className="font-bold text-gray-400 text-sm hover:text-gray-600">
+                ← Choisir un autre créneau
               </button>
-              <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
             </div>
           </div>
         )}
