@@ -21,7 +21,6 @@ import {
 import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
-import { PaymentFlow } from './PaymentFlow';
 import { CustomAlertModal } from './CustomAlertModal';
 import { createReservation, createPaiement } from '../services/reservations';
 import waveLogo from '../assets/wave.png';
@@ -57,20 +56,30 @@ const DetailItem = ({ label, value }) => (
   </div>
 );
 
-const PaymentCard = ({ name, selected, onClick, icon }) => (
+const PaymentCard = ({ name, selected, onClick, icon, disabled, badge }) => (
   <button 
+    disabled={disabled}
     onClick={onClick}
-    className={`relative p-6 rounded-card border-2 transition-all text-center group h-32 flex flex-col items-center justify-center gap-3 ${
-      selected ? 'border-primary bg-primary/5 shadow-md scale-105' : 'border-gray-100 bg-white hover:border-primary/20'
+    className={`relative p-6 rounded-card border-2 transition-all text-center group h-32 flex flex-col items-center justify-center gap-2 ${
+      disabled 
+        ? 'border-gray-100 bg-gray-50 opacity-60 cursor-not-allowed' 
+        : selected 
+          ? 'border-primary bg-primary/5 shadow-md scale-105' 
+          : 'border-gray-100 bg-white hover:border-primary/20 cursor-pointer'
     }`}
   >
-    <div className="w-12 h-12 rounded-2xl flex items-center justify-center overflow-hidden">
+    <div className="w-10 h-10 rounded-2xl flex items-center justify-center overflow-hidden">
       {icon}
     </div>
-    <span className={`font-bold transition-colors ${selected ? 'text-primary' : 'text-gray-500 group-hover:text-primary-dark'}`}>
+    <span className={`font-bold text-xs transition-colors ${disabled ? 'text-gray-400' : selected ? 'text-primary' : 'text-gray-500 group-hover:text-primary-dark'}`}>
       {name}
     </span>
-    {selected && (
+    {badge && (
+      <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200/60 leading-none">
+        {badge}
+      </span>
+    )}
+    {selected && !disabled && (
       <div className="absolute -top-3 -right-3 w-8 h-8 bg-primary rounded-full flex items-center justify-center text-white border-4 border-white">
         <IconCircleCheckFilled size={20} />
       </div>
@@ -545,22 +554,38 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
         {step === 3 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <h2 className="text-2xl font-bold text-primary-dark text-center mb-8">Paiement</h2>
-            <div className="grid grid-cols-2 gap-6 max-w-md mx-auto">
+            <h2 className="text-2xl font-bold text-primary-dark text-center mb-8">Mode de paiement</h2>
+            
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-xl mx-auto">
+              <PaymentCard 
+                name="Sur place" 
+                selected={paymentMethod === 'Sur place'} 
+                onClick={() => setPaymentMethod('Sur place')} 
+                icon={<IconShieldCheck size={32} className="text-primary" />} 
+              />
               <PaymentCard 
                 name="Wave" 
-                selected={paymentMethod === 'Wave'} 
-                onClick={() => setPaymentMethod('Wave')} 
-                icon={<img src={waveLogo} alt="Wave Logo" className="w-full h-full object-cover" />} 
+                disabled={true}
+                badge="Indisponible"
+                selected={false} 
+                onClick={() => {}} 
+                icon={<img src={waveLogo} alt="Wave Logo" className="w-full h-full object-cover grayscale opacity-50" />} 
               />
               <PaymentCard 
                 name="Orange Money" 
-                selected={paymentMethod === 'Orange Money'} 
-                onClick={() => setPaymentMethod('Orange Money')} 
-                icon={<img src={orangeMoneyLogo} alt="Orange Money Logo" className="w-full h-full object-cover" />} 
+                disabled={true}
+                badge="Indisponible"
+                selected={false} 
+                onClick={() => {}} 
+                icon={<img src={orangeMoneyLogo} alt="Orange Money Logo" className="w-full h-full object-cover grayscale opacity-50" />} 
               />
             </div>
-            <div className="flex flex-col items-center gap-4 pt-10">
+
+            <p className="text-xs text-gray-500 text-center max-w-sm mx-auto">
+              Le paiement en ligne (Wave / Orange Money) est temporairement indisponible. Le règlement s'effectue directement au terrain.
+            </p>
+
+            <div className="flex flex-col items-center gap-4 pt-6">
               {!amountCheck.valid && (
                 <p className="text-red-500 text-xs font-bold text-center mb-2">{amountCheck.error}</p>
               )}
@@ -580,13 +605,28 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
                       montant: totalPrice,
                       duree_heures: duration
                     });
+                    
                     if (resObj?.id) {
-                      setPendingReservationId(resObj.id);
+                      await createPaiement({
+                        reservation_id: resObj.id,
+                        montant: totalPrice,
+                        mode: 'sur_place',
+                        numero_tel: currentUser?.user_metadata?.telephone || null
+                      });
+
+                      amplitude.track('Réservation Effectuée', {
+                        terrain: terrain?.name,
+                        montant: totalPrice,
+                        duree: duration,
+                        moyenPaiement: 'Sur place'
+                      });
+
                       setVerifyToken(resObj.qr_token || resObj.id);
-                      setIsPaymentModalOpen(true);
+                      setStep(4);
                     }
                   } catch (err) {
                     console.error('Erreur création réservation:', err);
+                    showAlert("Erreur", "Impossible de valider votre réservation. Veuillez réessayer.", "error");
                   } finally {
                     setIsSubmitting(false);
                   }
@@ -599,24 +639,11 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
                     <span>Création de la réservation...</span>
                   </>
                 ) : (
-                  'Confirmer le paiement'
+                  'Confirmer la réservation (Paiement sur place)'
                 )}
               </button>
               <button onClick={prevStep} className="font-bold text-gray-400">Retour</button>
             </div>
-            <PaymentFlow
-              isOpen={isPaymentModalOpen}
-              onClose={() => setIsPaymentModalOpen(false)}
-              type_flux="reservation"
-              terrain_id={terrain?.id}
-              reservation_id={pendingReservationId}
-              amount={totalPrice}
-              title={`Réservation ${terrain?.name || ''}`}
-              onSuccess={() => {
-                setIsPaymentModalOpen(false);
-                setStep(4);
-              }}
-            />
           </div>
         )}
 
