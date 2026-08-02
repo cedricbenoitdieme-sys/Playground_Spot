@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { validateAmount } from '../lib/validators';
@@ -157,6 +158,25 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
   // ── Chargement des créneaux disponibles réels depuis la base de données ──
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().split('T')[0]);
+
+  const upcomingDates = useMemo(() => {
+    const list = [];
+    const today = new Date();
+    const dayNames = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+    const monthNames = ["janv.", "févr.", "mars", "avr.", "mai", "juin", "juil.", "août", "sept.", "oct.", "nov.", "déc."];
+
+    for (let i = 0; i < 14; i++) {
+      const d = new Date();
+      d.setDate(today.getDate() + i);
+      const isoDate = d.toISOString().split('T')[0];
+      let dayLabel = dayNames[d.getDay()];
+      if (i === 0) dayLabel = 'Auj.';
+      if (i === 1) dayLabel = 'Demain';
+      const dateLabel = `${d.getDate()} ${monthNames[d.getMonth()]}`;
+      list.push({ isoDate, dayLabel, dateLabel });
+    }
+    return list;
+  }, []);
 
   useEffect(() => {
     const loadCreneaux = async () => {
@@ -509,6 +529,40 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
                 </div>
               </div>
               <div className="bg-white p-6 rounded-card shadow-subtle border border-black/5">
+                {/* Date Selector Carousel */}
+                <div className="mb-5 space-y-2.5 border-b border-gray-100 pb-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-xs font-bold text-primary-dark uppercase tracking-wider flex items-center gap-2">
+                      <IconCalendar size={16} className="text-primary" />
+                      Date du match
+                    </h3>
+                    <input
+                      type="date"
+                      value={selectedDate}
+                      min={new Date().toISOString().split('T')[0]}
+                      onChange={(e) => setSelectedDate(e.target.value)}
+                      className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1 text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 ring-primary/20"
+                    />
+                  </div>
+                  <div className="flex gap-2 overflow-x-auto no-scrollbar py-1">
+                    {upcomingDates.map((d) => (
+                      <button
+                        key={d.isoDate}
+                        type="button"
+                        onClick={() => setSelectedDate(d.isoDate)}
+                        className={`flex flex-col items-center justify-center p-2 rounded-xl min-w-[64px] transition-all cursor-pointer shrink-0 ${
+                          selectedDate === d.isoDate
+                            ? 'bg-primary text-white shadow-md shadow-primary/20 font-bold scale-105'
+                            : 'bg-gray-50 border border-gray-200 text-gray-600 hover:bg-gray-100 font-semibold'
+                        }`}
+                      >
+                        <span className="text-[10px] uppercase tracking-wider opacity-80">{d.dayLabel}</span>
+                        <span className="text-xs font-black mt-0.5">{d.dateLabel}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <h3 className="text-sm font-bold text-primary-dark uppercase tracking-wider mb-4">Créneaux Disponibles</h3>
                 {loadingCreneaux ? (
                   <div className="flex items-center justify-center py-8 text-primary">

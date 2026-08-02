@@ -16,13 +16,30 @@ import {
   IconX,
   IconEdit,
   IconInfoCircle,
-  IconLoader2
+  IconLoader2,
+  IconSettings,
+  IconRefresh
 } from '@tabler/icons-react';
 
 const MONTH_NAMES = [
   "Janvier", "Février", "Mars", "Avril", "Mai", "Juin", 
   "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"
 ];
+
+const DAYS_ORDER = [
+  { num: 1, label: 'Lundi' },
+  { num: 2, label: 'Mardi' },
+  { num: 3, label: 'Mercredi' },
+  { num: 4, label: 'Jeudi' },
+  { num: 5, label: 'Vendredi' },
+  { num: 6, label: 'Samedi' },
+  { num: 0, label: 'Dimanche' },
+];
+
+const DAY_LABELS = {
+  1: 'Lundi', 2: 'Mardi', 3: 'Mercredi', 4: 'Jeudi', 5: 'Vendredi', 6: 'Samedi', 0: 'Dimanche'
+};
+
 
 export const GerantPlanning = () => {
   const { currentUser } = useUser();
@@ -64,6 +81,20 @@ export const GerantPlanning = () => {
   const [newSlotReason, setNewSlotReason] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
+  // Recurring Horaires state (terrain_horaires)
+  const [showRecurringModal, setShowRecurringModal] = useState(false);
+  const [loadingHoraires, setLoadingHoraires] = useState(false);
+  const [savingHoraires, setSavingHoraires] = useState(false);
+  const [horairesConfig, setHorairesConfig] = useState([
+    { jour_semaine: 1, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+    { jour_semaine: 2, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+    { jour_semaine: 3, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+    { jour_semaine: 4, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+    { jour_semaine: 5, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+    { jour_semaine: 6, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+    { jour_semaine: 0, heure_debut: '08:00', heure_fin: '22:00', intervalle_minutes: 60, prix_override: '', actif: true },
+  ]);
+
   // Bulk generation state
   const [isGenerating, setIsGenerating] = useState(false);
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
@@ -89,6 +120,107 @@ export const GerantPlanning = () => {
   const [bulkEndTime, setBulkEndTime] = useState('22:00');
   const [bulkDuration, setBulkDuration] = useState('1 hour');
   const [bulkPriceOverride, setBulkPriceOverride] = useState('');
+
+  // Fetch terrain_horaires config
+  const fetchTerrainHoraires = async () => {
+    if (!terrain?.id) return;
+    try {
+      setLoadingHoraires(true);
+      const { data, error } = await supabase
+        .from('terrain_horaires')
+        .select('*')
+        .eq('terrain_id', terrain.id)
+        .order('jour_semaine', { ascending: true });
+
+      if (error) throw error;
+      if (data && data.length > 0) {
+        setHorairesConfig(prev => {
+          const updated = [...prev];
+          data.forEach(h => {
+            const idx = updated.findIndex(item => item.jour_semaine === h.jour_semaine);
+            const itemObj = {
+              id: h.id,
+              jour_semaine: h.jour_semaine,
+              heure_debut: h.heure_debut ? h.heure_debut.slice(0, 5) : '08:00',
+              heure_fin: h.heure_fin ? h.heure_fin.slice(0, 5) : '22:00',
+              intervalle_minutes: h.intervalle_minutes || 60,
+              prix_override: h.prix_override !== null && h.prix_override !== undefined ? String(h.prix_override) : '',
+              actif: h.actif !== false,
+            };
+            if (idx >= 0) {
+              updated[idx] = itemObj;
+            } else {
+              updated.push(itemObj);
+            }
+          });
+          return updated;
+        });
+      }
+    } catch (err) {
+      console.error('Erreur chargement terrain_horaires:', err.message);
+    } finally {
+      setLoadingHoraires(false);
+    }
+  };
+
+  const updateHoraireDay = (dayNum, field, value) => {
+    setHorairesConfig(prev => {
+      return prev.map(h => h.jour_semaine === dayNum ? { ...h, [field]: value } : h);
+    });
+  };
+
+  const handleOpenRecurringModal = () => {
+    setShowRecurringModal(true);
+    fetchTerrainHoraires();
+  };
+
+  const handleSaveHoraires = async (e) => {
+    e.preventDefault();
+    if (!terrain?.id) return;
+
+    // Validation côté client
+    for (const h of horairesConfig) {
+      if (h.actif) {
+        if (h.heure_fin <= h.heure_debut) {
+          showAlert("Validation Horaires", `Pour ${DAY_LABELS[h.jour_semaine]}, l'heure de fin (${h.heure_fin}) doit être strictement supérieure à l'heure de début (${h.heure_debut}).`, "error");
+          return;
+        }
+        if (!h.intervalle_minutes || parseInt(h.intervalle_minutes) <= 0) {
+          showAlert("Validation Horaires", `Pour ${DAY_LABELS[h.jour_semaine]}, l'intervalle doit être supérieur à 0 minutes.`, "error");
+          return;
+        }
+      }
+    }
+
+    try {
+      setSavingHoraires(true);
+      const payload = horairesConfig.map(h => ({
+        jour_semaine: parseInt(h.jour_semaine),
+        heure_debut: h.heure_debut,
+        heure_fin: h.heure_fin,
+        intervalle_minutes: parseInt(h.intervalle_minutes || 60),
+        prix_override: h.prix_override ? parseInt(h.prix_override) : null,
+        actif: h.actif !== false
+      }));
+
+      const { data, error } = await supabase.rpc('set_terrain_horaires', {
+        p_terrain_id: terrain.id,
+        p_horaires: payload
+      });
+
+      if (error) throw error;
+
+      showAlert("Horaires Enregistrés", "Vos horaires récurrents ont été enregistrés avec succès. 45 jours de créneaux ont été automatiquement générés !", "success");
+      setShowRecurringModal(false);
+      fetchSlots();
+    } catch (err) {
+      console.error('Erreur sauvegarde horaires récurrents:', err);
+      showAlert("Erreur de sauvegarde", err.message || "Impossible de sauvegarder la configuration d'horaires.", "error");
+    } finally {
+      setSavingHoraires(false);
+    }
+  };
+
 
   // Fetch terrain owned by the logged-in gérant
   useEffect(() => {
@@ -412,6 +544,12 @@ export const GerantPlanning = () => {
             <p className="text-[10px] font-bold text-gray-500 mt-1">Personnalisez, bloquez ou générez en masse vos horaires de match</p>
           </div>
           <div className="flex flex-wrap gap-2 self-start sm:self-auto">
+            <button 
+              onClick={handleOpenRecurringModal}
+              className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer border border-emerald-600/30 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 transition-colors shadow-xs"
+            >
+              <IconSettings size={16} /> Horaires récurrents
+            </button>
             <button 
               onClick={() => setShowBulkGenerate(true)}
               className="px-4 py-2.5 rounded-xl text-xs font-bold flex items-center justify-center gap-2 cursor-pointer border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-colors"
@@ -780,6 +918,127 @@ export const GerantPlanning = () => {
             >
               {isGenerating ? <IconLoader2 className="animate-spin" size={18} /> : <IconCalendar size={18} />}
               Générer les créneaux
+            </button>
+          </form>
+        </div>
+      , document.body)}
+
+      {/* Modal - Config Horaires Récurrents */}
+      {showRecurringModal && createPortal(
+        <div className="fixed inset-0 z-[9999]">
+          <div className="fixed inset-0 bg-primary-dark/60 backdrop-blur-md transition-opacity" onClick={() => setShowRecurringModal(false)} />
+          <form onSubmit={handleSaveHoraires} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white w-full max-w-[calc(100vw-32px)] md:max-w-2xl mx-auto rounded-3xl shadow-2xl p-6 md:p-8 overflow-y-auto max-h-[90vh] no-scrollbar z-10">
+            <button type="button" onClick={() => setShowRecurringModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-primary-dark p-2 bg-gray-50 hover:bg-gray-100 rounded-full transition-all cursor-pointer">
+              <IconX size={20} />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6 pr-10">
+              <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center shrink-0">
+                <IconClock size={24} className="text-primary" />
+              </div>
+              <div>
+                <h3 className="text-xl font-display font-bold text-primary-dark">Horaires Récurrents du Terrain</h3>
+                <p className="text-xs text-gray-500 mt-0.5">Configuration hebdomadaire. 45 jours de créneaux seront automatiquement créés et maintenus.</p>
+              </div>
+            </div>
+
+            {loadingHoraires ? (
+              <div className="py-12 flex justify-center text-primary">
+                <IconLoader2 size={32} className="animate-spin" />
+              </div>
+            ) : (
+              <div className="space-y-4 max-h-[55vh] overflow-y-auto pr-1">
+                {DAYS_ORDER.map((dayInfo) => {
+                  const h = horairesConfig.find(item => item.jour_semaine === dayInfo.num) || {
+                    jour_semaine: dayInfo.num,
+                    heure_debut: '08:00',
+                    heure_fin: '22:00',
+                    intervalle_minutes: 60,
+                    prix_override: '',
+                    actif: true
+                  };
+
+                  return (
+                    <div key={dayInfo.num} className={`p-4 rounded-2xl border transition-all ${h.actif ? 'bg-white border-gray-200 shadow-xs' : 'bg-gray-50/70 border-gray-100 opacity-60'}`}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-3">
+                          <span className="font-bold text-sm text-primary-dark">{dayInfo.label}</span>
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${h.actif ? 'bg-emerald-50 text-emerald-600 border border-emerald-200/60' : 'bg-gray-200 text-gray-500'}`}>
+                            {h.actif ? 'Ouvert' : 'Fermé'}
+                          </span>
+                        </div>
+                        <label className="relative inline-flex items-center cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={h.actif !== false} 
+                            onChange={(e) => updateHoraireDay(dayInfo.num, 'actif', e.target.checked)} 
+                            className="sr-only peer" 
+                          />
+                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                        </label>
+                      </div>
+
+                      {h.actif !== false && (
+                        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Début</label>
+                            <input 
+                              type="time" 
+                              value={h.heure_debut || '08:00'} 
+                              onChange={(e) => updateHoraireDay(dayInfo.num, 'heure_debut', e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800" 
+                              required 
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Fin</label>
+                            <input 
+                              type="time" 
+                              value={h.heure_fin || '22:00'} 
+                              onChange={(e) => updateHoraireDay(dayInfo.num, 'heure_fin', e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800" 
+                              required 
+                            />
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Intervalle</label>
+                            <select
+                              value={h.intervalle_minutes || 60}
+                              onChange={(e) => updateHoraireDay(dayInfo.num, 'intervalle_minutes', parseInt(e.target.value))}
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800"
+                            >
+                              <option value={30}>30 min</option>
+                              <option value={45}>45 min</option>
+                              <option value={60}>1h (60 min)</option>
+                              <option value={90}>1h30 (90 min)</option>
+                              <option value={120}>2h (120 min)</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Prix FCFA (Optionnel)</label>
+                            <input 
+                              type="number" 
+                              value={h.prix_override || ''} 
+                              placeholder="Standard" 
+                              onChange={(e) => updateHoraireDay(dayInfo.num, 'prix_override', e.target.value)}
+                              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800" 
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <button 
+              type="submit" 
+              disabled={savingHoraires || loadingHoraires}
+              className="w-full btn-primary h-12 rounded-2xl font-bold mt-6 flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-primary/20 disabled:opacity-50"
+            >
+              {savingHoraires ? <IconLoader2 className="animate-spin" size={18} /> : <IconCheck size={18} />}
+              Enregistrer & Matérialiser 45 jours
             </button>
           </form>
         </div>

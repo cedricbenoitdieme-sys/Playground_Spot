@@ -129,7 +129,12 @@ export const createReservation = async ({
   });
 
   if (error) {
-    if (error.message?.includes("vient d'être réservé")) {
+    if (
+      error.message?.includes("vient d'être réservé") ||
+      error.message?.includes("chevauche") ||
+      error.code === '23P01' ||
+      error.code === '23505'
+    ) {
       throw new Error(error.message);
     }
     throw handleServiceError(error, 'createReservation');
