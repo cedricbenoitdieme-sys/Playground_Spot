@@ -68,11 +68,7 @@ export const GerantTarifs = ({ setView }) => {
 
   const handleCheckoutSuccess = (subData) => {
     setCheckoutModalOpen(false);
-    if (setView) {
-      setView('payment-success');
-    } else {
-      window.location.href = '/payment/success';
-    }
+    // Note: Redirection vers PaymentSuccess supprimée tant qu'aucune Edge Function de souscription n'est déployée.
   };
 
   // Rétention de chiffre d'affaires (Gain-framing pour la commission)

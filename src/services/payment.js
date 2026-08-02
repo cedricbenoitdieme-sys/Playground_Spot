@@ -68,3 +68,34 @@ export const formatFCFA = (montant) => {
   if (montant === null || montant === undefined || isNaN(montant)) return '0 FCFA';
   return `${new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 }).format(montant)} FCFA`;
 };
+
+/**
+ * Récupération de l'historique des versements (payouts) pour un gérant
+ */
+export const fetchGerantPayouts = async (gerantId) => {
+  if (!gerantId) return [];
+  try {
+    const { data, error } = await supabase
+      .from('gerant_payouts')
+      .select(`
+        *,
+        reservations (
+          terrain_nom,
+          joueur_nom,
+          montant
+        )
+      `)
+      .eq('gerant_id', gerantId)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.warn("Information versements non disponible:", error.message);
+      return [];
+    }
+    return data || [];
+  } catch (err) {
+    console.warn("Erreur fetchGerantPayouts:", err);
+    return [];
+  }
+};
+

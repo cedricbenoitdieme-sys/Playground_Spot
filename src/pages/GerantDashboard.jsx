@@ -23,6 +23,7 @@ import { updateReservationStatut } from '../services/reservations';
 import { exportCSV, exportPDFReport } from '../utils/exportReports';
 import { CustomAlertModal } from '../components/CustomAlertModal';
 import { QuotaLimitBanner } from '../components/QuotaLimitBanner';
+import { GerantVersementsSection } from '../components/GerantVersementsSection';
 
 
 export const GerantDashboard = ({ setView }) => {
@@ -468,7 +469,8 @@ export const GerantDashboard = ({ setView }) => {
         </div>
       </div>
 
-
+      {/* Section Versements & Revenus Net SenePay */}
+      <GerantVersementsSection gerantId={currentUser?.id} />
 
       {/* Analytics Modal */}
       {selectedStat !== null && currentDetail && createPortal(

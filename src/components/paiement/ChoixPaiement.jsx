@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useUser } from '../../context/UserContext';
 import { validatePhone } from '../../lib/validators';
 import { invokeCreatePayment, formatFCFA } from '../../services/payment';
+import { IS_PAIEMENT_RESERVATION_ACTIF } from '../../config/paymentConfig';
 import { QrOrangeMoney } from './QrOrangeMoney';
 import { 
   IconCircleCheckFilled, 
@@ -9,7 +10,8 @@ import {
   IconPhone, 
   IconAlertCircle,
   IconArrowRight,
-  IconShieldCheck
+  IconShieldCheck,
+  IconBrandWhatsapp
 } from '@tabler/icons-react';
 import waveLogo from '../../assets/wave.png';
 import omLogo from '../../assets/orange_money.png';
@@ -20,8 +22,10 @@ import omLogo from '../../assets/orange_money.png';
  * Contrat & Sécurité :
  * - Montant affiché à titre indicatif uniquement. Le client N'ENVOIE JAMAIS de montant au serveur.
  * - Saisie téléphone sénégalais (77, 78, 76, 70).
- * - Anti double-clic : bouton désactivé pendant le chargement et vérouillé ensuite.
+ * - Anti double-clic : bouton désactivé pendant le chargement et verrouillé ensuite.
  * - Redirection automatique ou affichage QR.
+ * - Feature Flag : VITE_PAIEMENT_RESERVATION_ACTIF
+ * - Fallback WhatsApp en cas d'erreur 502 (passerelle indisponible).
  */
 export const ChoixPaiement = ({ 
   creneau, 
@@ -36,6 +40,7 @@ export const ChoixPaiement = ({
   const [loading, setLoading] = useState(false);
   const [paymentLocked, setPaymentLocked] = useState(false);
   const [apiError, setApiError] = useState(null);
+  const [isGatewayError, setIsGatewayError] = useState(false);
   const [qrResponseData, setQrResponseData] = useState(null);
 
   // Pré-remplir depuis currentUser.tel s'il change
@@ -58,10 +63,21 @@ export const ChoixPaiement = ({
     setApiError(null);
   };
 
-  const isFormValid = Boolean(telephone && validatePhone(telephone).valid && !paymentLocked && !loading);
+  const isFormValid = Boolean(
+    IS_PAIEMENT_RESERVATION_ACTIF && 
+    telephone && 
+    validatePhone(telephone).valid && 
+    !paymentLocked && 
+    !loading
+  );
 
   const handleSubmitPaiement = async (e) => {
     if (e) e.preventDefault();
+
+    if (!IS_PAIEMENT_RESERVATION_ACTIF) {
+      setApiError("Le paiement en ligne des réservations est temporairement désactivé.");
+      return;
+    }
 
     const phoneCheck = validatePhone(telephone);
     if (!phoneCheck.valid) {
@@ -71,6 +87,7 @@ export const ChoixPaiement = ({
 
     setPhoneError(null);
     setApiError(null);
+    setIsGatewayError(false);
     setLoading(true);
     setPaymentLocked(true); // Verrouiller immédiatement pour éviter double-clic
 
@@ -108,8 +125,11 @@ export const ChoixPaiement = ({
       const code = err.code;
       const msg = err.error || 'Une erreur est survenue lors de l’initialisation du paiement.';
       
-      // Messages d'erreur explicites & rafraîchissement planning
-      if (code === 'creneau_deja_reserve') {
+      // Détection erreur 502 / passerelle
+      if (code === '502' || String(msg).includes('502') || String(msg).toLowerCase().includes('passerelle')) {
+        setIsGatewayError(true);
+        setApiError("La passerelle de paiement rencontre un souci technique (502). Vous pouvez réserver directement auprès de l'équipe sur WhatsApp.");
+      } else if (code === 'creneau_deja_reserve') {
         setApiError("Ce créneau vient d'être pris. Choisis-en un autre.");
         if (onRefreshPlanning) onRefreshPlanning();
       } else if (code === 'creneau_indisponible') {
@@ -174,11 +194,44 @@ export const ChoixPaiement = ({
         </div>
       </div>
 
-      {/* 2. Messages d'erreur API */}
+      {/* 2. Messages d'erreur API & Suspension / Fallback Passerelle 502 */}
+      {!IS_PAIEMENT_RESERVATION_ACTIF && (
+        <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl space-y-3 text-amber-800 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3">
+            <IconAlertCircle size={20} className="flex-shrink-0 mt-0.5 text-amber-600" />
+            <p className="text-xs font-bold leading-relaxed">
+              Le paiement mobile en ligne des réservations est actuellement en maintenance. Vous pouvez réserver votre créneau directement auprès de notre support.
+            </p>
+          </div>
+          <a
+            href="https://wa.me/221770000000?text=Bonjour,%20je%20souhaite%20r%C3%A9server%20un%20terrain"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+          >
+            <IconBrandWhatsapp size={18} />
+            <span>Réserver via WhatsApp</span>
+          </a>
+        </div>
+      )}
+
       {apiError && (
-        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start gap-3 text-red-700 animate-in fade-in duration-200">
-          <IconAlertCircle size={20} className="flex-shrink-0 mt-0.5" />
-          <p className="text-xs font-bold leading-relaxed">{apiError}</p>
+        <div className="p-4 bg-red-50 border border-red-200 rounded-2xl space-y-3 text-red-700 animate-in fade-in duration-200">
+          <div className="flex items-start gap-3">
+            <IconAlertCircle size={20} className="flex-shrink-0 mt-0.5" />
+            <p className="text-xs font-bold leading-relaxed">{apiError}</p>
+          </div>
+          {isGatewayError && (
+            <a
+              href="https://wa.me/221770000000?text=Bonjour,%20la%20passerelle%20de%20paiement%20rencontre%20un%20souci%20(502),%20je%20souhaite%20valider%20ma%20r%C3%A9servation"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+            >
+              <IconBrandWhatsapp size={18} />
+              <span>Contacter le support WhatsApp</span>
+            </a>
+          )}
         </div>
       )}
 

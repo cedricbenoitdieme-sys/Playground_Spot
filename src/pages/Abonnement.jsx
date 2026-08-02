@@ -13,6 +13,7 @@ import { useUser } from '../context/UserContext';
 import { fetchUserPlanAndLimits, fetchAllPlanLimits } from '../services/subscriptions';
 import { SubscriptionCheckoutModal } from '../components/SubscriptionCheckoutModal';
 import { signOut } from '../services/auth';
+import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
 
 export const Abonnement = ({ onSuccess, onLogout }) => {
   const { currentUser, setCurrentUser, setDisplayPlan } = useUser();
@@ -331,7 +332,11 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
       <div className="w-full max-w-7xl mx-auto pt-6 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-white/60">
         <div className="flex items-center gap-2">
           <IconShieldCheck size={18} className="text-primary" />
-          <span>Paiement en ligne temporairement indisponible · Support commercial disponible</span>
+          <span>
+            {IS_PAIEMENT_ABONNEMENT_ACTIF 
+              ? "Paiement en ligne sécurisé par UnitechPay" 
+              : "Paiement en ligne temporairement indisponible · Support commercial disponible"}
+          </span>
         </div>
         <a
           href="https://wa.me/221770000000"

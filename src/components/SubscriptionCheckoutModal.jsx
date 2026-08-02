@@ -1,5 +1,6 @@
 import React from 'react';
 import { IconAlertTriangle, IconX } from '@tabler/icons-react';
+import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
 
 export const SubscriptionCheckoutModal = ({ isOpen, onClose, plan }) => {
   if (!isOpen) return null;
@@ -18,9 +19,15 @@ export const SubscriptionCheckoutModal = ({ isOpen, onClose, plan }) => {
           <div className="w-14 h-14 rounded-2xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
             <IconAlertTriangle size={32} />
           </div>
-          <h3 className="text-xl font-bold font-display">Paiement en ligne indisponible</h3>
+          <h3 className="text-xl font-bold font-display">
+            {IS_PAIEMENT_ABONNEMENT_ACTIF ? `Souscription au plan ${plan?.nom || ''}` : 'Paiement en ligne indisponible'}
+          </h3>
           <p className="text-sm text-white/70 leading-relaxed">
-            Les souscriptions aux offres payantes ({plan?.nom || 'Pro/Starter'}) par Wave et Orange Money sont temporairement suspendues.
+            {IS_PAIEMENT_ABONNEMENT_ACTIF ? (
+              <>Paiement des souscriptions gérant activé.</>
+            ) : (
+              <>Les souscriptions aux offres payantes ({plan?.nom || 'Pro/Starter'}) par Wave et Orange Money sont temporairement suspendues.</>
+            )}
           </p>
         </div>
 

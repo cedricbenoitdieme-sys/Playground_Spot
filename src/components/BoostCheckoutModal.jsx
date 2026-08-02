@@ -1,5 +1,6 @@
 import React from 'react';
 import { IconAlertTriangle, IconX } from '@tabler/icons-react';
+import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
 
 export const BoostCheckoutModal = ({ isOpen, onClose }) => {
   if (!isOpen) return null;
@@ -20,7 +21,11 @@ export const BoostCheckoutModal = ({ isOpen, onClose }) => {
           </div>
           <h3 className="text-xl font-bold font-display">Paiement en ligne indisponible</h3>
           <p className="text-sm text-white/70 leading-relaxed">
-            L'achat de boosts de visibilité par paiement mobile (Wave / Orange Money) est temporairement suspendu.
+            {IS_PAIEMENT_ABONNEMENT_ACTIF ? (
+              <>Paiement des boosts de visibilité activé.</>
+            ) : (
+              <>L'achat de boosts de visibilité par paiement mobile (Wave / Orange Money) est temporairement suspendu.</>
+            )}
           </p>
         </div>
 
