@@ -1,3 +1,15 @@
+> **⚠️ Statut (2026-08-02) : entièrement fait, sauf un point.** Vérifié dans
+> le code actuel : `TerrainImage.jsx` + `getTerrainPrincipalPhotoUrl()` /
+> `getTerrainGalleryPhotoUrls()` (`services/terrains.js`) existent déjà,
+> `TerrainFormModal.jsx` ne write plus jamais d'URL signée dans `image_url`
+> (commentaire explicite ligne ~450), charge déjà les photos existantes en
+> mode édition via `getTerrainGalleryPhotoUrls` (~ligne 291), et
+> `TerrainDetail.jsx` utilise déjà `<TerrainImage>`. Les points 1, 2, 4 et 5
+> ci-dessous sont **obsolètes** (déjà appliqués). Il reste **un seul**
+> endroit non migré, découvert en diagnostiquant le bug réel "Drix
+> terrain" : voir `PROMPT_FIX_BOOKING_FLOW_TERRAIN_IMAGE.md` (court, à jour,
+> c'est le seul document à suivre maintenant pour ce sujet).
+
 # Prompt — Fix affichage photos terrain (PlaygroundSpot)
 
 ## Contexte
