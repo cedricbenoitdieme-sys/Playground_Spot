@@ -306,18 +306,27 @@ END $$;
 -- Nécessaire pour EXCLUDE USING gist sur une colonne UUID (WITH =).
 CREATE EXTENSION IF NOT EXISTS btree_gist;
 
--- ⚠️ ALTER TABLE avec colonne générée STORED = réécriture complète de la
--- table reservations (verrou ACCESS EXCLUSIVE le temps de l'opération).
--- À exécuter hors heures de pointe si le volume de données a grossi.
+-- Fonction IMMUTABLE nécessaire pour la colonne générée et la contrainte d'exclusion (évite ERROR 42P17)
+CREATE OR REPLACE FUNCTION public.reservation_plage(
+  p_date DATE,
+  p_heure TIME,
+  p_duree INT
+)
+RETURNS tsrange
+LANGUAGE sql
+IMMUTABLE
+PARALLEL SAFE
+AS $$
+  SELECT tsrange(
+    p_date + p_heure,
+    p_date + p_heure + (COALESCE(p_duree, 1) * INTERVAL '1 hour'),
+    '[)'
+  );
+$$;
+
 ALTER TABLE public.reservations
   ADD COLUMN IF NOT EXISTS plage tsrange
-  GENERATED ALWAYS AS (
-    tsrange(
-      date_slot + heure_slot,
-      (date_slot + heure_slot) + (duree_heures || ' hours')::INTERVAL,
-      '[)'
-    )
-  ) STORED;
+  GENERATED ALWAYS AS (public.reservation_plage(date_slot, heure_slot, duree_heures)) STORED;
 
 ALTER TABLE public.reservations
   DROP CONSTRAINT IF EXISTS no_overlapping_reservations;
