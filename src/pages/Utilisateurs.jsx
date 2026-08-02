@@ -7,6 +7,7 @@ import {
   IconLoader2
 } from '@tabler/icons-react';
 import { fetchJoueurs, updateProfileStatut, fetchProfileWithHistory } from '../services/profiles';
+import { niveau } from '../lib/loyalty';
 
 /* ── Helpers ── */
 const fmt = (n) => {
@@ -14,13 +15,6 @@ const fmt = (n) => {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(n % 1_000_000 === 0 ? 0 : 1) + 'M FCFA';
   if (n >= 1_000)     return (n / 1_000).toFixed(n % 1_000 === 0 ? 0 : 1) + 'K FCFA';
   return n > 0 ? n.toLocaleString('fr-FR') + ' FCFA' : '—';
-};
-const niveau = (r) => {
-  const count = r || 0;
-  return count >= 15 ? { label: 'VIP', color: 'text-amber-600 bg-amber-50 border-amber-200' }
-    : count >= 8  ? { label: 'Régulier', color: 'text-primary bg-primary/5 border-primary/20' }
-    : count >= 3  ? { label: 'Actif', color: 'text-blue-600 bg-blue-50 border-blue-200' }
-    : { label: 'Nouveau', color: 'text-gray-500 bg-gray-50 border-gray-200' };
 };
 
 const StatutBadge = ({ s }) => {
