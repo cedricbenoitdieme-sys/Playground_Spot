@@ -128,11 +128,11 @@ const RevenusChart = ({ data, terrainId }) => {
 
 /* ── Graphique créneaux ── */
 const CreneauChart = ({ data, onBarClick }) => {
-  const W = 560, H = 170, pad = { t: 28, r: 16, b: 36, l: 32 };
+  const W = 560, H = 180, pad = { t: 36, r: 16, b: 36, l: 32 };
 
   if (data.length === 0) {
     return (
-      <div className="h-[170px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
+      <div className="h-[180px] flex items-center justify-center text-sm text-gray-400 text-center px-4">
         Aucune réservation sur cette période.
       </div>
     );
@@ -151,7 +151,8 @@ const CreneauChart = ({ data, onBarClick }) => {
           const bh = toH(d.nb), by = H - pad.b - bh;
           const isHot = mv > 0 && (d.nb === mv || d.nb >= mv * 0.75);
           const showCount = d.nb >= mv * 0.6;
-          const flameY = showCount ? by - 24 : by - 16;
+          // Positionnement de la flamme nettement au-dessus du chiffre (aucun chevauchement)
+          const flameY = showCount ? by - 30 : by - 18;
 
           return (
             <g key={i} className="cursor-pointer group" onClick={() => onBarClick(d)}>
@@ -165,9 +166,9 @@ const CreneauChart = ({ data, onBarClick }) => {
                 {d.heure}
               </text>
               {isHot && (
-                <foreignObject x={bx(i)+bw/2-9} y={flameY} width="18" height="18" className="overflow-visible">
+                <foreignObject x={bx(i)+bw/2-8} y={flameY} width="16" height="16" className="overflow-visible">
                   <div className="flex items-center justify-center w-full h-full pointer-events-none">
-                    <IconFlame size={15} className="text-orange-500 animate-flame-pulse flex-shrink-0" />
+                    <IconFlame size={14} className="text-orange-500 animate-flame-pulse flex-shrink-0" />
                   </div>
                 </foreignObject>
               )}
@@ -568,9 +569,9 @@ export const GerantStats = () => {
               <p className="text-[11px] text-gray-500 mt-0.5">Cliquez sur une barre pour voir le détail</p>
             </div>
             {picCreneau && (
-              <span className="inline-flex items-center gap-1.5 text-[11px] bg-orange-50 text-orange-600 border border-orange-200/80 font-bold px-3 py-1 rounded-full shadow-xs">
+              <span className="inline-flex items-center gap-2 text-[11px] bg-orange-50 text-orange-600 border border-orange-200/80 font-bold px-3 py-1.5 rounded-full shadow-xs">
                 <IconFlame size={14} className="text-orange-500 animate-flame-pulse flex-shrink-0" />
-                <span>{picCreneau.heure}</span>
+                <span>Pic : {picCreneau.heure}</span>
               </span>
             )}
           </div>
