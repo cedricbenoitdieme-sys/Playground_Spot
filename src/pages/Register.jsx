@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { signUp, signInWithGoogle } from '../services/auth';
+import { supabase } from '../lib/supabase';
 import { withTimeout } from '../lib/errorHandler';
 import {
   IconBallFootball,
@@ -47,12 +48,15 @@ export const Register = ({ setView }) => {
   const [step, setStep] = useState(1); // step 1: rôle, step 2: infos
   const [role, setRole] = useState('joueur');
   const [form, setForm] = useState({ nom: '', email: '', password: '', confirmPassword: '', tel: '', quartier: '' });
+  const [quartierCustom, setQuartierCustom] = useState('');
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirmPwd, setShowConfirmPwd] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+
+  const isAutre = form.quartier === 'Autre';
 
   const handleChange = (e) => setForm(f => ({ ...f, [e.target.name]: e.target.value }));
 
@@ -73,6 +77,14 @@ export const Register = ({ setView }) => {
     e.preventDefault();
     setError(null);
 
+    const quartierFinal = isAutre ? quartierCustom.trim() : form.quartier;
+    if (!quartierFinal) {
+      return setError('Merci de préciser votre quartier.');
+    }
+    if (isAutre && quartierFinal.toLowerCase() === 'autre') {
+      return setError('Merci de saisir le nom réel de votre quartier.');
+    }
+
     if (form.password !== form.confirmPassword) {
       return setError('Les mots de passe ne correspondent pas.');
     }
@@ -88,9 +100,17 @@ export const Register = ({ setView }) => {
         password: form.password,
         nom: form.nom.trim(),
         role,
-        quartier: form.quartier,
+        quartier: quartierFinal,
         tel: form.tel.trim(),
       }), 10000);
+
+      const createdUserId = result?.user?.id || result?.session?.user?.id;
+      if (isAutre && createdUserId) {
+        await supabase
+          .from('profiles')
+          .update({ quartier_hors_liste: true })
+          .eq('id', createdUserId);
+      }
 
       // Si e-mail de confirmation requis (session est absente/nulle)
       if (!result?.session) {
@@ -358,6 +378,24 @@ export const Register = ({ setView }) => {
                   </div>
                 </div>
               </div>
+
+              {/* Champ quartier personnalisé si "Autre" est sélectionné */}
+              {isAutre && (
+                <div className="space-y-1 animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="block text-[10px] font-bold text-[#E8DCC8] uppercase tracking-widest pl-1">Nom de votre quartier</label>
+                  <div className="flex items-center gap-3 bg-[#0A1810]/60 border border-primary/40 rounded-xl px-4 py-3 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20 transition-all">
+                    <IconMapPin size={16} className="text-primary shrink-0" />
+                    <input
+                      type="text"
+                      placeholder="Saisissez votre quartier (ex: Fann, Sacré-Cœur...)"
+                      value={quartierCustom}
+                      onChange={(e) => setQuartierCustom(e.target.value)}
+                      required
+                      className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-500 w-full font-medium"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Mot de passe */}
               <div className="space-y-1">

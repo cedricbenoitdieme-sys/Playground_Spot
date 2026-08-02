@@ -68,6 +68,27 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
   return (
     <div className="flex-1 space-y-6 pb-28 overflow-y-auto overflow-x-hidden px-6 lg:px-8 py-6">
 
+      {/* Prompt "Complétez votre quartier" si quartier non renseigné */}
+      {currentUser && !currentUser.quartier && (
+        <div className="bg-amber-500/10 border border-amber-500/30 p-4 rounded-2xl flex flex-col sm:flex-row items-center justify-between gap-4 animate-in slide-in-from-top-2 duration-300">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-500 flex items-center justify-center shrink-0">
+              <IconMapPin size={22} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-300">Précisez votre quartier</p>
+              <p className="text-[11px] text-amber-600/90 dark:text-amber-400">Complétez votre profil pour découvrir en priorité les terrains les plus proches de chez vous.</p>
+            </div>
+          </div>
+          <button 
+            onClick={() => setView('joueur-profile')}
+            className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold text-xs rounded-xl transition-all whitespace-nowrap cursor-pointer shrink-0 shadow-sm"
+          >
+            Compléter mon quartier
+          </button>
+        </div>
+      )}
+
       {/* Welcome & Search Banner */}
       <div 
         className="relative bg-[#0F2318] text-white p-6 md:p-8 rounded-[2.5rem] overflow-hidden border border-white/5 shadow-2xl space-y-6"

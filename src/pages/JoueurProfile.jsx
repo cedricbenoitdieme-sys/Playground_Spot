@@ -17,6 +17,11 @@ import { supabase } from '../lib/supabase';
 import { formatAmountAbbreviated } from '../services/stats';
 import { getLoyaltyBadge } from '../lib/loyalty';
 
+const OFFICIAL_QUARTIERS = [
+  'Almadies', 'Plateau', 'Médina', 'Parcelles Assainies',
+  'Ouakam', 'Yoff', 'Mermoz', 'Guédiawaye', 'Pikine', 'Rufisque'
+];
+
 export const JoueurProfile = () => {
   const { currentUser, setCurrentUser } = useUser();
 
@@ -94,6 +99,9 @@ export const JoueurProfile = () => {
     e.preventDefault();
     if (!currentUser?.id) return;
 
+    const finalQuartier = profile.quartier.trim();
+    const isHorsListe = finalQuartier ? !OFFICIAL_QUARTIERS.includes(finalQuartier) : false;
+
     setSaving(true);
     try {
       const { data, error } = await supabase
@@ -101,7 +109,8 @@ export const JoueurProfile = () => {
         .update({
           nom: profile.nom.trim(),
           tel: profile.tel.trim(),
-          quartier: profile.quartier.trim(),
+          quartier: finalQuartier,
+          quartier_hors_liste: isHorsListe,
         })
         .eq('id', currentUser.id)
         .select()
