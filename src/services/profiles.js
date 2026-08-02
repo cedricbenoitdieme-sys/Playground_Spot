@@ -78,15 +78,55 @@ export const fetchGerants = async ({ currentUserId = null, currentUserRole = nul
     .select('*');
   if (statsErr) throw handleServiceError(statsErr, 'fetchGerants:v_gerant_terrains');
 
+  const { data: allTerrains } = await supabase
+    .from('terrains')
+    .select('id, gerant_id, rating, reviews_count');
+
+  const { data: resData } = await supabase
+    .from('reservations')
+    .select('terrain_id, montant, statut');
+
+  const terrainToGerant = {};
+  const terrainsByGerant = {};
+  (allTerrains || []).forEach(t => {
+    if (t.gerant_id) {
+      terrainToGerant[t.id] = t.gerant_id;
+      if (!terrainsByGerant[t.gerant_id]) terrainsByGerant[t.gerant_id] = [];
+      terrainsByGerant[t.gerant_id].push(t);
+    }
+  });
+
+  const revenusByGerant = {};
+  const reservationsByGerant = {};
+
+  (resData || []).forEach(r => {
+    const gerantId = terrainToGerant[r.terrain_id];
+    if (gerantId) {
+      reservationsByGerant[gerantId] = (reservationsByGerant[gerantId] || 0) + 1;
+      if (r.statut === 'confirmee' || r.statut === 'terminee') {
+        revenusByGerant[gerantId] = (revenusByGerant[gerantId] || 0) + (r.montant || 0);
+      }
+    }
+  });
+
   const statsByGerant = Object.fromEntries((terrainStats || []).map(s => [s.gerant_id, s]));
 
   return gerants.map(g => {
     const stats = statsByGerant[g.id];
+    const gTerrains = terrainsByGerant[g.id] || [];
+    const validRatings = gTerrains.filter(t => (t.rating || 0) > 0);
+    const avgNote = validRatings.length > 0
+      ? (validRatings.reduce((sum, t) => sum + Number(t.rating), 0) / validRatings.length).toFixed(1)
+      : null;
+
     return {
       ...maskSensitiveData(g, currentUserId, currentUserRole),
       initiales: getInitiales(g.nom),
       terrains: stats?.terrains || [],
       terrainCount: stats?.terrain_count || 0,
+      revenus: revenusByGerant[g.id] || 0,
+      reservations: reservationsByGerant[g.id] || 0,
+      note: avgNote ? Number(avgNote) : null,
     };
   });
 };

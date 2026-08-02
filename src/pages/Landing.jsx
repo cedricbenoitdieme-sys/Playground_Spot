@@ -941,7 +941,7 @@ export const Landing = ({ setView }) => {
                         <div className="flex items-center gap-1 bg-white/5 px-2 py-1 rounded-lg">
                           <IconStar size={14} className="text-[#E8DCC8] fill-[#E8DCC8]" />
                           <span className="text-xs font-bold text-[#E8DCC8]">
-                            {terrain.rating ? Number(terrain.rating).toFixed(1) : '5.0'}
+                            {terrain.rating ? Number(terrain.rating).toFixed(1) : '—'}
                           </span>
                         </div>
                       </div>
@@ -950,7 +950,7 @@ export const Landing = ({ setView }) => {
                       <div>
                         <p className="text-[10px] text-white/50 uppercase tracking-widest font-bold">Tarif horaire</p>
                         <p className="text-lg font-bold text-emerald-400">
-                          {Number(terrain.price || 15000).toLocaleString('fr-FR')} FCFA <span className="text-xs text-white/50 font-normal">/h</span>
+                          {terrain.price ? Number(terrain.price).toLocaleString('fr-FR') : '—'} FCFA <span className="text-xs text-white/50 font-normal">/h</span>
                         </p>
                       </div>
                       <button className="bg-primary text-white p-3 rounded-xl hover:bg-primary-dark transition-colors shadow-glow">

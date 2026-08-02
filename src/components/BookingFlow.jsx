@@ -277,8 +277,7 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
     
     setIsSubmitting(true);
     try {
-      // Pour la démo, on utilise la date d'aujourd'hui, mais en vrai on prendrait une date sélectionnée
-      const date_slot = new Date().toISOString().split('T')[0];
+      const date_slot = selectedDate || new Date().toISOString().split('T')[0];
       
       const result = await createReservation({
         terrain_id: terrain?.id,
@@ -386,15 +385,23 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
       doc.text(`Nom: ${terrain?.name}`, 10, 46);
       doc.text(`Lieu: ${terrain?.quartier}`, 10, 51);
       
+      const displayDate = selectedDate 
+        ? new Date(selectedDate.split('-')[0], selectedDate.split('-')[1] - 1, selectedDate.split('-')[2]).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+        : new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
       doc.setFont('helvetica', 'bold');
       doc.text('DÉTAILS DU MATCH', 10, 65);
       doc.setFont('helvetica', 'normal');
-      doc.text(`Date: 15 Mai 2026`, 10, 71);
+      doc.text(`Date: ${displayDate}`, 10, 71);
       doc.text(`Heure: ${selectedSlot}`, 10, 76);
       doc.text(`ID: ${resNumber}`, 10, 81);
       
       doc.save(`Recu-${resNumber}.pdf`);
     } else {
+      const displayDate = selectedDate 
+        ? new Date(selectedDate.split('-')[0], selectedDate.split('-')[1] - 1, selectedDate.split('-')[2]).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+        : new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       canvas.width = 400;
@@ -458,8 +465,7 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
 
       drawRow('Terrain', terrain?.name || 'Inconnu', 490);
       drawRow('Lieu', terrain?.quartier || 'Dakar', 530);
-      // Pour l'instant, c'est la date de démo dans ce composant
-      drawRow('Date', '15 Mai 2026', 570);
+      drawRow('Date', displayDate, 570);
       drawRow('Heure', selectedSlot || '--:--', 610);
 
       // Footer avec le code

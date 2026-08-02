@@ -14,6 +14,8 @@ import {
 import { fetchTopTerrains } from '../services/terrains';
 import { fetchReservations } from '../services/reservations';
 import { fetchFavorisSet, toggleFavori } from '../services/favoris';
+import { getRangClient } from '../lib/loyalty';
+import { supabase } from '../lib/supabase';
 import { formatAmountAbbreviated } from '../services/stats';
 import { useUser } from '../context/UserContext';
 import { JoueurHomeSkeleton } from '../components/Skeletons';
@@ -25,6 +27,8 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
   const [featuredTerrains, setFeaturedTerrains] = useState([]);
   const [nextMatch, setNextMatch] = useState(null);
   const [favorisSet, setFavorisSet] = useState(new Set());
+  const [playerRank, setPlayerRank] = useState(null);
+  const [activePlayersCount, setActivePlayersCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -44,6 +48,32 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
   useEffect(() => {
     if (!currentUser?.id) return;
     fetchFavorisSet(currentUser.id).then(setFavorisSet).catch(() => {});
+
+    const loadStats = async () => {
+      try {
+        const { data } = await supabase.rpc('get_joueur_profile_stats');
+        if (data?.rang) {
+          setPlayerRank(data.rang);
+        } else {
+          const { count } = await supabase.from('reservations').select('id', { count: 'exact', head: true }).eq('joueur_id', currentUser.id);
+          setPlayerRank(getRangClient(count || 0));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    const loadPlayerCount = async () => {
+      try {
+        const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'joueur');
+        setActivePlayersCount(count || 0);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+
+    loadStats();
+    loadPlayerCount();
   }, [currentUser?.id]);
 
   const handleToggleFav = async (e, terrainId) => {
@@ -121,12 +151,18 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
         <div className="absolute top-0 right-0 w-64 h-64 bg-primary/10 rounded-full blur-3xl pointer-events-none"></div>
         
         <div className="space-y-2">
-          <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full">Joueur VIP 🥇</span>
+          <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 border border-primary/20 px-3 py-1 rounded-full">
+            {playerRank ? `${playerRank.label} ${playerRank.emoji}` : 'Joueur ⚽'}
+          </span>
           <h2 className="text-2xl md:text-3xl font-display font-bold leading-tight">
             Trouve ton terrain <br />
             & réserve à Dakar
           </h2>
-          <p className="text-xs text-white/50">Rejoins plus de 5000 joueurs actifs sur la plateforme.</p>
+          <p className="text-xs text-white/50">
+            {activePlayersCount > 0 
+              ? `Rejoins les ${activePlayersCount} joueurs actifs sur la plateforme.`
+              : 'Rejoins la communauté des passionnés de football à Dakar.'}
+          </p>
         </div>
 
         {/* Search button redirecting to discovery */}
