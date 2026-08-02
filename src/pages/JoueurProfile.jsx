@@ -15,6 +15,7 @@ import {
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
 import { formatAmountAbbreviated } from '../services/stats';
+import { updateOwnProfile } from '../services/profiles';
 import { getLoyaltyBadge } from '../lib/loyalty';
 
 const OFFICIAL_QUARTIERS = [
@@ -104,19 +105,12 @@ export const JoueurProfile = () => {
 
     setSaving(true);
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .update({
-          nom: profile.nom.trim(),
-          tel: profile.tel.trim(),
-          quartier: finalQuartier,
-          quartier_hors_liste: isHorsListe,
-        })
-        .eq('id', currentUser.id)
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await updateOwnProfile(currentUser.id, {
+        nom: profile.nom.trim(),
+        tel: profile.tel.trim(),
+        quartier: finalQuartier,
+        quartier_hors_liste: isHorsListe,
+      });
 
       if (data && setCurrentUser) {
         setCurrentUser(prev => ({

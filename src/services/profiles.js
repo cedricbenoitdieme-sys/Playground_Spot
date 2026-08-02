@@ -128,6 +128,24 @@ export const fetchJoueurs = async ({ currentUserId = null, currentUserRole = nul
 };
 
 /**
+ * Mettre à jour son propre profil (nom, téléphone, quartier, etc.).
+ */
+export const updateOwnProfile = async (userId, updates) => {
+  const idCheck = validateUUID(userId);
+  if (!idCheck.valid) throw new Error(idCheck.error);
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId)
+    .select()
+    .single();
+
+  if (error) throw handleServiceError(error, 'updateOwnProfile');
+  return data;
+};
+
+/**
  * Mettre à jour le statut d'un profil (suspendre, activer, etc.).
  */
 export const updateProfileStatut = async (profileId, statut) => {
