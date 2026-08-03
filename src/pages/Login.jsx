@@ -226,7 +226,7 @@ export const Login = ({ setView }) => {
 
 
   return (
-    <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
+    <div className="min-h-[100dvh] bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
       
       {/* Decorative Floating Glowing Background Circles */}
       <div className="absolute top-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-primary/20 blur-[100px] pointer-events-none"></div>
@@ -274,6 +274,7 @@ export const Login = ({ setView }) => {
                 <input 
                   type="email" 
                   required
+                  autoComplete="username email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="nom@playgroundspot.com" 
@@ -290,6 +291,7 @@ export const Login = ({ setView }) => {
                 <input 
                   type={showPassword ? 'text' : 'password'} 
                   required
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••" 
@@ -454,6 +456,7 @@ export const Login = ({ setView }) => {
                     <input 
                       type="email" 
                       required
+                      autoComplete="email"
                       value={forgotEmail}
                       onChange={(e) => setForgotEmail(e.target.value)}
                       placeholder="votre.email@exemple.com" 
@@ -523,6 +526,7 @@ export const Login = ({ setView }) => {
                     <input 
                       type={showNewPassword ? 'text' : 'password'} 
                       required
+                      autoComplete="new-password"
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Nouveau mot de passe (min. 6 car.)" 
@@ -550,6 +554,7 @@ export const Login = ({ setView }) => {
                     <input 
                       type={showConfirmPassword ? 'text' : 'password'} 
                       required
+                      autoComplete="new-password"
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Confirmez le nouveau mot de passe" 

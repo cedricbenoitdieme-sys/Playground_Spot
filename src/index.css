@@ -9,6 +9,7 @@ html, body {
   min-height: 100vh;
   min-height: 100dvh;
   width: 100%;
+  overscroll-behavior-y: none;
 }
 
 #root {
@@ -28,6 +29,18 @@ html, body {
 
   h1, h2, h3, h4, h5, h6 {
     @apply font-display font-bold;
+  }
+
+  /* ── Prévention de l'Auto-Zoom iOS (Safari) ── */
+  /* iOS zoom automatiquement la page si la font-size d'un input est < 16px */
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  input[type="tel"],
+  input[type="password"],
+  textarea,
+  select {
+    font-size: 16px !important;
   }
 }
 

@@ -166,9 +166,12 @@ export const BottomNav = ({ currentView, setView }) => {
           ></div>
 
           {/* Tiroir Conteneur */}
-          <div className="relative bg-white w-full rounded-t-[2.5rem] p-6 pb-12 space-y-6 z-10 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[85vh] overflow-y-auto">
+          <div 
+            className="relative bg-white/95 backdrop-blur-xl w-full rounded-t-[2.5rem] p-6 pb-12 space-y-6 z-10 shadow-[0_-10px_40px_rgba(0,0,0,0.15)] animate-in slide-in-from-bottom-[100%] duration-400 ease-out max-h-[85vh] overflow-y-auto transform-gpu"
+            style={{ paddingBottom: 'max(3rem, env(safe-area-inset-bottom))' }}
+          >
             {/* Poignée de drag */}
-            <div className="w-12 h-1.5 bg-gray-200 rounded-full mx-auto -mt-2"></div>
+            <div className="w-12 h-1.5 bg-gray-300 rounded-full mx-auto -mt-2 opacity-60"></div>
 
             {/* En-tête Tiroir */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">

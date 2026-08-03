@@ -71,8 +71,13 @@ export const SubscriptionCheckoutModal = ({
 
   if (!IS_PAIEMENT_ABONNEMENT_ACTIF) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-[#0F2318] border border-white/10 text-white rounded-3xl max-w-md w-full p-6 relative shadow-2xl space-y-6">
+      <div className="fixed inset-0 z-[9999] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+        <div 
+          className="bg-[#0F2318] border-t sm:border border-white/10 text-white rounded-t-[2.5rem] sm:rounded-3xl max-w-md w-full p-6 relative shadow-[0_-10px_40px_rgba(0,0,0,0.3)] space-y-6 animate-in slide-in-from-bottom-[100%] sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-400 ease-out transform-gpu"
+          style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+        >
+          {/* Drag handle mobile */}
+          <div className="sm:hidden w-12 h-1.5 bg-white/20 rounded-full mx-auto -mt-2 mb-2"></div>
           <button
             onClick={onClose}
             className="absolute top-4 right-4 p-2 text-white/50 hover:text-white rounded-full bg-white/5 transition-colors cursor-pointer"
@@ -145,8 +150,13 @@ export const SubscriptionCheckoutModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#0F2318] border border-white/10 text-white rounded-3xl max-w-md w-full p-6 relative shadow-2xl space-y-5 overflow-y-auto max-h-[90vh]">
+    <div className="fixed inset-0 z-[9999] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <div 
+        className="bg-[#0F2318] border-t sm:border border-white/10 text-white rounded-t-[2.5rem] sm:rounded-3xl max-w-md w-full p-6 relative shadow-[0_-10px_40px_rgba(0,0,0,0.3)] space-y-5 overflow-y-auto max-h-[92vh] animate-in slide-in-from-bottom-[100%] sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-400 ease-out transform-gpu"
+        style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+      >
+        {/* Drag handle mobile */}
+        <div className="sm:hidden w-12 h-1.5 bg-white/20 rounded-full mx-auto -mt-2 mb-1 shrink-0"></div>
         
         {/* Header Modal */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
@@ -404,6 +414,7 @@ export const SubscriptionCheckoutModal = ({
               <div className="relative">
                 <input
                   type="tel"
+                  autoComplete="tel"
                   value={telephone}
                   onChange={handlePhoneChange}
                   placeholder={isOrangeMoney ? "77 000 00 00 (ex: 77 123 45 67)" : "77 000 00 00 (Optionnel pour Wave)"}

@@ -216,12 +216,14 @@ async function handleReservationPayment(
     }
 
     unitechData = await callUnitechPay(methode, unitechPayload);
-  } catch {
+  } catch (err) {
+    console.error(`create-payment[reservation/${methode}]: échec réseau UnitechPay`, err);
     await cancelReservation("Échec technique de l'appel au prestataire de paiement");
     return jsonResponse({ error: "Le prestataire de paiement est indisponible, réessayez." }, 502);
   }
 
   if (unitechData?.success !== true) {
+    console.error(`create-payment[reservation/${methode}]: refus UnitechPay`, JSON.stringify(unitechData));
     await cancelReservation("Refus du prestataire de paiement à l'initiation");
     return jsonResponse({ error: "Le paiement n'a pas pu être initié." }, 502);
   }
@@ -336,12 +338,14 @@ async function handleSubscriptionPayment(
       callback_success: `${SITE_URL}/paiement/succes`,
       callback_cancel: `${SITE_URL}/paiement/annule`,
     });
-  } catch {
+  } catch (err) {
+    console.error(`create-payment[subscription/${methode}]: échec réseau UnitechPay`, err);
     await cancelSubscription();
     return jsonResponse({ error: "Le prestataire de paiement est indisponible, réessayez." }, 502);
   }
 
   if (unitechData?.success !== true) {
+    console.error(`create-payment[subscription/${methode}]: refus UnitechPay`, JSON.stringify(unitechData));
     await cancelSubscription();
     return jsonResponse({ error: "Le paiement n'a pas pu être initié." }, 502);
   }
@@ -443,12 +447,14 @@ async function handleBoostPayment(
       callback_success: `${SITE_URL}/paiement/succes`,
       callback_cancel: `${SITE_URL}/paiement/annule`,
     });
-  } catch {
+  } catch (err) {
+    console.error(`create-payment[boost/${methode}]: échec réseau UnitechPay`, err);
     await cancelBoost();
     return jsonResponse({ error: "Le prestataire de paiement est indisponible, réessayez." }, 502);
   }
 
   if (unitechData?.success !== true) {
+    console.error(`create-payment[boost/${methode}]: refus UnitechPay`, JSON.stringify(unitechData));
     await cancelBoost();
     return jsonResponse({ error: "Le paiement n'a pas pu être initié." }, 502);
   }

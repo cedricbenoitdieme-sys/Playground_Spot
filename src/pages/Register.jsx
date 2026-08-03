@@ -133,7 +133,7 @@ export const Register = ({ setView }) => {
 
   if (success) {
     return (
-      <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
+      <div className="min-h-[100dvh] bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 relative overflow-hidden font-sans">
         <div className="absolute top-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[450px] h-[450px] rounded-full bg-primary/30 blur-[120px] pointer-events-none" />
 
@@ -165,7 +165,7 @@ export const Register = ({ setView }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden font-sans">
+    <div className="min-h-[100dvh] bg-[#0F2318] text-white flex flex-col justify-center items-center px-4 py-8 relative overflow-hidden font-sans">
 
       {/* Background glows */}
       <div className="absolute top-[-10%] left-[-10%] w-[350px] h-[350px] rounded-full bg-primary/20 blur-[100px] pointer-events-none" />
@@ -328,6 +328,7 @@ export const Register = ({ setView }) => {
                   <IconUser size={16} className="text-gray-400 shrink-0" />
                   <input
                     type="text" name="nom" required
+                    autoComplete="name"
                     value={form.nom} onChange={handleChange}
                     placeholder="Prénom Nom"
                     className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
@@ -342,6 +343,7 @@ export const Register = ({ setView }) => {
                   <IconMail size={16} className="text-gray-400 shrink-0" />
                   <input
                     type="email" name="email" required
+                    autoComplete="email"
                     value={form.email} onChange={handleChange}
                     placeholder="email@exemple.com"
                     className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
@@ -357,6 +359,7 @@ export const Register = ({ setView }) => {
                     <IconPhone size={14} className="text-gray-400 shrink-0" />
                     <input
                       type="tel" name="tel"
+                      autoComplete="tel"
                       value={form.tel} onChange={handleChange}
                       placeholder="+221 77..."
                       className="flex-1 bg-transparent border-none text-white focus:outline-none text-xs placeholder:text-gray-600 w-full"
@@ -404,6 +407,7 @@ export const Register = ({ setView }) => {
                   <IconLock size={16} className="text-gray-400 shrink-0" />
                   <input
                     type={showPwd ? 'text' : 'password'} name="password" required minLength={6}
+                    autoComplete="new-password"
                     value={form.password} onChange={handleChange}
                     placeholder="Min. 6 caractères"
                     className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
@@ -431,6 +435,7 @@ export const Register = ({ setView }) => {
                   <IconLock size={16} className="text-gray-400 shrink-0" />
                   <input
                     type={showConfirmPwd ? 'text' : 'password'} name="confirmPassword" required
+                    autoComplete="new-password"
                     value={form.confirmPassword} onChange={handleChange}
                     placeholder="••••••••"
                     className="flex-1 bg-transparent border-none text-white focus:outline-none text-sm placeholder:text-gray-600"
