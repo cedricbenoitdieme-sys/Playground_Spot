@@ -48,7 +48,7 @@ import { signOut } from './services/auth';
 import { fetchReservations } from './services/reservations';
 import { supabase } from './lib/supabase';
 
-import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball, IconScan, IconLoader2 } from '@tabler/icons-react';
+import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup, IconSettings, IconChevronRight, IconLogout, IconBallFootball, IconScan, IconLoader2, IconLayoutDashboard } from '@tabler/icons-react';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
 
@@ -449,6 +449,7 @@ function App() {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-widest px-1"
                 style={{ animation: 'slideUp 0.4s 0.05s cubic-bezier(.22,1,.36,1) both' }}>Navigation Administration</p>
               {[
+                { id: 'dashboard', label: 'Tableau de bord', sub: 'Terrains, abonnements, audit logs', icon: IconLayoutDashboard },
                 { id: 'telemetrie', label: 'Télémétrie', sub: 'Activité en temps réel', icon: IconTrendingUp },
                 { id: 'scan', label: 'Scanner un Ticket', sub: 'Validation QR Code joueur', icon: IconScan },
                 { id: 'gerants', label: 'Gérants', sub: 'CRUD, suspensions, approbation', icon: IconUsersGroup },
