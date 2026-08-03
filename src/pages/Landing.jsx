@@ -1087,11 +1087,11 @@ export const Landing = ({ setView }) => {
           <div>
             <h4 className="text-white font-bold mb-4 font-display">Paiements acceptés</h4>
             <div className="flex flex-wrap gap-3">
-              <div className="bg-white px-3 py-1.5 rounded-lg flex items-center justify-center h-9">
-                <img src={waveLogo} alt="Wave" className="h-5 w-auto object-contain" />
+              <div className="w-11 h-11 bg-white rounded-xl p-0.5 flex items-center justify-center overflow-hidden shadow-sm border border-white/10">
+                <img src={waveLogo} alt="Wave" className="w-full h-full object-cover rounded-lg" />
               </div>
-              <div className="bg-black px-3 py-1.5 rounded-lg flex items-center justify-center border border-white/10 h-9">
-                <img src={omLogo} alt="Orange Money" className="h-5 w-auto object-contain" />
+              <div className="w-11 h-11 bg-black rounded-xl p-0.5 flex items-center justify-center overflow-hidden shadow-sm border border-white/10">
+                <img src={omLogo} alt="Orange Money" className="w-full h-full object-cover rounded-lg" />
               </div>
             </div>
           </div>
