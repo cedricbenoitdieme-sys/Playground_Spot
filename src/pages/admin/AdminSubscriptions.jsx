@@ -123,7 +123,10 @@ export const AdminSubscriptions = () => {
               Commissions Totales : {formatFCFA(commissionSummary?.total_commission)}
             </h3>
             <p className="text-xs text-white/60">
-              Calculé sur le taux fixe de {commissionSummary?.taux_commission ?? 10}% appliqué au volume global.
+              Taux moyen effectif : {commissionSummary?.taux_moyen_effectif ?? 0}% (calculé par plan de chaque gérant, pas un taux fixe).
+              {commissionSummary?.nb_paiements_sans_commission > 0 && (
+                <> {commissionSummary.nb_paiements_sans_commission} paiement(s) de cette période n'ont pas de commission calculée (antérieurs au correctif).</>
+              )}
             </p>
           </div>
           <div className="p-3 bg-white/10 rounded-2xl border border-white/10 text-primary">
