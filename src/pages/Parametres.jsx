@@ -165,6 +165,15 @@ export const Parametres = ({ setView }) => {
     modeMainten: false,
   });
 
+  // Toast
+  const [toast, setToast] = useState(null);
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  // À propos
+  const [showCGU, setShowCGU] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showSupport, setShowSupport] = useState(false);
+
   // Chargement mode maintenance au montage
   useEffect(() => {
     const fetchMaintenance = async () => {
@@ -341,13 +350,7 @@ export const Parametres = ({ setView }) => {
     }
   };
 
-  const handleSavePlat = async (e) => {
-    e.preventDefault();
-    await handleUpdateSetting('commission_plateforme', platForm.commission);
-    setPlateforme(platForm);
-    setEditPlat(false);
-    showToast('Paramètres plateforme mis à jour ✓');
-  };
+
 
   return (
     <div className="flex-1 overflow-y-auto pb-28 lg:pb-12">
