@@ -217,7 +217,7 @@ export function usePaymentFlow() {
   }, [paymentId, paymentKind, checkDirectDbStatus, startMonitoring, clearSession, stopPolling]);
 
   /**
-   * Lancement du flux de paiement
+   * Lancement du flux de paiement (avec vérification et refresh préventif JWT)
    */
   const start = async (params) => {
     setError(null);
@@ -234,16 +234,29 @@ export function usePaymentFlow() {
     }
 
     try {
+      // ── 1. Vérification et rafraîchissement préventif de la session JWT ──
       const { data: sessionData } = await supabase.auth.getSession();
-      if (!sessionData?.session?.access_token) {
+      let session = sessionData?.session;
+
+      const nowSeconds = Math.floor(Date.now() / 1000);
+      const expiresAt = session?.expires_at || 0;
+      const isExpiredOrExpiringSoon = !session || !session.access_token || (expiresAt - nowSeconds < 60);
+
+      if (isExpiredOrExpiringSoon) {
+        const { data: refreshData, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshData?.session?.access_token) {
+          throw new Error('Votre session a expiré, veuillez vous reconnecter.');
+        }
+        session = refreshData.session;
+      }
+
+      if (!session?.access_token) {
         throw new Error('Vous devez être connecté pour initier une transaction.');
       }
 
-      // Nettoyage et formatage strict du numéro sénégalais pour le backend (chiffres uniquement)
-      const rawNum = params.customer_number ? params.customer_number.replace(/[\s\-().]/g, '') : '';
-      const customerNum = rawNum ? rawNum : undefined;
-
+      // ── 2. Construction du body d'appel Edge Function ──
       let body = {};
+      const customerNum = phoneCheck.sanitized || params.customer_number?.trim() || '';
 
       if (params.kind === 'subscription' || params.plan) {
         const period = params.billing_period || (params.cycle === 'annuel' ? 'annual' : 'monthly');
@@ -251,8 +264,8 @@ export function usePaymentFlow() {
           plan: params.plan,
           billing_period: period,
           payment_method: params.payment_method,
+          customer_number: customerNum,
         };
-        if (customerNum) body.customer_number = customerNum;
       } else if (params.kind === 'campaign' || params.terrain_id) {
         body = {
           payment_type: 'boost',
@@ -260,51 +273,58 @@ export function usePaymentFlow() {
           budget_fcfa: Number(params.budget_fcfa || params.budget),
           duree_jours: Number(params.duree_jours || params.duration_days),
           payment_method: params.payment_method,
+          customer_number: customerNum,
         };
-        if (customerNum) body.customer_number = customerNum;
       } else {
         body = {
           creneau_id: params.creneau_id,
           methode: params.payment_method,
-          telephone: customerNum || '',
+          telephone: customerNum,
         };
       }
 
+      // ── 3. Invocation de l'Edge Function create-payment ──
       const { data, error: invokeError } = await supabase.functions.invoke('create-payment', {
         body,
       });
 
-      // ── Extraction et dé-masquage complet de l'erreur serveur backend ──
-      if (invokeError || !data || data?.error) {
-        let serverMessage = null;
-        let serverStatus = null;
+      if (invokeError) {
+        const errMsg = String(invokeError.message || '').toLowerCase();
+        const errContext = String(invokeError.context || '').toLowerCase();
+        const status = invokeError.status;
 
-        try {
-          // Sur un statut non-2xx, supabase-js range la Response fetch dans error.context
-          const ctx = invokeError?.context;
-          if (ctx) {
-            serverStatus = ctx.status ?? null;
-            const resBody = await ctx.json();
-            serverMessage = resBody?.error || resBody?.message || null;
-          }
-        } catch (_) {
-          // Si le corps est déjà consommé ou illisible
+        if (
+          status === 401 ||
+          errMsg.includes('jwt') ||
+          errMsg.includes('unauthorized') ||
+          errMsg.includes('expired') ||
+          errContext.includes('jwt') ||
+          errContext.includes('unauthorized')
+        ) {
+          throw new Error('Votre session a expiré, veuillez vous reconnecter.');
         }
 
-        const finalError = serverMessage || data?.error || invokeError?.message || 'Le paiement n\'a pas pu être lancé.';
+        if (status === 403 || errMsg.includes('403')) {
+          throw new Error('Ce module nécessite un abonnement Starter ou supérieur.');
+        }
+        throw new Error(invokeError.message || 'Impossible d\'initialiser le paiement.');
+      }
 
-        console.error('create-payment HTTP status & error details:', {
-          status: serverStatus,
-          serverMessage,
-          invokeError,
-          data
-        });
+      if (data?.error) {
+        const errStr = String(data.error).toLowerCase();
+        if (
+          errStr.includes('jwt') ||
+          errStr.includes('unauthorized') ||
+          errStr.includes('expired') ||
+          errStr.includes('session')
+        ) {
+          throw new Error('Votre session a expiré, veuillez vous reconnecter.');
+        }
 
-        stopPolling();
-        clearSession();
-        setStatus('failed');
-        setError(finalError);
-        return { success: false, error: finalError, status: serverStatus };
+        if (errStr.includes('403') || errStr.includes('starter') || errStr.includes('plan')) {
+          throw new Error('Ce module nécessite un abonnement Starter ou supérieur.');
+        }
+        throw new Error(data.error);
       }
 
       const computedPlan = createRedirectPlan(data);
