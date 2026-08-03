@@ -4,6 +4,8 @@ import { CustomSelect } from '../components/CustomSelect';
 import { supabase } from '../lib/supabase';
 import { useUser } from '../context/UserContext';
 import { CustomAlertModal } from '../components/CustomAlertModal';
+import { CustomDatePicker } from '../components/CustomDatePicker';
+import { CustomTimePicker } from '../components/CustomTimePicker';
 import { 
   IconCalendar, 
   IconCheck, 
@@ -646,22 +648,18 @@ export const GerantPlanning = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Heure de début</label>
-                  <input 
-                    type="time" 
+                  <CustomTimePicker 
                     value={newSlotStart}
-                    onChange={(e) => setNewSlotStart(e.target.value)}
+                    onChange={(newTime) => setNewSlotStart(newTime)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                    required
                   />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Heure de fin</label>
-                  <input 
-                    type="time" 
+                  <CustomTimePicker 
                     value={newSlotEnd}
-                    onChange={(e) => setNewSlotEnd(e.target.value)}
+                    onChange={(newTime) => setNewSlotEnd(newTime)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                    required
                   />
                 </div>
               </div>
@@ -811,22 +809,20 @@ export const GerantPlanning = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Date de début</label>
-                  <input 
-                    type="date" 
+                  <CustomDatePicker 
                     value={bulkStartDate}
-                    onChange={(e) => setBulkStartDate(e.target.value)}
+                    max={bulkEndDate}
+                    onChange={(newDate) => setBulkStartDate(newDate)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                    required
                   />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Date de fin</label>
-                  <input 
-                    type="date" 
+                  <CustomDatePicker 
                     value={bulkEndDate}
-                    onChange={(e) => setBulkEndDate(e.target.value)}
+                    min={bulkStartDate}
+                    onChange={(newDate) => setBulkEndDate(newDate)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                    required
                   />
                 </div>
               </div>
@@ -862,22 +858,18 @@ export const GerantPlanning = () => {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Heure d'ouverture</label>
-                  <input 
-                    type="time" 
+                  <CustomTimePicker 
                     value={bulkStartTime}
-                    onChange={(e) => setBulkStartTime(e.target.value)}
+                    onChange={(newTime) => setBulkStartTime(newTime)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                    required
                   />
                 </div>
                 <div>
                   <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1.5 block">Heure de fermeture</label>
-                  <input 
-                    type="time" 
+                  <CustomTimePicker 
                     value={bulkEndTime}
-                    onChange={(e) => setBulkEndTime(e.target.value)}
+                    onChange={(newTime) => setBulkEndTime(newTime)}
                     className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 ring-primary/20"
-                    required
                   />
                 </div>
               </div>
@@ -982,22 +974,18 @@ export const GerantPlanning = () => {
                         <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 pt-1">
                           <div>
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Début</label>
-                            <input 
-                              type="time" 
+                            <CustomTimePicker 
                               value={h.heure_debut || '08:00'} 
-                              onChange={(e) => updateHoraireDay(dayInfo.num, 'heure_debut', e.target.value)}
+                              onChange={(newTime) => updateHoraireDay(dayInfo.num, 'heure_debut', newTime)}
                               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800" 
-                              required 
                             />
                           </div>
                           <div>
                             <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest block mb-1">Fin</label>
-                            <input 
-                              type="time" 
+                            <CustomTimePicker 
                               value={h.heure_fin || '22:00'} 
-                              onChange={(e) => updateHoraireDay(dayInfo.num, 'heure_fin', e.target.value)}
+                              onChange={(newTime) => updateHoraireDay(dayInfo.num, 'heure_fin', newTime)}
                               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-800" 
-                              required 
                             />
                           </div>
                           <div>

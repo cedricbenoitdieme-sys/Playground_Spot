@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { IconCalendar } from '@tabler/icons-react';
+import { CustomDatePicker } from './CustomDatePicker';
 
 export const PRESET_OPTIONS = [
   { key: '24h', label: '24h' },
@@ -78,20 +79,20 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
         <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-gray-200 shadow-sm animate-in fade-in duration-200">
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Du</span>
-            <input
-              type="date"
+            <CustomDatePicker
               value={startDate}
-              onChange={(e) => handleDateChange('startDate', e.target.value)}
+              max={endDate}
+              onChange={(newDate) => handleDateChange('startDate', newDate)}
               className="text-xs font-bold text-gray-800 bg-transparent border-none focus:outline-none cursor-pointer"
             />
           </div>
           <span className="text-gray-300 font-bold text-xs">—</span>
           <div className="flex items-center gap-1.5">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Au</span>
-            <input
-              type="date"
+            <CustomDatePicker
               value={endDate}
-              onChange={(e) => handleDateChange('endDate', e.target.value)}
+              min={startDate}
+              onChange={(newDate) => handleDateChange('endDate', newDate)}
               className="text-xs font-bold text-gray-800 bg-transparent border-none focus:outline-none cursor-pointer"
             />
           </div>

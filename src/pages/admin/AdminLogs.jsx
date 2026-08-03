@@ -9,6 +9,7 @@ import {
   IconSearch,
   IconFilter
 } from '@tabler/icons-react';
+import { CustomDatePicker } from '../../components/CustomDatePicker';
 
 export const AdminLogs = () => {
   const [items, setItems] = useState([]);
@@ -100,20 +101,22 @@ export const AdminLogs = () => {
         </div>
 
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <input
-            type="date"
+          <CustomDatePicker
             value={dateDebut}
-            onChange={(e) => { setDateDebut(e.target.value); setPage(1); }}
+            max={dateFin}
+            onChange={(newDate) => { setDateDebut(newDate); setPage(1); }}
             className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none"
             title="Date de début"
+            placeholder="Du..."
           />
           <span className="text-xs text-gray-400">à</span>
-          <input
-            type="date"
+          <CustomDatePicker
             value={dateFin}
-            onChange={(e) => { setDateFin(e.target.value); setPage(1); }}
+            min={dateDebut}
+            onChange={(newDate) => { setDateFin(newDate); setPage(1); }}
             className="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 focus:outline-none"
             title="Date de fin"
+            placeholder="Au..."
           />
         </div>
       </div>

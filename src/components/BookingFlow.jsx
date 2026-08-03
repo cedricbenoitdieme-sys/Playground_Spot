@@ -24,6 +24,7 @@ import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
 import { CustomAlertModal } from './CustomAlertModal';
 import { TerrainImage } from './TerrainImage';
+import { CustomDatePicker } from './CustomDatePicker';
 import { createReservation, createPaiement } from '../services/reservations';
 import { fetchCreneauxDisponibles } from '../services/stats';
 import waveLogo from '../assets/wave.png';
@@ -548,11 +549,10 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
                       <IconCalendar size={16} className="text-primary" />
                       Date du match
                     </h3>
-                    <input
-                      type="date"
+                    <CustomDatePicker
                       value={selectedDate}
                       min={new Date().toISOString().split('T')[0]}
-                      onChange={(e) => setSelectedDate(e.target.value)}
+                      onChange={(newDate) => setSelectedDate(newDate)}
                       className="bg-gray-50 border border-gray-200 rounded-xl px-2.5 py-1 text-xs font-bold text-gray-700 cursor-pointer focus:outline-none focus:ring-2 ring-primary/20"
                     />
                   </div>
