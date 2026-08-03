@@ -1,39 +1,17 @@
 /**
  * ═══════════════════════════════════════════════════════════
- * PlaygroundSpot — Module de Redirection de Paiement Multi-Plateforme
+ * PlaygroundSpot — Module de Redirection de Paiement Multi-Plateforme (Pure JS)
  * ═══════════════════════════════════════════════════════════
  * Détecte l'appareil (Desktop vs Mobile) et calcule la cible de redirection
  * optimale sans jamais provoquer d'écran blanc ni de redirection vers undefined.
  */
-
-export interface UnitechPaymentResponse {
-  payment_url?: string | null;
-  deep_links?: {
-    MAXIT?: string | null;
-    OM?: string | null;
-    WAVE?: string | null;
-  } | null;
-  qr_code?: string | null;
-  payment_id?: string | null;
-  paymentId?: string | null;
-  id?: string | null;
-  error?: string | null;
-}
-
-export interface RedirectPlan {
-  targetUrl: string | null;
-  fallbackUrl: string | null;
-  isMobile: boolean;
-  stayOnPage: boolean; // true si Desktop avec QR Code disponible
-  qrCode: string | null;
-}
 
 /**
  * Détection multi-critères fiable de l'appareil mobile.
  * Ne se base PAS uniquement sur le User-Agent (ex: iPadOS se déclare "Macintosh").
  * Combine `pointer: coarse`, `hover: none` et `maxTouchPoints`.
  */
-export function detectIsMobile(): boolean {
+export function detectIsMobile() {
   if (typeof window === 'undefined') return false;
 
   const isCoarse = window.matchMedia('(pointer: coarse)').matches;
@@ -47,7 +25,17 @@ export function detectIsMobile(): boolean {
 /**
  * Construit la stratégie de redirection en fonction de la réponse de l'API et de la plateforme.
  */
-export function createRedirectPlan(response: UnitechPaymentResponse): RedirectPlan {
+export function createRedirectPlan(response) {
+  if (!response) {
+    return {
+      targetUrl: null,
+      fallbackUrl: null,
+      isMobile: detectIsMobile(),
+      stayOnPage: false,
+      qrCode: null,
+    };
+  }
+
   const isMobile = detectIsMobile();
   const qrCode = response.qr_code || null;
   const paymentUrl = response.payment_url || null;
@@ -95,7 +83,7 @@ export function createRedirectPlan(response: UnitechPaymentResponse): RedirectPl
  * Exécute la redirection via window.location.href (JAMAIS window.open qui est bloqué par les mobiles).
  * Garantit qu'aucune navigation vers undefined n'a lieu.
  */
-export function executeRedirect(targetUrl: string | null): boolean {
+export function executeRedirect(targetUrl) {
   if (!targetUrl || typeof window === 'undefined') return false;
   window.location.href = targetUrl;
   return true;

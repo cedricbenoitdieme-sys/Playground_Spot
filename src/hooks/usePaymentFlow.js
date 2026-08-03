@@ -3,56 +3,23 @@ import { supabase } from '../lib/supabase';
 import { validatePhone } from '../lib/validators';
 import { 
   createRedirectPlan, 
-  executeRedirect, 
-  RedirectPlan, 
-  UnitechPaymentResponse 
+  executeRedirect 
 } from '../lib/paymentRedirect';
-
-export type PaymentFlowStatus = 
-  | 'idle' 
-  | 'creating' 
-  | 'redirecting' 
-  | 'waiting' 
-  | 'completed' 
-  | 'failed' 
-  | 'timeout';
-
-export interface PaymentParams {
-  kind: 'subscription' | 'campaign' | 'reservation';
-  plan?: string;                         // 'starter' | 'pro' | 'entreprise'
-  billing_period?: 'monthly' | 'annual'; // 'monthly' | 'annual' (obligatoire backend pour abonnement)
-  cycle?: 'mensuel' | 'annuel';
-  terrain_id?: string;
-  budget_fcfa?: number;                  // 2000-50000 par paliers de 500
-  budget?: number;                       // alias
-  duree_jours?: number;                  // 3 | 7 | 14 | 30
-  duration_days?: number;                // alias
-  creneau_id?: string;
-  payment_method: 'wave' | 'orange_money';
-  customer_number?: string;
-}
-
-export interface PaymentFlowSession {
-  paymentId: string;
-  kind: 'subscription' | 'campaign' | 'reservation';
-  plan: RedirectPlan;
-  timestamp: number;
-}
 
 const SESSION_STORAGE_KEY = 'playground_payment_flow_session';
 const POLLING_INTERVAL_MS = 3000; // 3 secondes
 const MAX_POLLING_DURATION_MS = 5 * 60 * 1000; // 5 minutes (300 000 ms)
 
 export function usePaymentFlow() {
-  const [status, setStatus] = useState<PaymentFlowStatus>('idle');
-  const [error, setError] = useState<string | null>(null);
-  const [plan, setPlan] = useState<RedirectPlan | null>(null);
-  const [paymentId, setPaymentId] = useState<string | null>(null);
-  const [paymentKind, setPaymentKind] = useState<'subscription' | 'campaign' | 'reservation'>('subscription');
+  const [status, setStatus] = useState('idle');
+  const [error, setError] = useState(null);
+  const [plan, setPlan] = useState(null);
+  const [paymentId, setPaymentId] = useState(null);
+  const [paymentKind, setPaymentKind] = useState('subscription');
 
-  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
-  const channelRef = useRef<any>(null);
-  const startTimeRef = useRef<number | null>(null);
+  const pollTimerRef = useRef(null);
+  const channelRef = useRef(null);
+  const startTimeRef = useRef(null);
 
   const stopPolling = useCallback(() => {
     if (pollTimerRef.current) {
@@ -76,7 +43,7 @@ export function usePaymentFlow() {
   /**
    * Vérification directe en base de données (pas de RPC inexistante)
    */
-  const checkDirectDbStatus = useCallback(async (targetId: string, kind: 'subscription' | 'campaign' | 'reservation') => {
+  const checkDirectDbStatus = useCallback(async (targetId, kind) => {
     if (!targetId) return;
 
     try {
@@ -127,7 +94,7 @@ export function usePaymentFlow() {
   /**
    * Démarre la vérification directe DB + abonnement Realtime
    */
-  const startMonitoring = useCallback((targetId: string, kind: 'subscription' | 'campaign' | 'reservation', customPlan?: RedirectPlan) => {
+  const startMonitoring = useCallback((targetId, kind = 'subscription', customPlan = null) => {
     if (!targetId) return;
 
     setPaymentId(targetId);
@@ -210,7 +177,7 @@ export function usePaymentFlow() {
     try {
       const savedRaw = sessionStorage.getItem(SESSION_STORAGE_KEY);
       if (savedRaw) {
-        const saved: PaymentFlowSession = JSON.parse(savedRaw);
+        const saved = JSON.parse(savedRaw);
         const elapsed = Date.now() - (saved.timestamp || 0);
 
         if (elapsed < MAX_POLLING_DURATION_MS && saved.paymentId) {
@@ -250,9 +217,9 @@ export function usePaymentFlow() {
   }, [paymentId, paymentKind, checkDirectDbStatus, startMonitoring, clearSession, stopPolling]);
 
   /**
-   * Lancement du flux de paiement (Contrats réels du backend create-payment/index.ts)
+   * Lancement du flux de paiement
    */
-  const start = async (params: PaymentParams) => {
+  const start = async (params) => {
     setError(null);
     setStatus('creating');
 
@@ -272,12 +239,10 @@ export function usePaymentFlow() {
         throw new Error('Vous devez être connecté pour initier une transaction.');
       }
 
-      // ── CONTRATS EXACTS DU BACKEND DISPATCHER (create-payment/index.ts) ──
-      let body: Record<string, any> = {};
+      let body = {};
       const customerNum = phoneCheck.sanitized || params.customer_number?.trim() || '';
 
       if (params.kind === 'subscription' || params.plan) {
-        // Contrat Abonnement : { plan, billing_period, payment_method, customer_number }
         const period = params.billing_period || (params.cycle === 'annuel' ? 'annual' : 'monthly');
         body = {
           plan: params.plan,
@@ -286,9 +251,8 @@ export function usePaymentFlow() {
           customer_number: customerNum,
         };
       } else if (params.kind === 'campaign' || params.terrain_id) {
-        // Contrat Boost : { payment_type: 'boost', terrain_id, budget_fcfa, duree_jours, payment_method, customer_number }
         body = {
-          payment_type: 'boost', // Impératif pour le dispatcher
+          payment_type: 'boost',
           terrain_id: params.terrain_id,
           budget_fcfa: Number(params.budget_fcfa || params.budget),
           duree_jours: Number(params.duree_jours || params.duration_days),
@@ -296,7 +260,6 @@ export function usePaymentFlow() {
           customer_number: customerNum,
         };
       } else {
-        // Contrat Réservation : { creneau_id, methode, telephone }
         body = {
           creneau_id: params.creneau_id,
           methode: params.payment_method,
@@ -322,16 +285,14 @@ export function usePaymentFlow() {
         throw new Error(data.error);
       }
 
-      const response: UnitechPaymentResponse = data;
-      const computedPlan = createRedirectPlan(response);
+      const computedPlan = createRedirectPlan(data);
       
-      // Extraction des clés réelles retournées par le backend
       const returnedPaymentId = 
-        (data as any).subscription_id || 
-        (data as any).boost_id || 
-        (data as any).reservation_id || 
-        response.payment_id || 
-        response.id;
+        data?.subscription_id || 
+        data?.boost_id || 
+        data?.reservation_id || 
+        data?.payment_id || 
+        data?.id;
 
       if (!returnedPaymentId && !computedPlan.targetUrl && !computedPlan.stayOnPage) {
         throw new Error('Aucune URL de paiement disponible et aucun identifiant retourné par le serveur.');
@@ -343,10 +304,9 @@ export function usePaymentFlow() {
         setPaymentKind(params.kind);
       }
 
-      // Sauvegarde dans la session
       if (returnedPaymentId) {
         try {
-          const sessionPayload: PaymentFlowSession = {
+          const sessionPayload = {
             paymentId: returnedPaymentId,
             kind: params.kind,
             plan: computedPlan,
@@ -361,7 +321,6 @@ export function usePaymentFlow() {
         } catch (_) {}
       }
 
-      // Cas Desktop avec QR Code : on reste sur la page sans redirection
       if (computedPlan.stayOnPage) {
         setStatus('waiting');
         if (returnedPaymentId) {
@@ -370,7 +329,6 @@ export function usePaymentFlow() {
         return { success: true, plan: computedPlan };
       }
 
-      // Cas Redirection (Mobile ou Web payment_url)
       if (computedPlan.targetUrl) {
         setStatus('redirecting');
         if (returnedPaymentId) {
@@ -380,14 +338,13 @@ export function usePaymentFlow() {
         return { success: true, plan: computedPlan };
       }
 
-      // Repli si pas de redirection immédiate
       setStatus('waiting');
       if (returnedPaymentId) {
         startMonitoring(returnedPaymentId, params.kind, computedPlan);
       }
 
       return { success: true, plan: computedPlan };
-    } catch (err: any) {
+    } catch (err) {
       stopPolling();
       clearSession();
       setStatus('failed');
@@ -418,6 +375,6 @@ export function usePaymentFlow() {
     start,
     reset,
     startMonitoring,
-    startPolling: (id: string, kind: 'subscription' | 'campaign' | 'reservation' = 'subscription') => startMonitoring(id, kind),
+    startPolling: (id, kind = 'subscription') => startMonitoring(id, kind),
   };
 }
