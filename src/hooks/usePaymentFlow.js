@@ -217,7 +217,7 @@ export function usePaymentFlow() {
   }, [paymentId, paymentKind, checkDirectDbStatus, startMonitoring, clearSession, stopPolling]);
 
   /**
-   * Lancement du flux de paiement (avec vérification et refresh préventif JWT)
+   * Lancement du flux de paiement (avec rafraîchissement préventif JWT & extraction du vrai message d'erreur Edge Function)
    */
   const start = async (params) => {
     setError(null);
@@ -288,26 +288,45 @@ export function usePaymentFlow() {
         body,
       });
 
+      // ── 4. Traitement des erreurs avec extraction du VRAI corps JSON (invokeError.context) ──
       if (invokeError) {
-        const errMsg = String(invokeError.message || '').toLowerCase();
-        const errContext = String(invokeError.context || '').toLowerCase();
-        const status = invokeError.status;
+        let serverMessage = null;
+        try {
+          if (invokeError.context && typeof invokeError.context.json === 'function') {
+            const errBody = await invokeError.context.json();
+            serverMessage = errBody?.error || errBody?.message || null;
+          } else if (typeof invokeError.context === 'string') {
+            try {
+              const errBody = JSON.parse(invokeError.context);
+              serverMessage = errBody?.error || errBody?.message || null;
+            } catch (_) {
+              serverMessage = invokeError.context;
+            }
+          }
+        } catch (_) {
+          // Ignorer si le corps n'est pas du JSON
+        }
 
+        const status = invokeError.status;
+        const combinedMsg = (serverMessage || invokeError.message || '').toLowerCase();
+
+        // A. Token expiré / non autorisé (401)
         if (
           status === 401 ||
-          errMsg.includes('jwt') ||
-          errMsg.includes('unauthorized') ||
-          errMsg.includes('expired') ||
-          errContext.includes('jwt') ||
-          errContext.includes('unauthorized')
+          combinedMsg.includes('jwt') ||
+          combinedMsg.includes('unauthorized') ||
+          combinedMsg.includes('expired')
         ) {
           throw new Error('Votre session a expiré, veuillez vous reconnecter.');
         }
 
-        if (status === 403 || errMsg.includes('403')) {
-          throw new Error('Ce module nécessite un abonnement Starter ou supérieur.');
+        // B. Droits insuffisants (403)
+        if (status === 403 || combinedMsg.includes('403') || combinedMsg.includes('starter') || combinedMsg.includes('plan')) {
+          throw new Error(serverMessage || 'Ce module nécessite un abonnement Starter ou supérieur.');
         }
-        throw new Error(invokeError.message || 'Impossible d\'initialiser le paiement.');
+
+        // C. Vrai message d'erreur serveur (ex: Rate limit 429 "Trop de tentatives...", "Boost déjà actif", etc.)
+        throw new Error(serverMessage || invokeError.message || 'Impossible d\'initialiser le paiement.');
       }
 
       if (data?.error) {
