@@ -245,12 +245,12 @@ export const GerantTarifs = ({ setView }) => {
                   )}
 
                   {/* Title & Description */}
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-2 flex-wrap">
                     <h3 className={`text-xl font-bold font-display ${isEntreprise ? 'text-amber-300' : 'text-white'}`}>
                       {plan.nom || configObj.nom}
                     </h3>
                     {isCurrent && (
-                      <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                      <span className="text-[10px] uppercase font-bold px-2.5 py-1 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 whitespace-nowrap shrink-0">
                         Plan Actuel
                       </span>
                     )}
