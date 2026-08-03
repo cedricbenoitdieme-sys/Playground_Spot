@@ -5,7 +5,7 @@ import {
   IconLayoutDashboard, 
   IconLoader2, 
   IconAlertTriangle, 
-  IconBrandWhatsapp, 
+  IconMail, 
   IconRefresh 
 } from '@tabler/icons-react';
 import { usePaymentFlow } from '../hooks/usePaymentFlow';
@@ -113,13 +113,12 @@ export const PaymentSuccess = ({ setView }) => {
 
             <div className="flex flex-col gap-2 pt-2">
               <a
-                href="https://wa.me/221770000000?text=Bonjour,%20mon%20paiement%20n'est%20pas%20confirm%C3%A9"
-                target="_blank"
+                href="mailto:drixoftm@gmail.com?subject=Paiement%20non%20confirm%C3%A9"
                 rel="noopener noreferrer"
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
               >
-                <IconBrandWhatsapp size={16} />
-                <span>Contacter le Support WhatsApp</span>
+                <IconMail size={16} />
+                <span>Contacter le support par email</span>
               </a>
               <button
                 onClick={reset}

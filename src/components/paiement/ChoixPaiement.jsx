@@ -11,7 +11,7 @@ import {
   IconAlertCircle,
   IconArrowRight,
   IconShieldCheck,
-  IconBrandWhatsapp
+  IconMail
 } from '@tabler/icons-react';
 import waveLogo from '../../assets/wave.png';
 import omLogo from '../../assets/orange_money.png';
@@ -204,13 +204,12 @@ export const ChoixPaiement = ({
             </p>
           </div>
           <a
-            href="https://wa.me/221770000000?text=Bonjour,%20je%20souhaite%20r%C3%A9server%20un%20terrain"
-            target="_blank"
+            href="mailto:drixoftm@gmail.com?subject=Aide%20r%C3%A9servation%20terrain"
             rel="noopener noreferrer"
-            className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+            className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
           >
-            <IconBrandWhatsapp size={18} />
-            <span>Réserver via WhatsApp</span>
+            <IconMail size={18} />
+            <span>Réserver par email</span>
           </a>
         </div>
       )}
@@ -223,13 +222,12 @@ export const ChoixPaiement = ({
           </div>
           {isGatewayError && (
             <a
-              href="https://wa.me/221770000000?text=Bonjour,%20la%20passerelle%20de%20paiement%20rencontre%20un%20souci%20(502),%20je%20souhaite%20valider%20ma%20r%C3%A9servation"
-              target="_blank"
+              href="mailto:drixoftm@gmail.com?subject=Souci%20passerelle%20de%20paiement%20(502)"
               rel="noopener noreferrer"
-              className="w-full py-3 bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
+              className="w-full py-3 bg-primary hover:bg-primary-hover text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 shadow-sm transition-colors"
             >
-              <IconBrandWhatsapp size={18} />
-              <span>Contacter le support WhatsApp</span>
+              <IconMail size={18} />
+              <span>Contacter le support par email</span>
             </a>
           )}
         </div>

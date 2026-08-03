@@ -1210,7 +1210,11 @@ export const Landing = ({ setView }) => {
                     <span className="text-[10px] font-bold text-white bg-secondary px-2.5 py-1 rounded-full uppercase tracking-wider">Offre Clé en Main</span>
                     <h4 className="font-bold text-[#0F2318] text-lg mt-3 mb-2">Zéro Saisie : On fait tout !</h4>
                     <p className="text-xs text-gray-600 leading-relaxed mb-3 font-medium">
-                      Pas le temps de remplir le formulaire ? Envoyez-nous une simple photo de votre planning papier ou un vocal WhatsApp au +221 77 000 00 00.
+                      Pas le temps de remplir le formulaire ? Envoyez-nous une simple photo de votre planning papier par email à{' '}
+                      <a href="mailto:drixoftm@gmail.com?subject=Configuration%20terrain" className="text-primary font-bold hover:underline">
+                        drixoftm@gmail.com
+                      </a>{' '}
+                      (objet : "Configuration terrain").
                     </p>
                     <p className="text-[11px] text-gray-500 font-semibold italic">Notre équipe configure et publie vos terrains sous 2 heures gratuitement.</p>
                   </div>

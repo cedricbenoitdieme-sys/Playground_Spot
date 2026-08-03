@@ -462,12 +462,11 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
           </span>
         </div>
         <a
-          href="https://wa.me/221770000000"
-          target="_blank"
+          href="mailto:drixoftm@gmail.com?subject=Question%20abonnement%20g%C3%A9rant"
           rel="noopener noreferrer"
           className="hover:text-white transition-colors"
         >
-          Besoin d'assistance ? Contacter le support
+          Besoin d'assistance ? Contacter le support par email
         </a>
       </div>
 

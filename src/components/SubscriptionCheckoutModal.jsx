@@ -4,7 +4,7 @@ import {
   IconAlertTriangle, 
   IconLoader2, 
   IconAlertCircle, 
-  IconBrandWhatsapp, 
+  IconMail, 
   IconShieldCheck,
   IconSparkles,
   IconExternalLink,
@@ -104,12 +104,12 @@ export const SubscriptionCheckoutModal = ({
 
           <div className="flex flex-col gap-3 pt-2">
             <a
-              href="https://wa.me/221770000000?text=Bonjour,%20je%20souhaite%20souscrire%20au%20plan%20g%C3%A9rant"
-              target="_blank"
+              href="mailto:drixoftm@gmail.com?subject=Question%20souscription%20abonnement"
               rel="noopener noreferrer"
-              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-center text-sm transition-all shadow-lg cursor-pointer"
+              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-center text-sm transition-all shadow-lg cursor-pointer flex items-center justify-center gap-2"
             >
-              Contacter l'équipe sur WhatsApp
+              <IconMail size={18} />
+              <span>Contacter le support par email</span>
             </a>
             <button
               onClick={onClose}
@@ -307,13 +307,12 @@ export const SubscriptionCheckoutModal = ({
 
             <div className="flex flex-col gap-2 pt-2">
               <a
-                href="https://wa.me/221770000000?text=Bonjour,%20mon%20paiement%20d'abonnement%20est%20en%20attente"
-                target="_blank"
+                href="mailto:drixoftm@gmail.com?subject=Paiement%20abonnement%20en%20attente"
                 rel="noopener noreferrer"
                 className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
               >
-                <IconBrandWhatsapp size={16} />
-                <span>Contacter le support WhatsApp</span>
+                <IconMail size={16} />
+                <span>Contacter le support par email</span>
               </a>
               <button
                 onClick={reset}

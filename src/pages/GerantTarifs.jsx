@@ -415,12 +415,11 @@ export const GerantTarifs = ({ setView }) => {
           </div>
         </div>
         <a
-          href="https://wa.me/221770000000"
-          target="_blank"
+          href="mailto:drixoftm@gmail.com?subject=Question%20abonnement%20%26%20tarifs"
           rel="noopener noreferrer"
           className="px-5 py-2.5 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs transition-all whitespace-nowrap"
         >
-          Contacter un conseiller
+          Contacter un conseiller par email
         </a>
       </div>
 
