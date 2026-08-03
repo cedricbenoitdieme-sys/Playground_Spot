@@ -160,77 +160,111 @@ export const Parametres = ({ setView }) => {
 
   // Plateforme
   const [plateforme, setPlateforme] = useState({
-    commission: '10',
     devise: 'FCFA',
     fuseauHoraire: 'Africa/Dakar',
     modeMainten: false,
   });
-  const [editPlat, setEditPlat] = useState(false);
-  const [platForm, setPlatForm] = useState(plateforme);
 
-  // Toast
-  const [toast, setToast] = useState(null);
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-
-  // À propos
-  const [showCGU, setShowCGU] = useState(false);
-  const [showPrivacy, setShowPrivacy] = useState(false);
-  const [showSupport, setShowSupport] = useState(false);
-
-  // Charger les paramètres au montage
+  // Chargement mode maintenance au montage
   useEffect(() => {
-    const fetchSettings = async () => {
-      try {
-        const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
-        const res = await fetch(`${apiUrl}/api/settings`);
-        if (res.ok) {
-          const data = await res.json();
-          setPlateforme(prev => ({
-            ...prev,
-            commission: String(data.commissionPlateforme),
-            modeMainten: data.modeMaintenance
-          }));
-          setPlatForm(prev => ({
-            ...prev,
-            commission: String(data.commissionPlateforme),
-            modeMainten: data.modeMaintenance
-          }));
-        }
-      } catch (err) {
-        console.error("Error loading settings:", err);
+    const fetchMaintenance = async () => {
+      const { data } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'mode_maintenance')
+        .maybeSingle();
+      if (data?.value !== undefined) {
+        setPlateforme(prev => ({ ...prev, modeMainten: !!data.value }));
       }
     };
     if (['admin', 'super_admin'].includes(currentUser?.role)) {
-      fetchSettings();
+      fetchMaintenance();
     }
   }, [currentUser]);
 
-  // Envoyer la mise à jour des paramètres
-  const handleUpdateSetting = async (key, value) => {
-    try {
-      const sessionRes = await supabase.auth.getSession();
-      const token = sessionRes.data?.session?.access_token;
-      if (!token) return;
+  // Handler bascule Mode maintenance
+  const handleToggleMaintenance = async (v) => {
+    showToast(v ? '⚠️ Mode maintenance activé' : '✓ Plateforme en ligne');
+    setPlateforme(prev => ({ ...prev, modeMainten: v }));
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ value: v, updated_at: new Date().toISOString() })
+      .eq('key', 'mode_maintenance');
+    if (error) {
+      showToast(`❌ ${error.message}`);
+      setPlateforme(prev => ({ ...prev, modeMainten: !v }));
+    }
+  };
 
-      const apiUrl = import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000');
-      const res = await fetch(`${apiUrl}/api/settings`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({ key, value })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setPlateforme(prev => ({
-          ...prev,
-          commission: String(data.commissionPlateforme),
-          modeMainten: data.modeMaintenance
-        }));
-      }
-    } catch (err) {
-      console.error("Error updating setting:", err);
+  // Commissions réelles par plan
+  const [planRates, setPlanRates] = useState([]);
+  useEffect(() => {
+    supabase
+      .from('plan_limits')
+      .select('plan_id, nom, commission_rate')
+      .order('prix_mensuel')
+      .then(({ data }) => setPlanRates(data || []));
+  }, []);
+
+  // Dérogation temporaire globale de commission
+  const [override, setOverride] = useState(null);
+  const [overrideForm, setOverrideForm] = useState({ rate: '0', hours: '24' });
+  const [showOverrideModal, setShowOverrideModal] = useState(false);
+
+  const fetchOverride = async () => {
+    const { data } = await supabase
+      .from('system_settings')
+      .select('value')
+      .eq('key', 'commission_override')
+      .maybeSingle();
+    const v = data?.value;
+    if (v && v.expires_at && new Date(v.expires_at) > new Date()) {
+      setOverride(v);
+    } else {
+      setOverride(null);
+    }
+  };
+
+  useEffect(() => {
+    if (['admin', 'super_admin'].includes(currentUser?.role)) {
+      fetchOverride();
+    }
+  }, [currentUser]);
+
+  const handleActivateOverride = async (e) => {
+    e.preventDefault();
+    const rateNum = parseFloat(overrideForm.rate);
+    const hoursNum = parseFloat(overrideForm.hours);
+    if (isNaN(rateNum) || rateNum < 0 || rateNum > 100) {
+      showToast('❌ Taux invalide (0 à 100%)');
+      return;
+    }
+    if (isNaN(hoursNum) || hoursNum <= 0) {
+      showToast('❌ Durée invalide (en heures)');
+      return;
+    }
+
+    const { data, error } = await supabase.rpc('set_commission_override', {
+      p_rate: rateNum,
+      p_duree_heures: hoursNum,
+    });
+
+    if (error) {
+      showToast(`❌ ${error.message}`);
+    } else {
+      setOverride(data);
+      setShowOverrideModal(false);
+      showToast('Dérogation commission activée ✓');
+    }
+  };
+
+  const handleClearOverride = async () => {
+    const { error } = await supabase.rpc('clear_commission_override');
+    if (error) {
+      showToast(`❌ ${error.message}`);
+    } else {
+      setOverride(null);
+      showToast('Dérogation commission désactivée ✓');
     }
   };
 
@@ -395,8 +429,8 @@ export const Parametres = ({ setView }) => {
 
         {/* ── Plateforme ── */}
         <Section title="Plateforme" icon={IconSettings} delay={0.2}>
-          <Row label="Commission plateforme" sub={`${plateforme.commission}% sur chaque réservation`} onClick={() => { setPlatForm(plateforme); setEditPlat(true); }}>
-            <IconChevronRight size={16} className="text-gray-300" />
+          <Row label="Mode maintenance" sub={plateforme.modeMainten ? 'Site inaccessible aux joueurs' : 'Plateforme en ligne'}>
+            <Toggle value={plateforme.modeMainten} onChange={handleToggleMaintenance} />
           </Row>
           <Row label="Devise" sub={plateforme.devise}>
             <span className="text-sm font-bold text-primary">{plateforme.devise}</span>
@@ -404,12 +438,66 @@ export const Parametres = ({ setView }) => {
           <Row label="Fuseau horaire" sub={plateforme.fuseauHoraire}>
             <span className="text-[11px] text-gray-400 font-medium">UTC+0</span>
           </Row>
-          <Row label="Mode maintenance" sub={plateforme.modeMainten ? 'Site inaccessible aux joueurs' : 'Plateforme en ligne'}>
-            <Toggle value={plateforme.modeMainten} onChange={async (v) => {
-              showToast(v ? '⚠️ Mode maintenance activé' : '✓ Plateforme en ligne');
-              await handleUpdateSetting('mode_maintenance', v);
-            }} />
-          </Row>
+
+          {/* Affichage des taux réels par plan (lecture seule) */}
+          <div className="px-5 py-4 border-t border-gray-50 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Commissions par plan (Taux réels)</p>
+              <span className="text-[10px] text-gray-400 italic">Fixé par offre</span>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {planRates.map(p => (
+                <div key={p.plan_id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+                  <p className="text-xs font-bold text-gray-700 capitalize">{p.nom || p.plan_id}</p>
+                  <p className="text-sm font-black text-primary mt-0.5">{p.commission_rate ?? 0}%</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Dérogation temporaire globale */}
+          <div className="px-5 py-4 border-t border-gray-50 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-semibold text-gray-800">Dérogation temporaire globale</p>
+                <p className="text-[11px] text-gray-500 font-medium mt-0.5">Applique un taux temporaire à tous les gérants</p>
+              </div>
+              {!override && (
+                <button
+                  type="button"
+                  onClick={() => setShowOverrideModal(true)}
+                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer shrink-0"
+                >
+                  Activer
+                </button>
+              )}
+            </div>
+
+            {override ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2 text-amber-900">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[11px] font-bold uppercase tracking-wider bg-amber-200/60 text-amber-900 px-2.5 py-1 rounded-full">
+                    Dérogation Active
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleClearOverride}
+                    className="text-xs font-bold text-red-600 hover:text-red-700 underline cursor-pointer"
+                  >
+                    Désactiver maintenant
+                  </button>
+                </div>
+                <p className="text-sm font-bold">
+                  Taux appliqué : <span className="text-base text-primary font-black">{override.rate}%</span> sur toutes les réservations
+                </p>
+                <p className="text-xs text-amber-800">
+                  Expire le : <span className="font-semibold">{new Date(override.expires_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs text-gray-400 italic">Aucune dérogation temporaire en cours. Les commissions par plan s'appliquent normalement.</p>
+            )}
+          </div>
         </Section>
 
         {/* ── Application ── */}
@@ -519,36 +607,52 @@ export const Parametres = ({ setView }) => {
         </form>
       </Sheet>
 
-      {/* Sheet: Paramètres plateforme */}
-      <Sheet open={editPlat} onClose={() => setEditPlat(false)} title="Paramètres plateforme">
-        <form onSubmit={handleSavePlat} className="space-y-4">
+      {/* Sheet: Dérogation temporaire commission */}
+      <Sheet open={showOverrideModal} onClose={() => setShowOverrideModal(false)} title="Dérogation de commission globale">
+        <form onSubmit={handleActivateOverride} className="space-y-4">
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 leading-relaxed">
+            ⚠️ <strong>Attention :</strong> Cette dérogation remplacera temporairement le taux de commission de tous les gérants par le taux choisi ci-dessous, pour toute nouvelle réservation confirmée pendant la durée spécifiée.
+          </div>
+
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Commission (%)</label>
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Taux dérogatoire (%)</label>
             <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 ring-primary/20">
-              <IconBuildingStore size={16} className="text-gray-400" />
-              <input type="number" min="0" max="50" value={platForm.commission}
-                onChange={e => setPlatForm(p => ({ ...p, commission: e.target.value }))}
-                className="flex-1 bg-transparent border-none focus:outline-none text-sm" />
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                value={overrideForm.rate}
+                onChange={e => setOverrideForm(f => ({ ...f, rate: e.target.value }))}
+                className="flex-1 bg-transparent border-none focus:outline-none text-sm font-bold"
+                placeholder="Ex: 0"
+                required
+              />
               <span className="text-sm font-bold text-gray-400">%</span>
             </div>
           </div>
+
           <div>
-            <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Devise</label>
-            <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 ring-primary/20 bg-white min-h-[48px]">
-              <CustomSelect
-                value={platForm.devise}
-                onChange={val => setPlatForm(p => ({ ...p, devise: val }))}
-                options={[
-                  { label: 'FCFA', value: 'FCFA' },
-                  { label: 'EUR', value: 'EUR' },
-                  { label: 'USD', value: 'USD' }
-                ]}
-                theme="light"
+            <label className="text-xs font-bold uppercase tracking-widest text-gray-400 block mb-1">Durée (heures)</label>
+            <div className="flex items-center gap-3 border border-gray-200 rounded-xl px-4 py-3 focus-within:ring-2 ring-primary/20">
+              <input
+                type="number"
+                min="1"
+                max="720"
+                step="1"
+                value={overrideForm.hours}
+                onChange={e => setOverrideForm(f => ({ ...f, hours: e.target.value }))}
+                className="flex-1 bg-transparent border-none focus:outline-none text-sm font-bold"
+                placeholder="Ex: 24"
+                required
               />
+              <span className="text-xs font-bold text-gray-400">heures</span>
             </div>
+            <p className="text-[11px] text-gray-400 mt-1">Exemple : 24 = 1 jour · 48 = 2 jours · 168 = 1 semaine</p>
           </div>
-          <button type="submit" className="w-full py-4 bg-primary text-white font-bold rounded-xl shadow-lg shadow-primary/20 min-h-[48px] hover:bg-primary-dark transition-colors">
-            Enregistrer
+
+          <button type="submit" className="w-full py-4 bg-amber-500 hover:bg-amber-600 text-white font-bold rounded-xl shadow-lg shadow-amber-500/20 min-h-[48px] transition-colors cursor-pointer">
+            Activer la dérogation
           </button>
         </form>
       </Sheet>
