@@ -23,6 +23,7 @@ import { QRCodeCanvas } from 'qrcode.react';
 import { jsPDF } from 'jspdf';
 import { StepperHeader } from './StepperHeader';
 import { CustomAlertModal } from './CustomAlertModal';
+import { TerrainImage } from './TerrainImage';
 import { createReservation, createPaiement } from '../services/reservations';
 import { fetchCreneauxDisponibles } from '../services/stats';
 import waveLogo from '../assets/wave.png';
@@ -497,7 +498,12 @@ export const BookingFlow = ({ terrain, onBack, onComplete }) => {
         {step === 1 && (
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
             <div className="bg-white p-6 rounded-card shadow-subtle border border-black/5 flex gap-6 items-center">
-              <img src={terrain?.image} className="w-24 h-24 rounded-2xl object-cover" alt={terrain?.name} />
+              <TerrainImage
+                terrainId={terrain?.id}
+                fallbackUrl={terrain?.image || terrain?.image_url}
+                alt={terrain?.name}
+                className="w-24 h-24 rounded-2xl shrink-0"
+              />
               <div>
                 <h2 className="text-xl font-bold text-primary-dark">{terrain?.name}</h2>
                 <div className="flex items-center gap-1 text-gray-400 text-sm font-medium">
