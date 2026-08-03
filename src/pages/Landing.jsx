@@ -26,6 +26,8 @@ import {
   IconPhone,
   IconBuildingStore
 } from '@tabler/icons-react';
+import waveLogo from '../assets/wave.png';
+import omLogo from '../assets/orange_money.png';
 
 // Scroll-triggered butter-smooth CountUp component using requestAnimationFrame and IntersectionObserver
 const CountUp = ({ end, duration = 1500, suffix = "" }) => {
@@ -1085,8 +1087,12 @@ export const Landing = ({ setView }) => {
           <div>
             <h4 className="text-white font-bold mb-4 font-display">Paiements acceptés</h4>
             <div className="flex flex-wrap gap-3">
-              <div className="bg-white px-3 py-1.5 rounded-lg flex items-center justify-center text-[#1a56db] font-bold text-sm tracking-tight">Wave</div>
-              <div className="bg-black px-3 py-1.5 rounded-lg flex items-center justify-center border border-white/10 text-[#ff6600] font-bold text-xs tracking-tight">Orange Money</div>
+              <div className="bg-white px-3 py-1.5 rounded-lg flex items-center justify-center h-9">
+                <img src={waveLogo} alt="Wave" className="h-5 w-auto object-contain" />
+              </div>
+              <div className="bg-black px-3 py-1.5 rounded-lg flex items-center justify-center border border-white/10 h-9">
+                <img src={omLogo} alt="Orange Money" className="h-5 w-auto object-contain" />
+              </div>
             </div>
           </div>
         </div>
