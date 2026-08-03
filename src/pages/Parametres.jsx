@@ -230,6 +230,11 @@ export const Parametres = ({ setView }) => {
 
   const handleSavePwd = async (e) => {
     e.preventDefault();
+
+    if (!pwd.current) {
+      showToast('❌ Veuillez saisir votre mot de passe actuel');
+      return;
+    }
     
     const hasUpperCase = /[A-Z]/.test(pwd.next);
     const hasLowerCase = /[a-z]/.test(pwd.next);
@@ -250,6 +255,16 @@ export const Parametres = ({ setView }) => {
     }
     
     try {
+      // Re-vérification de l'identité avant tout changement sensible.
+      const { error: reauthError } = await supabase.auth.signInWithPassword({
+        email: currentUser?.email,
+        password: pwd.current,
+      });
+      if (reauthError) {
+        showToast('❌ Mot de passe actuel incorrect');
+        return;
+      }
+
       const { error } = await supabase.auth.updateUser({ password: pwd.next });
       if (error) {
         showToast(`❌ Erreur: ${error.message}`);
