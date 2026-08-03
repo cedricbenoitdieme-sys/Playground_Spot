@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { callRpc } from '../../lib/supabaseRpc';
 import { reviewTerrainAdmin, fetchTerrainDocuments, getTerrainDocumentSignedUrl } from '../../services/terrains';
 import { CustomSelect } from '../../components/CustomSelect';
+import { CustomAlertModal } from '../../components/CustomAlertModal';
 import {
   IconSearch, 
   IconFilter, 
@@ -33,6 +34,12 @@ export const AdminTerrains = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Alert modal
+  const [alertConfig, setAlertConfig] = useState(null);
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
 
   // Filtres
   const [search, setSearch] = useState('');
@@ -83,7 +90,7 @@ export const AdminTerrains = () => {
       window.open(url, '_blank');
     } catch (err) {
       console.error('Erreur ouverture document admin:', err);
-      alert(err.userMessage || 'Impossible d\'ouvrir ce document.');
+      showAlert('Erreur', err.userMessage || "Impossible d'ouvrir ce document.", 'error');
     }
   };
 
@@ -131,7 +138,7 @@ export const AdminTerrains = () => {
       setRejectingTerrain(null);
       setRejectionReason('');
     } catch (err) {
-      alert(`Erreur lors de la révision du terrain: ${err.message}`);
+      showAlert('Erreur', `Erreur lors de la révision du terrain: ${err.message}`, 'error');
     } finally {
       setUpdatingId(null);
     }
@@ -150,7 +157,7 @@ export const AdminTerrains = () => {
         setSelectedTerrain({ ...selectedTerrain, statut: nextStatus });
       }
     } catch (err) {
-      alert(`Erreur lors du changement de statut: ${err.message}`);
+      showAlert('Erreur', `Erreur lors du changement de statut: ${err.message}`, 'error');
     } finally {
       setUpdatingId(null);
     }
@@ -222,7 +229,7 @@ export const AdminTerrains = () => {
               <button
                 onClick={() => {
                   if (!rejectionReason.trim()) {
-                    alert('Veuillez saisir un motif de refus.');
+                    showAlert('Champ requis', 'Veuillez saisir un motif de refus.', 'error');
                     return;
                   }
                   handleReviewDecision(rejectingTerrain.id, 'rejected', rejectionReason.trim());
@@ -584,6 +591,8 @@ export const AdminTerrains = () => {
         )}
       </div>
 
+      {/* Modale d'alerte et de confirmation */}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
     </div>
   );
 };

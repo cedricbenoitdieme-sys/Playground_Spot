@@ -312,6 +312,7 @@ export const GerantDashboard = ({ setView }) => {
               exportPDFReport({
                 title: 'Bilan Activité Terrain — Gérant',
                 subtitle: `Terrain: ${terrainNom} | ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`,
+                onPopupBlocked: () => showAlert('Popups bloqués', "Veuillez autoriser les fenêtres surgissantes (popups) pour télécharger le rapport PDF.", 'error'),
                 metadata: [
                   { label: stats[0]?.label || 'Réservations', value: stats[0]?.value || '0' },
                   { label: stats[1]?.label || 'Revenus', value: stats[1]?.value || '0 FCFA' },

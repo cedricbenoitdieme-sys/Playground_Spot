@@ -44,11 +44,13 @@ export const exportPDFReport = ({
   metadata = [],
   headers = [],
   rows = [],
-  summaryFooter = ''
+  summaryFooter = '',
+  onPopupBlocked = null
 }) => {
   const printWindow = window.open('', '_blank', 'width=900,height=1000');
   if (!printWindow) {
-    alert('Veuillez autoriser les fenêtres surgissantes (popups) pour télécharger le rapport PDF.');
+    if (onPopupBlocked) onPopupBlocked();
+    else console.warn('Popup bloqué : impossible de générer le rapport PDF.');
     return;
   }
 
@@ -209,12 +211,13 @@ export const exportPDFReport = ({
 /**
  * Génère et imprime un reçu / ticket officiel de réservation au format PDF
  */
-export const exportReservationReceiptPDF = (reservation) => {
+export const exportReservationReceiptPDF = (reservation, onPopupBlocked = null) => {
   if (!reservation) return;
 
   const printWindow = window.open('', '_blank', 'width=700,height=900');
   if (!printWindow) {
-    alert('Veuillez autoriser les fenêtres surgissantes pour ouvrir le reçu de réservation.');
+    if (onPopupBlocked) onPopupBlocked();
+    else console.warn('Popup bloqué : impossible d\'ouvrir le reçu de réservation.');
     return;
   }
 

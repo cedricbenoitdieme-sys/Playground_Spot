@@ -13,11 +13,18 @@ import {
   IconDownload
 } from '@tabler/icons-react';
 import { exportCSV, exportPDFReport } from '../utils/exportReports';
+import { CustomAlertModal } from '../components/CustomAlertModal';
 
 export const Telemetrie = ({ setView }) => {
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [timeRange, setTimeRange] = useState('live'); // 'live', '24h', '48h', '7j', '30j'
+
+  // Alert modal
+  const [alertConfig, setAlertConfig] = useState(null);
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
 
   useEffect(() => {
     const fetchEvents = async () => {
@@ -201,6 +208,7 @@ export const Telemetrie = ({ setView }) => {
     exportPDFReport({
       title: 'Rapport de Télémétrie & Logs Système',
       subtitle: `Période d'analyse: ${ranges.find(r => r.id === timeRange)?.label || timeRange} | Platform PlaygroundSpot Dakar`,
+      onPopupBlocked: () => showAlert('Popups bloqués', "Veuillez autoriser les fenêtres surgissantes (popups) pour télécharger le rapport PDF.", 'error'),
       metadata: [
         { label: 'Total Événements Logs', value: `${events.length} enregistrement(s)` },
         { label: 'Filtre Temporel', value: ranges.find(r => r.id === timeRange)?.label || 'En Direct' },
@@ -320,6 +328,9 @@ export const Telemetrie = ({ setView }) => {
           )}
         </div>
       </div>
+
+      {/* Modale d'alerte */}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
     </div>
   );
 };

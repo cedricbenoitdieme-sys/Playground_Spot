@@ -5,6 +5,7 @@ import { useUser } from '../context/UserContext';
 import { fetchGerantStatsPeriod } from '../services/stats';
 import { PeriodSelector, PRESET_OPTIONS } from '../components/PeriodSelector';
 import { exportCSV, exportPDFReport } from '../utils/exportReports';
+import { CustomAlertModal } from '../components/CustomAlertModal';
 import { supabase } from '../lib/supabase';
 import './gerantStats.css';
 
@@ -231,6 +232,12 @@ const PERIODES = [
 
 export const GerantStats = () => {
   const { currentUser } = useUser();
+
+  // Alert modal
+  const [alertConfig, setAlertConfig] = useState(null);
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
   const [periode, setPeriode]       = useState({ mode: 'preset', preset: '1m' });
   const [terrain, setTerrain]       = useState('all');
   const [showTerrainDD, setDD]      = useState(false);
@@ -437,6 +444,7 @@ export const GerantStats = () => {
     exportPDFReport({
       title: 'Rapport Financier & Statistiques Gérant',
       subtitle: `Terrain: ${terrainLabel} | Période: ${periodLabel}`,
+      onPopupBlocked: () => showAlert('Popups bloqués', "Veuillez autoriser les fenêtres surgissantes (popups) pour télécharger le rapport PDF.", 'error'),
       metadata: [
         { label: 'Revenus Totaux', value: `${kpi.revenus.toLocaleString('fr-FR')} FCFA` },
         { label: 'Réservations Validées', value: `${kpi.reservations} réservation(s)` },
@@ -703,6 +711,9 @@ export const GerantStats = () => {
           </div>
         )}
       </Sheet>
+
+      {/* Modale d'alerte */}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
 
       {/* Toast */}
       {toast && (

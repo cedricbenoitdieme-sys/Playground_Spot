@@ -12,6 +12,7 @@ import {
   IconDownload
 } from '@tabler/icons-react';
 import { exportCSV, exportPDFReport } from '../../utils/exportReports';
+import { CustomAlertModal } from '../../components/CustomAlertModal';
 
 const formatFCFA = (amount) => {
   if (amount === null || amount === undefined) return '0 FCFA';
@@ -22,6 +23,12 @@ export const AdminDashboard = ({ onNavigate }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Alert modal
+  const [alertConfig, setAlertConfig] = useState(null);
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
 
   const fetchStats = async () => {
     setLoading(true);
@@ -150,6 +157,7 @@ export const AdminDashboard = ({ onNavigate }) => {
               exportPDFReport({
                 title: 'Bilan Super Admin — PlaygroundSpot',
                 subtitle: `Dashboard Administrateur | ${new Date().toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}`,
+                onPopupBlocked: () => showAlert('Popups bloqués', "Veuillez autoriser les fenêtres surgissantes (popups) pour télécharger le rapport PDF.", 'error'),
                 metadata: [
                   { label: 'Terrains Actifs', value: `${stats?.terrains_actifs ?? 0} terrains homologués` },
                   { label: 'Réservations (Mois)', value: `${stats?.reservations_mois ?? 0}` },
@@ -263,6 +271,8 @@ export const AdminDashboard = ({ onNavigate }) => {
         </div>
       </div>
 
+      {/* Modale d'alerte */}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
     </div>
   );
 };
