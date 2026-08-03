@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { IconBell, IconSearch, IconX, IconCheck, IconHome, IconBallFootball } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
+import { supabase } from '../lib/supabase';
 import { Avatar } from './Avatar';
 import { PlanBadge } from './PlanBadge';
 
@@ -46,32 +47,47 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Ajouter le rapport hebdomadaire aux notifications pour les gérants / admins
+  // Écouter et charger les vraies notifications Supabase + Realtime
   useEffect(() => {
-    if (currentUser?.role === 'admin' || currentUser?.role === 'gerant') {
-      const lastMonday = new Date();
-      const day = lastMonday.getDay();
-      const diff = lastMonday.getDate() - day + (day === 0 ? -6 : 1);
-      lastMonday.setDate(diff);
-      const lastMondayStr = lastMonday.toLocaleDateString('fr-FR');
+    if (!currentUser?.id) return;
+    let cancelled = false;
 
-      // Éviter de dupliquer la notification
-      setNotifications(prev => {
-        if (prev.some(n => n.id === 'weekly-report-notif')) return prev;
-        return [
-          {
-            id: 'weekly-report-notif',
-            text: `Le rapport hebdomadaire (${lastMondayStr}) est disponible.`,
-            time: "Rapport PDF",
-            read: false,
-            isReport: true,
-            downloadUrl: `${import.meta.env.PROD ? '' : (import.meta.env.VITE_API_URL || 'http://localhost:3000')}/api/reports/weekly`
-          },
-          ...prev
-        ];
-      });
-    }
-  }, [currentUser]);
+    const fetchNotifs = async () => {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false })
+        .limit(30);
+      if (!cancelled && !error && data) {
+        setNotifications(data);
+      }
+    };
+
+    fetchNotifs();
+
+    // Abonnement Realtime Supabase
+    const channel = supabase
+      .channel(`user_notifs_${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'notifications',
+          filter: `user_id=eq.${currentUser.id}`,
+        },
+        () => {
+          fetchNotifs();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      cancelled = true;
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser?.id]);
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
@@ -82,8 +98,13 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
     }
   };
 
-  const markAllAsRead = () => {
+  const markAllAsRead = async () => {
+    if (!currentUser?.id || notifications.length === 0) return;
+    const unreadIds = notifications.filter(n => !n.read).map(n => n.id);
     setNotifications(notifications.map(n => ({ ...n, read: true })));
+    if (unreadIds.length > 0) {
+      await supabase.from('notifications').update({ read: true }).in('id', unreadIds);
+    }
   };
 
   const showToast = (message) => {
@@ -210,21 +231,11 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
                 {notifications.length > 0 ? (
                   notifications.map((n) => (
                     <div key={n.id} className={`p-4 border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors flex items-start gap-3 ${!n.read ? 'bg-primary/5' : ''}`}>
-                      <div className={`mt-0.5 w-2 h-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-secondary' : 'bg-transparent'}`}></div>
+                      <div className={`mt-1 w-2 h-2 rounded-full flex-shrink-0 ${!n.read ? 'bg-secondary' : 'bg-transparent'}`}></div>
                       <div className="flex-1 min-w-0">
-                        <p className={`text-sm ${!n.read ? 'font-bold text-primary-dark' : 'text-gray-600'}`}>{n.text}</p>
-                        <p className="text-xs text-gray-400 mt-1">{n.time}</p>
-                        {n.isReport && (
-                          <a 
-                            href={n.downloadUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            download
-                            className="inline-flex items-center gap-1.5 px-3 py-1 bg-primary/10 border border-primary/20 text-primary text-xs font-bold rounded-lg mt-2.5 hover:bg-primary hover:text-white transition-all duration-300"
-                          >
-                            Télécharger le PDF 📥
-                          </a>
-                        )}
+                        <p className={`text-xs font-bold ${!n.read ? 'text-primary-dark' : 'text-gray-700'}`}>{n.title}</p>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{n.body}</p>
+                        <p className="text-[10px] text-gray-400 mt-1">{new Date(n.created_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</p>
                       </div>
                     </div>
                   ))

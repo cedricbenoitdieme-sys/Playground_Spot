@@ -120,14 +120,43 @@ export const Parametres = ({ setView }) => {
   const [showPwd, setShowPwd] = useState({ current: false, next: false, confirm: false });
 
   // Notifications
-  const [notifs, setNotifs] = useState({
+  const DEFAULT_NOTIFS = {
     nouvelleReservation: true,
-    nouvelGerant: true,
     paiementRecu: true,
     alerteOccupation: false,
     rapportHebdo: true,
-    smsAlerte: false,
-  });
+  };
+
+  const [notifs, setNotifs] = useState(DEFAULT_NOTIFS);
+
+  useEffect(() => {
+    if (currentUser?.notification_prefs) {
+      setNotifs({
+        ...DEFAULT_NOTIFS,
+        ...currentUser.notification_prefs
+      });
+    }
+  }, [currentUser?.notification_prefs]);
+
+  const handleToggleNotif = async (key, value) => {
+    setNotifs(prev => ({ ...prev, [key]: value }));
+    try {
+      const updatedPrefs = {
+        ...DEFAULT_NOTIFS,
+        ...(currentUser?.notification_prefs || {}),
+        [key]: value
+      };
+      await updateProfile(currentUser.id, { notification_prefs: updatedPrefs });
+      setCurrentUser(prev => ({
+        ...prev,
+        notification_prefs: updatedPrefs
+      }));
+    } catch (err) {
+      console.error("Erreur de sauvegarde des préférences de notification:", err);
+      showToast(`❌ ${err.userMessage || err.message || 'Erreur de mise à jour'}`);
+      setNotifs(prev => ({ ...prev, [key]: !value }));
+    }
+  };
 
   // Plateforme
   const [plateforme, setPlateforme] = useState({
@@ -353,15 +382,13 @@ export const Parametres = ({ setView }) => {
         {/* ── Notifications ── */}
         <Section title="Notifications" icon={IconBell} delay={0.15}>
           {[
-            { key: 'nouvelleReservation', label: 'Nouvelle réservation',     sub: 'Alerte à chaque booking' },
-            { key: 'nouvelGerant',        label: 'Nouveau gérant inscrit',   sub: 'Demande d\'approbation' },
-            { key: 'paiementRecu',        label: 'Paiement reçu',            sub: 'Confirmation de paiement' },
-            { key: 'alerteOccupation',    label: 'Alerte taux d\'occupation',sub: 'Si < 50% sur 24h' },
-            { key: 'rapportHebdo',        label: 'Rapport hebdomadaire',     sub: 'Résumé envoyé chaque lundi' },
-            { key: 'smsAlerte',           label: 'Alertes SMS',              sub: 'Via votre numéro enregistré' },
+            { key: 'nouvelleReservation', label: 'Nouvelle réservation', sub: 'Alerte à chaque réservation' },
+            { key: 'paiementRecu', label: 'Paiement reçu', sub: 'Confirmation de règlement' },
+            { key: 'alerteOccupation', label: 'Alerte taux d\'occupation', sub: 'Si < 50% sur la journée' },
+            { key: 'rapportHebdo', label: 'Rapport hebdomadaire', sub: 'Résumé généré chaque lundi' },
           ].map(({ key, label, sub }) => (
             <Row key={key} label={label} sub={sub}>
-              <Toggle value={notifs[key]} onChange={v => setNotifs(p => ({ ...p, [key]: v }))} />
+              <Toggle value={notifs[key] ?? true} onChange={v => handleToggleNotif(key, v)} />
             </Row>
           ))}
         </Section>
