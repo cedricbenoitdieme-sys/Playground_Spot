@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { callRpc } from '../../lib/supabaseRpc';
 import { CustomSelect } from '../../components/CustomSelect';
+import { CustomAlertModal } from '../../components/CustomAlertModal';
 import {
   IconSearch, 
   IconUser, 
@@ -20,6 +21,12 @@ export const AdminUsers = () => {
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Alert modal
+  const [alertConfig, setAlertConfig] = useState(null);
+  const showAlert = (title, message, type = 'info') => {
+    setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
+  };
 
   // Filtres
   const [role, setRole] = useState('');
@@ -72,7 +79,7 @@ export const AdminUsers = () => {
         [userId]: { email: data.email, tel: data.tel }
       }));
     } catch (err) {
-      alert(`Erreur lors de la révélation du contact: ${err.message}`);
+      showAlert('Erreur', `Erreur lors de la révélation du contact: ${err.message}`, 'error');
     } finally {
       setRevealingId(null);
     }
@@ -88,21 +95,32 @@ export const AdminUsers = () => {
       setTimeout(() => setActionMsg(null), 3000);
       fetchUsers();
     } catch (err) {
-      alert(`Erreur changement de rôle: ${err.message}`);
+      showAlert('Erreur', `Erreur changement de rôle: ${err.message}`, 'error');
     }
   };
 
-  const handleResetAccess = async (user) => {
-    if (!confirm(`Réinitialiser l'accès pour ${user.nom} ? Cette action invalidera sa session.`)) return;
-    try {
-      await callRpc('admin_reset_user_access', {
-        p_user_id: user.id
-      });
-      setActionMsg(`Accès réinitialisé pour ${user.nom}.`);
-      setTimeout(() => setActionMsg(null), 3000);
-    } catch (err) {
-      alert(`Erreur réinitialisation: ${err.message}`);
-    }
+  const handleResetAccess = (user) => {
+    setAlertConfig({
+      isOpen: true,
+      type: 'confirm',
+      title: "Réinitialiser l'accès",
+      message: `Réinitialiser l'accès pour ${user.nom} ? Cette action invalidera sa session.`,
+      confirmLabel: 'Réinitialiser',
+      cancelLabel: 'Annuler',
+      onClose: () => setAlertConfig(null),
+      onConfirm: async () => {
+        setAlertConfig(null);
+        try {
+          await callRpc('admin_reset_user_access', {
+            p_user_id: user.id
+          });
+          setActionMsg(`Accès réinitialisé pour ${user.nom}.`);
+          setTimeout(() => setActionMsg(null), 3000);
+        } catch (err) {
+          showAlert('Erreur', `Erreur réinitialisation: ${err.message}`, 'error');
+        }
+      },
+    });
   };
 
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
@@ -276,7 +294,6 @@ export const AdminUsers = () => {
           </div>
         )}
 
-        {/* Pagination */}
         {totalPages > 1 && (
           <div className="p-4 border-t border-gray-100 flex items-center justify-between text-xs">
             <span className="text-gray-500">Page {page} sur {totalPages} ({totalCount} utilisateurs)</span>
@@ -300,6 +317,8 @@ export const AdminUsers = () => {
         )}
       </div>
 
+      {/* Modale d'alerte et de confirmation */}
+      {alertConfig && <CustomAlertModal {...alertConfig} />}
     </div>
   );
 };
