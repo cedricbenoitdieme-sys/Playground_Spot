@@ -22,6 +22,7 @@ import {
   IconSparkles
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
+import { Modal } from './Modal';
 
 export const BottomNav = ({ currentView, setView }) => {
   const { currentUser } = useUser();
@@ -157,13 +158,12 @@ export const BottomNav = ({ currentView, setView }) => {
       </div>
 
       {/* Menu Tiroir Mobile (Mobile Navigation Sheet / Drawer) */}
-      {isMenuOpen && (
-        <div className="lg:hidden fixed inset-0 z-[9999] flex flex-col justify-end">
-          {/* Overlay Flouté */}
-          <div 
-            className="fixed inset-0 bg-black/60 backdrop-blur-md animate-in fade-in duration-200"
-            onClick={() => setIsMenuOpen(false)}
-          ></div>
+      <Modal
+        isOpen={isMenuOpen}
+        onClose={() => setIsMenuOpen(false)}
+        center={false}
+        className="lg:hidden flex flex-col justify-end p-0"
+      >
 
           {/* Tiroir Conteneur */}
           <div 
@@ -242,8 +242,7 @@ export const BottomNav = ({ currentView, setView }) => {
               })}
             </div>
           </div>
-        </div>
-      )}
+      </Modal>
     </>
   );
 };

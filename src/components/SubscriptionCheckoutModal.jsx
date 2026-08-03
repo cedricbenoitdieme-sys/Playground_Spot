@@ -18,6 +18,7 @@ import { usePaymentFlow } from '../hooks/usePaymentFlow';
 import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
 import waveLogo from '../assets/wave.png';
 import omLogo from '../assets/orange_money.png';
+import { Modal } from './Modal';
 
 export const SubscriptionCheckoutModal = ({ 
   isOpen, 
@@ -71,7 +72,13 @@ export const SubscriptionCheckoutModal = ({
 
   if (!IS_PAIEMENT_ABONNEMENT_ACTIF) {
     return (
-      <div className="fixed inset-0 z-[9999] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+      <Modal
+        isOpen={isOpen}
+        onClose={onClose}
+        center={false}
+        className="flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4"
+        overlayClassName="bg-black/80"
+      >
         <div 
           className="bg-[#0F2318] border-t sm:border border-white/10 text-white rounded-t-[2.5rem] sm:rounded-3xl max-w-md w-full p-6 relative shadow-[0_-10px_40px_rgba(0,0,0,0.3)] space-y-6 animate-in slide-in-from-bottom-[100%] sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-400 ease-out transform-gpu"
           style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
@@ -112,7 +119,7 @@ export const SubscriptionCheckoutModal = ({
             </button>
           </div>
         </div>
-      </div>
+      </Modal>
     );
   }
 
@@ -150,7 +157,13 @@ export const SubscriptionCheckoutModal = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[9999] flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
+    <Modal
+      isOpen={isOpen}
+      onClose={handleCloseModal}
+      center={false}
+      className="flex flex-col justify-end sm:justify-center items-center p-0 sm:p-4"
+      overlayClassName="bg-black/80"
+    >
       <div 
         className="bg-[#0F2318] border-t sm:border border-white/10 text-white rounded-t-[2.5rem] sm:rounded-3xl max-w-md w-full p-6 relative shadow-[0_-10px_40px_rgba(0,0,0,0.3)] space-y-5 overflow-y-auto max-h-[92vh] animate-in slide-in-from-bottom-[100%] sm:slide-in-from-bottom-0 sm:zoom-in-95 duration-400 ease-out transform-gpu"
         style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
@@ -460,6 +473,6 @@ export const SubscriptionCheckoutModal = ({
           </form>
         )}
       </div>
-    </div>
+    </Modal>
   );
 };

@@ -15,6 +15,7 @@ import {
   IconCheck,
   IconAlertCircle
 } from '@tabler/icons-react';
+import { Modal } from '../components/Modal';
 
 // Détecte une erreur renvoyée par Supabase après un retour de redirection OAuth
 // (ex: email déjà utilisé par un autre provider — blocage explicite, pas de
@@ -408,9 +409,12 @@ export const Login = ({ setView }) => {
       </div>
 
       {/* Modal Réinitialisation (Demande d'e-mail) */}
-      {showForgotModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-[#122A1D] border border-white/10 w-full max-w-md rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative text-white">
+      <Modal
+        isOpen={showForgotModal}
+        onClose={() => setShowForgotModal(false)}
+        overlayClassName="bg-black/80"
+      >
+        <div className="bg-[#122A1D] border border-white/10 w-full max-w-md rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative text-white">
             <button 
               onClick={() => setShowForgotModal(false)}
               className="absolute top-6 right-6 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
@@ -479,13 +483,15 @@ export const Login = ({ setView }) => {
               </form>
             )}
           </div>
-        </div>
-      )}
+      </Modal>
 
       {/* Modal Nouveau Mot de Passe (Après clic sur l'e-mail) */}
-      {showResetModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-in fade-in duration-200">
-          <div className="bg-[#122A1D] border border-white/10 w-full max-w-md rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative text-white">
+      <Modal
+        isOpen={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        overlayClassName="bg-black/85"
+      >
+        <div className="bg-[#122A1D] border border-white/10 w-full max-w-md rounded-[2rem] p-6 sm:p-8 space-y-6 shadow-2xl relative text-white">
             <button 
               onClick={() => setShowResetModal(false)}
               className="absolute top-6 right-6 text-gray-400 hover:text-white p-1 rounded-lg hover:bg-white/5 transition-colors"
@@ -588,8 +594,7 @@ export const Login = ({ setView }) => {
               </form>
             )}
           </div>
-        </div>
-      )}
+      </Modal>
 
     </div>
   );
