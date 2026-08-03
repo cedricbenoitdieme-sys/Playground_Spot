@@ -239,8 +239,11 @@ export function usePaymentFlow() {
         throw new Error('Vous devez être connecté pour initier une transaction.');
       }
 
+      // Nettoyage et formatage strict du numéro sénégalais pour le backend (chiffres uniquement)
+      const rawNum = params.customer_number ? params.customer_number.replace(/[\s\-().]/g, '') : '';
+      const customerNum = rawNum ? rawNum : undefined;
+
       let body = {};
-      const customerNum = phoneCheck.sanitized || params.customer_number?.trim() || '';
 
       if (params.kind === 'subscription' || params.plan) {
         const period = params.billing_period || (params.cycle === 'annuel' ? 'annual' : 'monthly');
@@ -248,8 +251,8 @@ export function usePaymentFlow() {
           plan: params.plan,
           billing_period: period,
           payment_method: params.payment_method,
-          customer_number: customerNum,
         };
+        if (customerNum) body.customer_number = customerNum;
       } else if (params.kind === 'campaign' || params.terrain_id) {
         body = {
           payment_type: 'boost',
@@ -257,13 +260,13 @@ export function usePaymentFlow() {
           budget_fcfa: Number(params.budget_fcfa || params.budget),
           duree_jours: Number(params.duree_jours || params.duration_days),
           payment_method: params.payment_method,
-          customer_number: customerNum,
         };
+        if (customerNum) body.customer_number = customerNum;
       } else {
         body = {
           creneau_id: params.creneau_id,
           methode: params.payment_method,
-          telephone: customerNum,
+          telephone: customerNum || '',
         };
       }
 
@@ -271,18 +274,37 @@ export function usePaymentFlow() {
         body,
       });
 
-      if (invokeError) {
-        if (invokeError.status === 403 || invokeError.message?.includes('403')) {
-          throw new Error('Ce module nécessite un abonnement Starter ou supérieur.');
-        }
-        throw new Error(invokeError.message || 'Impossible d\'initialiser le paiement.');
-      }
+      // ── Extraction et dé-masquage complet de l'erreur serveur backend ──
+      if (invokeError || !data || data?.error) {
+        let serverMessage = null;
+        let serverStatus = null;
 
-      if (data?.error) {
-        if (data.error.includes('403') || data.error.includes('Starter') || data.error.includes('plan')) {
-          throw new Error('Ce module nécessite un abonnement Starter ou supérieur.');
+        try {
+          // Sur un statut non-2xx, supabase-js range la Response fetch dans error.context
+          const ctx = invokeError?.context;
+          if (ctx) {
+            serverStatus = ctx.status ?? null;
+            const resBody = await ctx.json();
+            serverMessage = resBody?.error || resBody?.message || null;
+          }
+        } catch (_) {
+          // Si le corps est déjà consommé ou illisible
         }
-        throw new Error(data.error);
+
+        const finalError = serverMessage || data?.error || invokeError?.message || 'Le paiement n\'a pas pu être lancé.';
+
+        console.error('create-payment HTTP status & error details:', {
+          status: serverStatus,
+          serverMessage,
+          invokeError,
+          data
+        });
+
+        stopPolling();
+        clearSession();
+        setStatus('failed');
+        setError(finalError);
+        return { success: false, error: finalError, status: serverStatus };
       }
 
       const computedPlan = createRedirectPlan(data);
