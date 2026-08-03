@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   IconX, 
   IconAlertTriangle, 
@@ -9,11 +9,12 @@ import {
   IconSparkles,
   IconExternalLink,
   IconQrcode,
-  IconCheck
+  IconCheck,
+  IconRefresh
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { validatePhone } from '../lib/validators';
-import { initiateSubscriptionPayment, getPaymentStatus } from '../services/subscriptions';
+import { usePaymentFlow } from '../hooks/usePaymentFlow';
 import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
 import waveLogo from '../assets/wave.png';
 import omLogo from '../assets/orange_money.png';
@@ -21,24 +22,17 @@ import omLogo from '../assets/orange_money.png';
 export const SubscriptionCheckoutModal = ({ 
   isOpen, 
   onClose, 
-  plan, 
+  plan: planProp, 
   cycle = 'mensuel',
   onSuccess 
 }) => {
   const { currentUser } = useUser();
+  const { status, error, plan: redirectPlan, start, reset } = usePaymentFlow();
+
   const [selectedCycle, setSelectedCycle] = useState(cycle || 'mensuel');
-  const [methode, setMethode] = useState('wave'); // 'wave' | 'orange_money'
+  const [methode, setMethode] = useState<'wave' | 'orange_money'>('wave');
   const [telephone, setTelephone] = useState(currentUser?.tel || '');
-  const [phoneError, setPhoneError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState(null);
-  const [isGatewayError, setIsGatewayError] = useState(false);
-  
-  // States for Payment Initiation Response & Polling
-  const [paymentData, setPaymentData] = useState(null);
-  const [pollingStatus, setPollingStatus] = useState(null); // null | 'polling' | 'completed' | 'timeout' | 'failed'
-  const pollTimerRef = useRef(null);
-  const pollAttemptsRef = useRef(0);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   useEffect(() => {
     if (cycle) setSelectedCycle(cycle);
@@ -50,28 +44,28 @@ export const SubscriptionCheckoutModal = ({
     }
   }, [currentUser]);
 
-  useEffect(() => {
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    };
-  }, []);
-
-  // Validation dynamique du numéro de téléphone selon le moyen de paiement sélectionné
+  // Validation dynamique du téléphone selon l'opérateur sélectionné
   useEffect(() => {
     if (!isOpen) return;
     const isRequired = methode === 'orange_money';
     const isOM = methode === 'orange_money';
 
-    // Si Wave et champ vide, pas d'erreur
+    // Si Wave et champ vide, pas d'erreur (Wave optionnel)
     if (!isRequired && (!telephone || !telephone.trim())) {
       setPhoneError(null);
       return;
     }
 
-    // Sinon effectuer la vérification
     const check = validatePhone(telephone, isRequired, isOM);
-    setPhoneError(check.valid ? null : check.error);
+    setPhoneError(check.valid ? null : (check.error || 'Format invalide'));
   }, [methode, telephone, isOpen]);
+
+  // Réaction à l'état completed
+  useEffect(() => {
+    if (status === 'completed' && onSuccess) {
+      onSuccess({ plan_id: planProp?.plan_id, status: 'completed' });
+    }
+  }, [status, onSuccess, planProp]);
 
   if (!isOpen) return null;
 
@@ -92,14 +86,7 @@ export const SubscriptionCheckoutModal = ({
             </div>
             <h3 className="text-xl font-bold font-display">Paiement en ligne indisponible</h3>
             <p className="text-sm text-white/70 leading-relaxed">
-              Les souscriptions aux offres payantes ({plan?.nom || 'Pro/Starter'}) par Wave et Orange Money sont temporairement suspendues.
-            </p>
-          </div>
-
-          <div className="p-4 bg-white/5 rounded-2xl border border-white/10 text-xs text-white/80 space-y-2">
-            <p className="font-semibold text-primary">Comment souscrire ?</p>
-            <p>
-              Pour activer cet abonnement dès aujourd'hui, veuillez contacter l'équipe PlaygroundSpot par WhatsApp.
+              Les souscriptions aux offres payantes par Wave et Orange Money sont temporairement suspendues.
             </p>
           </div>
 
@@ -124,111 +111,38 @@ export const SubscriptionCheckoutModal = ({
     );
   }
 
-  const hasAnnualOption = Boolean(plan?.prix_annuel && plan.prix_annuel > 0);
-  const currentPrice = selectedCycle === 'annuel' && hasAnnualOption ? plan.prix_annuel : (plan?.prix_mensuel || 0);
+  const hasAnnualOption = Boolean(planProp?.prix_annuel && planProp.prix_annuel > 0);
+  const currentPrice = selectedCycle === 'annuel' && hasAnnualOption ? planProp.prix_annuel : (planProp?.prix_mensuel || 0);
+
+  const isOrangeMoney = methode === 'orange_money';
+  const isCreating = status === 'creating';
+  
+  // Bouton désactivé pour Orange Money si vide ou invalide, actif pour Wave si vide
+  const isSubmitDisabled = isCreating || (isOrangeMoney ? (!telephone || !telephone.trim() || Boolean(phoneError)) : (Boolean(telephone && telephone.trim() && phoneError)));
 
   const handlePhoneChange = (e) => {
     setTelephone(e.target.value);
-    setApiError(null);
   };
 
   const handleMethodChange = (newMethod) => {
     setMethode(newMethod);
-    setApiError(null);
   };
-
-  /**
-   * Intervalle de 3 secondes sur get_payment_status avec timeout à 5 minutes (100 tentatives)
-   */
-  const startStatusPolling = (paymentId) => {
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    setPollingStatus('polling');
-    pollAttemptsRef.current = 0;
-    const maxAttempts = 100; // 100 * 3s = 300s (5 minutes)
-
-    pollTimerRef.current = setInterval(async () => {
-      pollAttemptsRef.current += 1;
-      const statusData = await getPaymentStatus(paymentId);
-      const currentStatus = statusData?.status || statusData?.statut;
-
-      if (currentStatus === 'completed') {
-        clearInterval(pollTimerRef.current);
-        setPollingStatus('completed');
-        setLoading(false);
-        if (onSuccess) onSuccess({ ...paymentData, status: 'completed' });
-      } else if (currentStatus === 'failed' || currentStatus === 'cancelled') {
-        clearInterval(pollTimerRef.current);
-        setPollingStatus('failed');
-        setLoading(false);
-        setApiError('Le paiement de l\'abonnement a été annulé ou a échoué.');
-      } else if (pollAttemptsRef.current >= maxAttempts) {
-        clearInterval(pollTimerRef.current);
-        setPollingStatus('timeout');
-        setLoading(false);
-      }
-    }, 3000);
-  };
-
-  // Conditions de désactivation du bouton de paiement
-  const isOrangeMoney = methode === 'orange_money';
-  const isSubmitDisabled = loading || (isOrangeMoney ? (!telephone || !telephone.trim() || Boolean(phoneError)) : (Boolean(telephone && telephone.trim() && phoneError)));
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
 
-    const isRequired = methode === 'orange_money';
-    const isOM = methode === 'orange_money';
-
-    const phoneCheck = validatePhone(telephone, isRequired, isOM);
-    if (!phoneCheck.valid) {
-      setPhoneError(phoneCheck.error);
-      return;
-    }
-
-    setPhoneError(null);
-    setApiError(null);
-    setIsGatewayError(false);
-    setLoading(true);
-
-    try {
-      const response = await initiateSubscriptionPayment({
-        plan_id: plan?.plan_id || plan?.id || 'starter',
-        phone_number: phoneCheck.sanitized || telephone.trim() || '',
-        mode: methode
-      });
-
-      if (response?.error) {
-        throw new Error(response.error);
-      }
-
-      setPaymentData(response);
-
-      // Chaîne de repli deep links : MAXIT -> OM -> payment_url
-      const redirectUrl = response?.deep_links?.MAXIT || response?.deep_links?.OM || response?.payment_url;
-      
-      if (redirectUrl && !response?.qr_code) {
-        window.location.href = redirectUrl;
-      }
-
-      const paymentId = response?.payment_id || response?.id || response?.paymentId;
-      if (paymentId) {
-        startStatusPolling(paymentId);
-      } else {
-        setLoading(false);
-      }
-    } catch (err) {
-      setLoading(false);
-      const msg = err?.error || err?.message || 'Une erreur est survenue lors de l\'initialisation.';
-      if (msg.includes('502') || msg.toLowerCase().includes('passerelle') || msg.toLowerCase().includes('gateway')) {
-        setIsGatewayError(true);
-        setApiError('La passerelle de paiement rencontre un souci technique (502). Vous pouvez souscrire directement via WhatsApp.');
-      } else {
-        setApiError(msg);
-      }
-    }
+    await start({
+      kind: 'subscription',
+      plan: planProp?.plan_id || planProp?.id || 'starter',
+      payment_method: methode,
+      customer_number: telephone.trim() || undefined,
+    });
   };
 
-  const redirectUrl = paymentData?.deep_links?.MAXIT || paymentData?.deep_links?.OM || paymentData?.payment_url;
+  const handleCloseModal = () => {
+    reset();
+    onClose();
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
@@ -241,22 +155,50 @@ export const SubscriptionCheckoutModal = ({
               <IconSparkles size={20} />
             </div>
             <div>
-              <h3 className="text-base font-bold font-display leading-snug">Souscription Plan {plan?.nom || 'Gérant'}</h3>
+              <h3 className="text-base font-bold font-display leading-snug">Souscription Plan {planProp?.nom || 'Gérant'}</h3>
               <p className="text-[11px] text-white/50">Paiement sécurisé mobile via UnitechPay</p>
             </div>
           </div>
           <button
-            onClick={onClose}
-            disabled={loading}
-            className="p-2 text-white/50 hover:text-white rounded-full bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+            onClick={handleCloseModal}
+            className="p-2 text-white/50 hover:text-white rounded-full bg-white/5 transition-colors cursor-pointer"
           >
             <IconX size={18} />
           </button>
         </div>
 
-        {/* Polling / Processing / Waiting state */}
-        {pollingStatus === 'polling' ? (
-          <div className="py-6 text-center space-y-5">
+        {/* ── ÉTAT REDIRECTING ── */}
+        {status === 'redirecting' ? (
+          <div className="py-6 text-center space-y-5 animate-in fade-in duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary mx-auto animate-pulse">
+              <IconLoader2 size={36} className="animate-spin" />
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="font-bold text-lg text-white">Ouverture de votre application de paiement…</h4>
+              <p className="text-xs text-white/70 max-w-xs mx-auto leading-relaxed">
+                Si l'application ne s'ouvre pas automatiquement, cliquez ci-dessous sur le lien de secours.
+              </p>
+            </div>
+
+            {/* Lien de secours visible dès l'écran de redirection */}
+            {redirectPlan?.fallbackUrl && (
+              <div className="pt-2 space-y-2">
+                <a
+                  href={redirectPlan.fallbackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-primary hover:bg-primary-hover text-white rounded-2xl text-xs font-bold transition-all shadow-lg w-full"
+                >
+                  <IconExternalLink size={16} />
+                  <span>Ouvrir l'application de paiement ({methode === 'wave' ? 'Wave' : 'Max It / OM'})</span>
+                </a>
+              </div>
+            )}
+          </div>
+        ) : status === 'waiting' ? (
+          /* ── ÉTAT WAITING / DESKTOP WITH QR CODE ── */
+          <div className="py-6 text-center space-y-5 animate-in fade-in duration-200">
             <div className="w-16 h-16 rounded-2xl bg-primary/20 border border-primary/30 flex items-center justify-center text-primary mx-auto animate-pulse">
               <IconLoader2 size={36} className="animate-spin" />
             </div>
@@ -264,43 +206,40 @@ export const SubscriptionCheckoutModal = ({
             <div className="space-y-1">
               <h4 className="font-bold text-lg text-white">Attente de confirmation du paiement</h4>
               <p className="text-xs text-white/70 max-w-xs mx-auto leading-relaxed">
-                Veuillez valider la transaction sur votre application {methode === 'wave' ? 'Wave' : 'Orange Money / Max It'}{telephone ? ` sur le ${telephone}` : ''}.
+                {redirectPlan?.stayOnPage
+                  ? `Scannez le code avec l'application ${methode === 'wave' ? 'Wave' : 'Orange Money'} depuis votre téléphone.`
+                  : `Veuillez valider la transaction sur votre téléphone${telephone ? ` (${telephone})` : ''}.`}
               </p>
             </div>
 
-            {/* Display Orange Money QR Code safely if present */}
-            {paymentData?.qr_code && (
+            {/* Affichage sécurisé du QR Code si présent */}
+            {redirectPlan?.qrCode && (
               <div className="p-4 bg-white rounded-2xl border border-white/20 text-black max-w-[220px] mx-auto space-y-2 shadow-lg">
-                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-orange-600">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-gray-800">
                   <IconQrcode size={18} />
-                  <span>Scannez le QR Code Orange Money</span>
+                  <span>Scanner avec votre téléphone</span>
                 </div>
-                <img src={paymentData.qr_code} alt="QR Code Orange Money" className="w-full h-auto rounded-lg border border-gray-200" />
-                <p className="text-[10px] text-gray-600 text-center">
-                  Ouvrez Orange Money / Maxit et scannez ce code pour valider le règlement.
-                </p>
+                <img src={redirectPlan.qrCode} alt="QR Code Paiement" className="w-full h-auto rounded-lg border border-gray-200" />
               </div>
             )}
 
-            {/* Always provide fallback link to payment_url */}
-            {redirectUrl && (
+            {/* Lien de secours permanent */}
+            {redirectPlan?.fallbackUrl && (
               <div className="pt-2 space-y-2">
                 <a
-                  href={redirectUrl}
+                  href={redirectPlan.fallbackUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl text-xs font-bold transition-all shadow-md w-full"
                 >
                   <IconExternalLink size={16} />
-                  <span>Ouvrir l'application {methode === 'wave' ? 'Wave' : 'Orange Money / Maxit'}</span>
+                  <span>Ouvrir l'application de paiement</span>
                 </a>
-                <p className="text-[11px] text-white/40">
-                  Vous avez fermé l'app par erreur ? Cliquez ci-dessus pour y retourner.
-                </p>
               </div>
             )}
           </div>
-        ) : pollingStatus === 'completed' ? (
+        ) : status === 'completed' ? (
+          /* ── ÉTAT COMPLETED ── */
           <div className="py-8 text-center space-y-4 animate-in zoom-in duration-200">
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
               <IconCheck size={36} />
@@ -308,51 +247,81 @@ export const SubscriptionCheckoutModal = ({
             <div className="space-y-1">
               <h4 className="font-bold text-xl text-emerald-400">Paiement confirmé !</h4>
               <p className="text-xs text-white/70">
-                Votre abonnement Plan {plan?.nom} a été activé avec succès.
+                Votre abonnement Plan {planProp?.nom} a été activé avec succès.
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleCloseModal}
               className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-sm transition-all shadow-lg"
             >
               Accéder à mon espace
             </button>
           </div>
-        ) : pollingStatus === 'timeout' ? (
-          <div className="py-6 text-center space-y-4">
+        ) : status === 'timeout' ? (
+          /* ── ÉTAT TIMEOUT ── */
+          <div className="py-6 text-center space-y-4 animate-in fade-in duration-200">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
               <IconAlertTriangle size={32} />
             </div>
             <div className="space-y-1">
-              <h4 className="font-bold text-base text-amber-300">Paiement non confirmé — contactez le support</h4>
+              <h4 className="font-bold text-base text-amber-300">Paiement non confirmé après 5 minutes</h4>
               <p className="text-xs text-white/60 max-w-xs mx-auto leading-relaxed">
-                Le délai de confirmation de 5 minutes a expiré. Si vous avez bien été débité, votre accès sera régularisé très rapidement.
+                Le délai de confirmation a expiré. Si vous avez bien été débité, votre accès sera régularisé sous peu.
               </p>
             </div>
 
-            {redirectUrl && (
+            {redirectPlan?.fallbackUrl && (
               <a
-                href={redirectUrl}
+                href={redirectPlan.fallbackUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-all w-full"
               >
                 <IconExternalLink size={16} />
-                <span>Réessayer sur l'application opérateur</span>
+                <span>Ouvrir l'application de paiement</span>
               </a>
             )}
 
-            <a
-              href="https://wa.me/221770000000?text=Bonjour,%20mon%20paiement%20d'abonnement%20est%20en%20attente%20de%20confirmation"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+            <div className="flex flex-col gap-2 pt-2">
+              <a
+                href="https://wa.me/221770000000?text=Bonjour,%20mon%20paiement%20d'abonnement%20est%20en%20attente"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+              >
+                <IconBrandWhatsapp size={16} />
+                <span>Contacter le support WhatsApp</span>
+              </a>
+              <button
+                onClick={reset}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white/70 font-semibold rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <IconRefresh size={14} />
+                <span>Réessayer la souscription</span>
+              </button>
+            </div>
+          </div>
+        ) : status === 'failed' ? (
+          /* ── ÉTAT FAILED ── */
+          <div className="py-6 text-center space-y-4 animate-in fade-in duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
+              <IconAlertCircle size={32} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-base text-red-300">Échec du paiement</h4>
+              <p className="text-xs text-white/70 max-w-xs mx-auto leading-relaxed">
+                {error || 'La transaction n\'a pas pu être initialisée.'}
+              </p>
+            </div>
+            <button
+              onClick={reset}
+              className="w-full py-3.5 bg-primary hover:bg-primary-hover text-white font-bold rounded-2xl text-sm transition-all shadow-lg cursor-pointer"
             >
-              <IconBrandWhatsapp size={16} />
-              <span>Contacter le support WhatsApp</span>
-            </a>
+              Réessayer
+            </button>
           </div>
         ) : (
+          /* ── FORMULAIRE INITIAL ── */
           <form onSubmit={handleSubmit} className="space-y-5">
             
             {/* Choix du Cycle si option annuelle disponible */}
@@ -365,14 +334,14 @@ export const SubscriptionCheckoutModal = ({
                     onClick={() => setSelectedCycle('mensuel')}
                     className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${selectedCycle === 'mensuel' ? 'bg-primary text-white shadow-md' : 'text-white/60 hover:text-white'}`}
                   >
-                    Mensuel ({plan.prix_mensuel?.toLocaleString('fr-FR')} F)
+                    Mensuel ({planProp?.prix_mensuel?.toLocaleString('fr-FR')} F)
                   </button>
                   <button
                     type="button"
                     onClick={() => setSelectedCycle('annuel')}
                     className={`py-2 px-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${selectedCycle === 'annuel' ? 'bg-primary text-white shadow-md' : 'text-white/60 hover:text-white'}`}
                   >
-                    Annuel ({plan.prix_annuel?.toLocaleString('fr-FR')} F)
+                    Annuel ({planProp?.prix_annuel?.toLocaleString('fr-FR')} F)
                   </button>
                 </div>
               </div>
@@ -452,25 +421,6 @@ export const SubscriptionCheckoutModal = ({
               )}
             </div>
 
-            {/* Messages d'erreur API & Fallback Passerelle 502 */}
-            {apiError && (
-              <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-2xl text-xs text-red-300 space-y-2">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <IconAlertCircle size={15} className="shrink-0 text-red-400" /> {apiError}
-                </p>
-                {isGatewayError && (
-                  <a
-                    href={`https://wa.me/221770000000?text=Bonjour,%20je%20souhaite%20souscrire%20au%20plan%20${encodeURIComponent(plan?.nom || '')}%20(Erreur%20502)`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                  >
-                    <IconBrandWhatsapp size={14} /> Contacter sur WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-
             {/* Bouton de Soumission */}
             <div className="pt-2 space-y-3">
               <button
@@ -478,7 +428,7 @@ export const SubscriptionCheckoutModal = ({
                 disabled={isSubmitDisabled}
                 className="w-full py-4 bg-primary hover:bg-primary-hover disabled:bg-gray-600/40 text-white font-bold rounded-2xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? (
+                {isCreating ? (
                   <>
                     <IconLoader2 size={18} className="animate-spin" />
                     Initialisation du paiement...

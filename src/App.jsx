@@ -61,8 +61,8 @@ function App() {
   
   const getInitialView = () => {
     if (window.location.pathname === '/scan-ticket') return 'scan';
-    if (window.location.pathname === '/payment/success') return 'payment-success';
-    if (window.location.pathname === '/payment/cancel') return 'payment-cancel';
+    if (window.location.pathname === '/payment/success' || window.location.pathname === '/paiement/succes') return 'payment-success';
+    if (window.location.pathname === '/payment/cancel' || window.location.pathname === '/paiement/annule') return 'payment-cancel';
     if (window.location.pathname === '/reservation/success') return 'reservation-success';
     if (window.location.pathname === '/paiement/attente') return 'paiement-attente';
     if (window.location.pathname === '/paiement/annule') return 'paiement-annule';

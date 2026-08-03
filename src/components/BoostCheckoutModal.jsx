@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   IconX, 
   IconAlertTriangle, 
@@ -10,11 +10,12 @@ import {
   IconFlame,
   IconExternalLink,
   IconQrcode,
-  IconCheck
+  IconCheck,
+  IconRefresh
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { validatePhone } from '../lib/validators';
-import { initiateBoostPayment, getPaymentStatus } from '../services/subscriptions';
+import { usePaymentFlow } from '../hooks/usePaymentFlow';
 import { useGerantTerrains } from '../hooks/useGerantTerrains';
 import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
 import { VISIBILITY_BOOST_CONFIG } from '../config/plansConfig';
@@ -32,23 +33,14 @@ export const BoostCheckoutModal = ({
 }) => {
   const { currentUser } = useUser();
   const { terrains } = useGerantTerrains(currentUser?.id);
+  const { status, error, plan: redirectPlan, start, reset } = usePaymentFlow();
 
   const [selectedTerrainId, setSelectedTerrainId] = useState(terrainId || '');
   const [budget, setBudget] = useState(budgetFcfa || VISIBILITY_BOOST_CONFIG.DEFAULT_BUDGET);
   const [duration, setDuration] = useState(dureeJours || VISIBILITY_BOOST_CONFIG.DEFAULT_DURATION);
-  const [methode, setMethode] = useState('wave'); // 'wave' | 'orange_money'
+  const [methode, setMethode] = useState<'wave' | 'orange_money'>('wave');
   const [telephone, setTelephone] = useState(currentUser?.tel || '');
-  const [phoneError, setPhoneError] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [apiError, setApiError] = useState(null);
-  const [isForbiddenPlanError, setIsForbiddenPlanError] = useState(false);
-  const [isGatewayError, setIsGatewayError] = useState(false);
-
-  // States for Payment Response & Polling
-  const [paymentData, setPaymentData] = useState(null);
-  const [pollingStatus, setPollingStatus] = useState(null); // null | 'polling' | 'completed' | 'timeout' | 'failed'
-  const pollTimerRef = useRef(null);
-  const pollAttemptsRef = useRef(0);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   useEffect(() => {
     if (terrainId) setSelectedTerrainId(terrainId);
@@ -68,12 +60,6 @@ export const BoostCheckoutModal = ({
     }
   }, [currentUser]);
 
-  useEffect(() => {
-    return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    };
-  }, []);
-
   // Validation dynamique du téléphone
   useEffect(() => {
     if (!isOpen) return;
@@ -86,8 +72,15 @@ export const BoostCheckoutModal = ({
     }
 
     const check = validatePhone(telephone, isRequired, isOM);
-    setPhoneError(check.valid ? null : check.error);
+    setPhoneError(check.valid ? null : (check.error || 'Format invalide'));
   }, [methode, telephone, isOpen]);
+
+  // Réaction à l'état completed
+  useEffect(() => {
+    if (status === 'completed' && onSuccess) {
+      onSuccess({ status: 'completed' });
+    }
+  }, [status, onSuccess]);
 
   if (!isOpen) return null;
 
@@ -112,13 +105,6 @@ export const BoostCheckoutModal = ({
             </p>
           </div>
 
-          <div className="p-4 bg-white/5 rounded-2xl border border-white/10 text-xs text-white/80 space-y-2">
-            <p className="font-semibold text-primary">Activer un boost manuellement ?</p>
-            <p>
-              Contactez notre équipe support pour paramétrer et activer la mise en avant de votre terrain.
-            </p>
-          </div>
-
           <div className="flex flex-col gap-3 pt-2">
             <a
               href="https://wa.me/221770000000?text=Bonjour,%20je%20souhaite%20booster%20la%20visibilit%C3%A9%20de%20mon%20terrain"
@@ -140,118 +126,40 @@ export const BoostCheckoutModal = ({
     );
   }
 
+  const isOrangeMoney = methode === 'orange_money';
+  const isCreating = status === 'creating';
+  const isSubmitDisabled = isCreating || !selectedTerrainId || (isOrangeMoney ? (!telephone || !telephone.trim() || Boolean(phoneError)) : (Boolean(telephone && telephone.trim() && phoneError)));
+
   const handlePhoneChange = (e) => {
     setTelephone(e.target.value);
-    setApiError(null);
-    setIsForbiddenPlanError(false);
   };
 
   const handleMethodChange = (newMethod) => {
     setMethode(newMethod);
-    setApiError(null);
-    setIsForbiddenPlanError(false);
   };
-
-  const startStatusPolling = (paymentId) => {
-    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-    setPollingStatus('polling');
-    pollAttemptsRef.current = 0;
-    const maxAttempts = 100; // 100 * 3s = 300s (5 minutes)
-
-    pollTimerRef.current = setInterval(async () => {
-      pollAttemptsRef.current += 1;
-      const statusData = await getPaymentStatus(paymentId);
-      const currentStatus = statusData?.status || statusData?.statut;
-
-      if (currentStatus === 'completed') {
-        clearInterval(pollTimerRef.current);
-        setPollingStatus('completed');
-        setLoading(false);
-        if (onSuccess) onSuccess({ ...paymentData, status: 'completed' });
-      } else if (currentStatus === 'failed' || currentStatus === 'cancelled') {
-        clearInterval(pollTimerRef.current);
-        setPollingStatus('failed');
-        setLoading(false);
-        setApiError('Le paiement du boost de visibilité a été annulé ou a échoué.');
-      } else if (pollAttemptsRef.current >= maxAttempts) {
-        clearInterval(pollTimerRef.current);
-        setPollingStatus('timeout');
-        setLoading(false);
-      }
-    }, 3000);
-  };
-
-  const isOrangeMoney = methode === 'orange_money';
-  const isSubmitDisabled = loading || !selectedTerrainId || (isOrangeMoney ? (!telephone || !telephone.trim() || Boolean(phoneError)) : (Boolean(telephone && telephone.trim() && phoneError)));
 
   const handleSubmit = async (e) => {
-    if (e) e.preventDefault();
+    e.preventDefault();
 
-    if (!selectedTerrainId) {
-      setApiError('Veuillez sélectionner un terrain à booster.');
-      return;
-    }
+    if (!selectedTerrainId) return;
 
-    const isRequired = methode === 'orange_money';
-    const isOM = methode === 'orange_money';
+    await start({
+      kind: 'campaign',
+      terrain_id: selectedTerrainId,
+      budget: Number(budget),
+      duration_days: Number(duration),
+      payment_method: methode,
+      customer_number: telephone.trim() || undefined,
+    });
+  };
 
-    const phoneCheck = validatePhone(telephone, isRequired, isOM);
-    if (!phoneCheck.valid) {
-      setPhoneError(phoneCheck.error);
-      return;
-    }
-
-    setPhoneError(null);
-    setApiError(null);
-    setIsForbiddenPlanError(false);
-    setIsGatewayError(false);
-    setLoading(true);
-
-    try {
-      const response = await initiateBoostPayment({
-        terrain_id: selectedTerrainId,
-        budget: Number(budget),
-        duration_days: Number(duration),
-        phone_number: phoneCheck.sanitized || telephone.trim() || '',
-        mode: methode
-      });
-
-      if (response?.error) {
-        throw new Error(response.error);
-      }
-
-      setPaymentData(response);
-
-      const redirectUrl = response?.deep_links?.MAXIT || response?.deep_links?.OM || response?.payment_url;
-
-      if (redirectUrl && !response?.qr_code) {
-        window.location.href = redirectUrl;
-      }
-
-      const paymentId = response?.payment_id || response?.id || response?.paymentId;
-      if (paymentId) {
-        startStatusPolling(paymentId);
-      } else {
-        setLoading(false);
-      }
-    } catch (err) {
-      setLoading(false);
-      const msg = err?.error || err?.message || 'Une erreur est survenue lors du paiement du boost.';
-
-      if (err?.isForbiddenPlan || msg.includes('403') || msg.includes('Starter') || msg.includes('plan')) {
-        setIsForbiddenPlanError(true);
-        setApiError('Ce module nécessite un abonnement Starter ou supérieur.');
-      } else if (msg.includes('502') || msg.toLowerCase().includes('passerelle') || msg.toLowerCase().includes('gateway')) {
-        setIsGatewayError(true);
-        setApiError('La passerelle de paiement rencontre un souci technique (502). Vous pouvez activer votre boost via WhatsApp.');
-      } else {
-        setApiError(msg);
-      }
-    }
+  const handleCloseModal = () => {
+    reset();
+    onClose();
   };
 
   const selectedTerrainObj = terrains?.find(t => t.id === selectedTerrainId);
-  const redirectUrl = paymentData?.deep_links?.MAXIT || paymentData?.deep_links?.OM || paymentData?.payment_url;
+  const isForbiddenPlan = error?.includes('Starter') || error?.includes('403') || error?.includes('plan');
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-in fade-in duration-200">
@@ -269,17 +177,45 @@ export const BoostCheckoutModal = ({
             </div>
           </div>
           <button
-            onClick={onClose}
-            disabled={loading}
-            className="p-2 text-white/50 hover:text-white rounded-full bg-white/5 transition-colors cursor-pointer disabled:opacity-50"
+            onClick={handleCloseModal}
+            className="p-2 text-white/50 hover:text-white rounded-full bg-white/5 transition-colors cursor-pointer"
           >
             <IconX size={18} />
           </button>
         </div>
 
-        {/* Polling / Processing state */}
-        {pollingStatus === 'polling' ? (
-          <div className="py-6 text-center space-y-5">
+        {/* ── ÉTAT REDIRECTING ── */}
+        {status === 'redirecting' ? (
+          <div className="py-6 text-center space-y-5 animate-in fade-in duration-200">
+            <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto animate-pulse">
+              <IconLoader2 size={36} className="animate-spin" />
+            </div>
+            
+            <div className="space-y-1">
+              <h4 className="font-bold text-lg text-white">Ouverture de votre application de paiement…</h4>
+              <p className="text-xs text-white/70 max-w-xs mx-auto leading-relaxed">
+                Si l'application ne s'ouvre pas automatiquement, cliquez ci-dessous sur le lien de secours.
+              </p>
+            </div>
+
+            {/* Lien de secours visible dès l'écran de redirection */}
+            {redirectPlan?.fallbackUrl && (
+              <div className="pt-2 space-y-2">
+                <a
+                  href={redirectPlan.fallbackUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center gap-2 px-5 py-3.5 bg-amber-500 hover:bg-amber-600 text-black rounded-2xl text-xs font-bold transition-all shadow-lg w-full"
+                >
+                  <IconExternalLink size={16} />
+                  <span>Ouvrir l'application de paiement ({methode === 'wave' ? 'Wave' : 'Max It / OM'})</span>
+                </a>
+              </div>
+            )}
+          </div>
+        ) : status === 'waiting' ? (
+          /* ── ÉTAT WAITING / DESKTOP WITH QR CODE ── */
+          <div className="py-6 text-center space-y-5 animate-in fade-in duration-200">
             <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto animate-pulse">
               <IconLoader2 size={36} className="animate-spin" />
             </div>
@@ -287,43 +223,40 @@ export const BoostCheckoutModal = ({
             <div className="space-y-1">
               <h4 className="font-bold text-lg text-white">Attente de confirmation du boost</h4>
               <p className="text-xs text-white/70 max-w-xs mx-auto leading-relaxed">
-                Veuillez valider la transaction sur votre application {methode === 'wave' ? 'Wave' : 'Orange Money / Max It'}{telephone ? ` sur le ${telephone}` : ''}.
+                {redirectPlan?.stayOnPage
+                  ? `Scannez le code avec l'application ${methode === 'wave' ? 'Wave' : 'Orange Money'} depuis votre téléphone.`
+                  : `Veuillez valider la transaction sur votre téléphone${telephone ? ` (${telephone})` : ''}.`}
               </p>
             </div>
 
-            {/* Display Orange Money QR Code safely if present */}
-            {paymentData?.qr_code && (
+            {/* Affichage du QR Code si disponible */}
+            {redirectPlan?.qrCode && (
               <div className="p-4 bg-white rounded-2xl border border-white/20 text-black max-w-[220px] mx-auto space-y-2 shadow-lg">
-                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-orange-600">
+                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-gray-800">
                   <IconQrcode size={18} />
-                  <span>Scannez le QR Code Orange Money</span>
+                  <span>Scanner avec votre téléphone</span>
                 </div>
-                <img src={paymentData.qr_code} alt="QR Code Orange Money" className="w-full h-auto rounded-lg border border-gray-200" />
-                <p className="text-[10px] text-gray-600 text-center">
-                  Ouvrez Orange Money / Maxit et scannez ce code pour valider le règlement.
-                </p>
+                <img src={redirectPlan.qrCode} alt="QR Code Paiement" className="w-full h-auto rounded-lg border border-gray-200" />
               </div>
             )}
 
-            {/* Always provide fallback link to payment_url */}
-            {redirectUrl && (
+            {/* Lien de secours permanent */}
+            {redirectPlan?.fallbackUrl && (
               <div className="pt-2 space-y-2">
                 <a
-                  href={redirectUrl}
+                  href={redirectPlan.fallbackUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center gap-2 px-5 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-2xl text-xs font-bold transition-all shadow-md w-full"
                 >
                   <IconExternalLink size={16} />
-                  <span>Ouvrir l'application {methode === 'wave' ? 'Wave' : 'Orange Money / Maxit'}</span>
+                  <span>Ouvrir l'application de paiement</span>
                 </a>
-                <p className="text-[11px] text-white/40">
-                  Vous avez fermé l'app par erreur ? Cliquez ci-dessus pour y retourner.
-                </p>
               </div>
             )}
           </div>
-        ) : pollingStatus === 'completed' ? (
+        ) : status === 'completed' ? (
+          /* ── ÉTAT COMPLETED ── */
           <div className="py-8 text-center space-y-4 animate-in zoom-in duration-200">
             <div className="w-16 h-16 rounded-full bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 mx-auto">
               <IconCheck size={36} />
@@ -335,47 +268,94 @@ export const BoostCheckoutModal = ({
               </p>
             </div>
             <button
-              onClick={onClose}
+              onClick={handleCloseModal}
               className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-2xl text-sm transition-all shadow-lg"
             >
               Fermer
             </button>
           </div>
-        ) : pollingStatus === 'timeout' ? (
-          <div className="py-6 text-center space-y-4">
+        ) : status === 'timeout' ? (
+          /* ── ÉTAT TIMEOUT ── */
+          <div className="py-6 text-center space-y-4 animate-in fade-in duration-200">
             <div className="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 mx-auto">
               <IconAlertTriangle size={32} />
             </div>
             <div className="space-y-1">
-              <h4 className="font-bold text-base text-amber-300">Paiement non confirmé — contactez le support</h4>
+              <h4 className="font-bold text-base text-amber-300">Paiement non confirmé après 5 minutes</h4>
               <p className="text-xs text-white/60 max-w-xs mx-auto leading-relaxed">
-                Le délai de confirmation de 5 minutes a expiré. Si vous avez bien été débité, votre boost sera activé sous peu.
+                Le délai de confirmation a expiré. Si vous avez bien été débité, votre boost sera activé sous peu.
               </p>
             </div>
 
-            {redirectUrl && (
+            {redirectPlan?.fallbackUrl && (
               <a
-                href={redirectUrl}
+                href={redirectPlan.fallbackUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-all w-full"
               >
                 <IconExternalLink size={16} />
-                <span>Réessayer sur l'application opérateur</span>
+                <span>Ouvrir l'application de paiement</span>
               </a>
             )}
 
-            <a
-              href="https://wa.me/221770000000?text=Bonjour,%20mon%20paiement%20de%20boost%20est%20en%20attente%20de%20confirmation"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+            <div className="flex flex-col gap-2 pt-2">
+              <a
+                href="https://wa.me/221770000000?text=Bonjour,%20mon%20paiement%20de%20boost%20est%20en%20attente"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 transition-all shadow-md"
+              >
+                <IconBrandWhatsapp size={16} />
+                <span>Contacter le support WhatsApp</span>
+              </a>
+              <button
+                onClick={reset}
+                className="w-full py-2.5 bg-white/5 hover:bg-white/10 text-white/70 font-semibold rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <IconRefresh size={14} />
+                <span>Réessayer la campagne</span>
+              </button>
+            </div>
+          </div>
+        ) : status === 'failed' ? (
+          /* ── ÉTAT FAILED ── */
+          <div className="py-6 text-center space-y-4 animate-in fade-in duration-200">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-500/30 flex items-center justify-center text-red-400 mx-auto">
+              <IconAlertCircle size={32} />
+            </div>
+            <div className="space-y-1">
+              <h4 className="font-bold text-base text-red-300">Échec de l'initialisation</h4>
+              <p className="text-xs text-white/70 max-w-xs mx-auto leading-relaxed">
+                {error || 'La transaction n\'a pas pu être initialisée.'}
+              </p>
+            </div>
+
+            {isForbiddenPlan && (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleCloseModal();
+                    if (onOpenPricing) onOpenPricing();
+                    else window.location.href = '/?view=gerant-tarifs';
+                  }}
+                  className="px-4 py-2.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer"
+                >
+                  Découvrir les offres Starter / Pro
+                </button>
+              </div>
+            )}
+
+            <button
+              onClick={reset}
+              className="w-full py-3.5 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-2xl text-sm transition-all shadow-lg cursor-pointer"
             >
-              <IconBrandWhatsapp size={16} />
-              <span>Contacter le support WhatsApp</span>
-            </a>
+              Réessayer
+            </button>
           </div>
         ) : (
+          /* ── FORMULAIRE INITIAL ── */
           <form onSubmit={handleSubmit} className="space-y-5">
 
             {/* Sélection Terrain si plusieurs */}
@@ -472,42 +452,6 @@ export const BoostCheckoutModal = ({
               )}
             </div>
 
-            {/* Messages d'erreur API, Forbidden 403 & Fallback Passerelle 502 */}
-            {apiError && (
-              <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-xs text-red-300 space-y-3">
-                <p className="flex items-center gap-1.5 font-semibold">
-                  <IconAlertCircle size={16} className="shrink-0 text-red-400" /> {apiError}
-                </p>
-
-                {isForbiddenPlanError && (
-                  <div className="pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        if (onOpenPricing) onOpenPricing();
-                        else window.location.href = '/?view=gerant-tarifs';
-                      }}
-                      className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-black font-bold rounded-xl text-xs transition-all shadow-md cursor-pointer"
-                    >
-                      Voir les offres Starter / Pro
-                    </button>
-                  </div>
-                )}
-
-                {isGatewayError && (
-                  <a
-                    href={`https://wa.me/221770000000?text=Bonjour,%20je%20souhaite%20booster%20mon%20terrain%20(Erreur%20502)`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all shadow-sm"
-                  >
-                    <IconBrandWhatsapp size={14} /> Contacter sur WhatsApp
-                  </a>
-                )}
-              </div>
-            )}
-
             {/* Bouton de Soumission */}
             <div className="pt-2 space-y-3">
               <button
@@ -515,7 +459,7 @@ export const BoostCheckoutModal = ({
                 disabled={isSubmitDisabled}
                 className="w-full py-4 bg-amber-500 hover:bg-amber-600 disabled:bg-gray-600/40 text-black font-bold rounded-2xl text-sm transition-all shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {loading ? (
+                {isCreating ? (
                   <>
                     <IconLoader2 size={18} className="animate-spin" />
                     Initialisation du boost...
