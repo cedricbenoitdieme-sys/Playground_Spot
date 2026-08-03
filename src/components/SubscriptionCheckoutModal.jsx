@@ -30,9 +30,9 @@ export const SubscriptionCheckoutModal = ({
   const { status, error, plan: redirectPlan, start, reset } = usePaymentFlow();
 
   const [selectedCycle, setSelectedCycle] = useState(cycle || 'mensuel');
-  const [methode, setMethode] = useState<'wave' | 'orange_money'>('wave');
+  const [methode, setMethode] = useState('wave');
   const [telephone, setTelephone] = useState(currentUser?.tel || '');
-  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState(null);
 
   useEffect(() => {
     if (cycle) setSelectedCycle(cycle);

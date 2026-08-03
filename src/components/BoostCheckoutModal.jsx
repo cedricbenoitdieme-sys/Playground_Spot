@@ -38,9 +38,9 @@ export const BoostCheckoutModal = ({
   const [selectedTerrainId, setSelectedTerrainId] = useState(terrainId || '');
   const [budget, setBudget] = useState(budgetFcfa || VISIBILITY_BOOST_CONFIG.DEFAULT_BUDGET);
   const [duration, setDuration] = useState(dureeJours || VISIBILITY_BOOST_CONFIG.DEFAULT_DURATION);
-  const [methode, setMethode] = useState<'wave' | 'orange_money'>('wave');
+  const [methode, setMethode] = useState('wave');
   const [telephone, setTelephone] = useState(currentUser?.tel || '');
-  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState(null);
 
   useEffect(() => {
     if (terrainId) setSelectedTerrainId(terrainId);
