@@ -341,7 +341,7 @@ export const Parametres = ({ setView }) => {
           <Row label="Politique de confidentialité" onClick={() => setShowPrivacy(true)}>
             <IconChevronRight size={16} className="text-gray-300" />
           </Row>
-          <Row label="Support" sub="support@playgroundspot.sn" onClick={() => setShowSupport(true)}>
+          <Row label="Support" sub="drixoftm@gmail.com" onClick={() => setShowSupport(true)}>
             <IconChevronRight size={16} className="text-gray-300" />
           </Row>
         </Section>
@@ -506,10 +506,12 @@ export const Parametres = ({ setView }) => {
         <div className="space-y-4 text-sm text-gray-600 leading-relaxed">
           <p>Besoin d'aide ou d'une assistance pour vos réservations ? Notre équipe support est à votre entière disposition.</p>
           <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100 space-y-2">
-            <p className="font-semibold text-gray-800">✉ Email : <a href="mailto:support@playgroundspot.sn" className="text-primary font-bold">support@playgroundspot.sn</a></p>
-            <p className="font-semibold text-gray-800">📞 Téléphone : <span className="text-primary font-bold">+221 77 000 00 00</span></p>
-            <p className="font-semibold text-gray-800">📍 Bureau : <span className="text-primary font-bold">Almadies, Dakar, Sénégal</span></p>
+            <p className="font-semibold text-gray-800">✉ Email : <a href="mailto:drixoftm@gmail.com?subject=Support%20PlaygroundSpot" className="text-primary font-bold">drixoftm@gmail.com</a></p>
           </div>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Cet email est réservé aux demandes de support et aux propositions de collaboration commerciale — tout autre message ne sera pas traité.
+            Merci de toujours indiquer un objet clair : un email sans objet tombe souvent en spam, et l'absence de réponse dans ce cas n'engage pas notre responsabilité.
+          </p>
         </div>
       </Sheet>
 
