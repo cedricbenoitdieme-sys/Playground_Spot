@@ -6,18 +6,27 @@ import {
   IconZoomIn,
   IconZoomOut,
   IconCheck,
-  IconRefresh,
   IconAlertCircle
 } from '@tabler/icons-react';
 
 /**
- * ImageCropperModal — Composant de Recadrage & Compression Photo (16:9)
+ * ImageCropperModal — Composant de Recadrage & Compression Photo
  * - Support JPEG, PNG, WEBP, HEIC
+ * - Support des ratios 16:9 (terrains) et 1:1 (avatars)
  * - Rotation à 90° (pour photos smartphone en portrait)
- * - Zoom & Drag pour ajuster le cadrage 16:9
+ * - Zoom & Drag pour ajuster le cadrage
  * - Compression HTML5 Canvas en JPEG 85% (~1 Mo max)
  */
-export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }) => {
+export const ImageCropperModal = ({
+  isOpen,
+  imageFile,
+  onClose,
+  onCropComplete,
+  aspectRatio = 16 / 9,
+  cropShape = 'rect', // 'rect' | 'circle'
+  title = null,
+  subtitle = null
+}) => {
   const [imageSrc, setImageSrc] = useState(null);
   const [rotation, setRotation] = useState(0); // 0, 90, 180, 270
   const [zoom, setZoom] = useState(1); // 1 to 3
@@ -27,8 +36,9 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
   const [processing, setProcessing] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const canvasRef = useRef(null);
   const imageRef = useRef(null);
+
+  const isSquare = aspectRatio === 1;
 
   // Charger le fichier et gérer la conversion initiale
   useEffect(() => {
@@ -108,7 +118,7 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
     setRotation(prev => (prev + 90) % 360);
   };
 
-  // Générer le Blob final recadré en 16:9 (1280x720)
+  // Générer le Blob final recadré
   const handleConfirmCrop = async () => {
     if (!imageRef.current) return;
     setProcessing(true);
@@ -116,8 +126,8 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
 
     try {
       const img = imageRef.current;
-      const targetWidth = 1280;
-      const targetHeight = 720; // Ratio strict 16:9
+      const targetWidth = isSquare ? 512 : 1280;
+      const targetHeight = isSquare ? 512 : 720;
 
       const canvas = document.createElement('canvas');
       canvas.width = targetWidth;
@@ -141,8 +151,11 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
       const drawWidth = (isRotated ? img.naturalHeight : img.naturalWidth) * scale;
       const drawHeight = (isRotated ? img.naturalWidth : img.naturalHeight) * scale;
 
-      const drawX = -drawWidth / 2 + (offset.x * (targetWidth / 320));
-      const drawY = -drawHeight / 2 + (offset.y * (targetHeight / 180));
+      const previewBaseWidth = isSquare ? 280 : 320;
+      const previewBaseHeight = isSquare ? 280 : 180;
+
+      const drawX = -drawWidth / 2 + (offset.x * (targetWidth / previewBaseWidth));
+      const drawY = -drawHeight / 2 + (offset.y * (targetHeight / previewBaseHeight));
 
       if (isRotated) {
         ctx.drawImage(img, -drawHeight / 2 + drawX, -drawWidth / 2 + drawY, drawHeight, drawWidth);
@@ -162,7 +175,7 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
           }
         },
         'image/jpeg',
-        0.85 // Qualité optimale pour compression 1-2 Mo max
+        0.85
       );
     } catch (err) {
       console.error('Erreur recadrage canvas:', err);
@@ -170,6 +183,11 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
       setErrorMsg("Une erreur est survenue lors du traitement de la photo.");
     }
   };
+
+  const defaultTitle = isSquare ? "Recadrage de la Photo de profil (1:1)" : "Recadrage de la Photo (16:9)";
+  const defaultSubtitle = isSquare 
+    ? "Ajustez le cadre et l'orientation pour votre avatar." 
+    : "Ajustez le cadre et l'orientation pour un rendu optimal sur la fiche terrain.";
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" style={{ isolation: 'isolate' }}>
@@ -180,8 +198,8 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 pb-4">
           <div>
-            <h3 className="text-lg font-bold font-display text-white">Recadrage de la Photo (16:9)</h3>
-            <p className="text-xs text-white/60">Ajustez le cadre et l'orientation pour un rendu optimal sur la fiche terrain.</p>
+            <h3 className="text-lg font-bold font-display text-white">{title || defaultTitle}</h3>
+            <p className="text-xs text-white/60">{subtitle || defaultSubtitle}</p>
           </div>
           <button onClick={onClose} className="p-2 rounded-full bg-white/10 hover:bg-white/20 transition-colors">
             <IconX size={18} />
@@ -194,9 +212,9 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
           </div>
         )}
 
-        {/* Preview Container 16:9 */}
+        {/* Preview Container */}
         <div
-          className="relative w-full aspect-video bg-black/60 rounded-2xl overflow-hidden border border-white/20 cursor-grab active:cursor-grabbing select-none flex items-center justify-center"
+          className={`relative w-full ${isSquare ? 'aspect-square max-w-[280px] mx-auto rounded-full' : 'aspect-video rounded-2xl'} bg-black/60 overflow-hidden border border-white/20 cursor-grab active:cursor-grabbing select-none flex items-center justify-center`}
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
@@ -222,20 +240,24 @@ export const ImageCropperModal = ({ isOpen, imageFile, onClose, onCropComplete }
             <div className="text-white/40 text-xs font-mono">Chargement de la photo...</div>
           )}
 
-          {/* Grille de guidage 16:9 */}
-          <div className="absolute inset-0 pointer-events-none border-2 border-primary/60 rounded-2xl">
-            <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-30">
-              <div className="border-r border-b border-white"></div>
-              <div className="border-r border-b border-white"></div>
-              <div className="border-b border-white"></div>
-              <div className="border-r border-b border-white"></div>
-              <div className="border-r border-b border-white"></div>
-              <div className="border-b border-white"></div>
-              <div className="border-r border-white"></div>
-              <div className="border-r border-white"></div>
-              <div></div>
+          {/* Overlay de guidage */}
+          {cropShape === 'circle' || isSquare ? (
+            <div className="absolute inset-0 pointer-events-none border-2 border-primary/80 rounded-full shadow-[0_0_0_9999px_rgba(0,0,0,0.4)]"></div>
+          ) : (
+            <div className="absolute inset-0 pointer-events-none border-2 border-primary/60 rounded-2xl">
+              <div className="w-full h-full grid grid-cols-3 grid-rows-3 opacity-30">
+                <div className="border-r border-b border-white"></div>
+                <div className="border-r border-b border-white"></div>
+                <div className="border-b border-white"></div>
+                <div className="border-r border-b border-white"></div>
+                <div className="border-r border-b border-white"></div>
+                <div className="border-b border-white"></div>
+                <div className="border-r border-white"></div>
+                <div className="border-r border-white"></div>
+                <div></div>
+              </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Barres d'outils de rotation & zoom */}

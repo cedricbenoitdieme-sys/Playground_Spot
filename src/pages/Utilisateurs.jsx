@@ -7,6 +7,8 @@ import {
   IconLoader2
 } from '@tabler/icons-react';
 import { fetchJoueurs, updateProfileStatut, fetchProfileWithHistory } from '../services/profiles';
+import { CustomSelect } from '../components/CustomSelect';
+import { Avatar } from '../components/Avatar';
 import { fetchLoyaltyTiers, getRangClient } from '../lib/loyalty';
 
 /* ── Helpers ── */
@@ -55,18 +57,7 @@ const UserCard = ({ u, tiers, onClick }) => {
     <button onClick={() => onClick(u)}
       className="w-full bg-white rounded-2xl border border-black/5 shadow-subtle p-4 flex items-center gap-4 text-left hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200 cursor-pointer"
       style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
-      {hasAvatarUrl && !imgError ? (
-        <img 
-          src={u.avatar} 
-          alt={u.nom} 
-          className="w-12 h-12 rounded-xl object-cover flex-shrink-0 border border-black/5"
-          onError={() => setImgError(true)}
-        />
-      ) : (
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${u.statut === 'suspendu' ? 'bg-red-50 text-red-500' : u.statut === 'inactif' ? 'bg-gray-100 text-gray-400' : 'bg-primary/10 text-primary'}`}>
-          {u.initiales || (u.nom || '').substring(0, 2).toUpperCase()}
-        </div>
-      )}
+      <Avatar user={u} className="w-12 h-12 rounded-xl" textSize="text-sm" bgClass={u.statut === 'suspendu' ? 'bg-red-50 text-red-500' : u.statut === 'inactif' ? 'bg-gray-100 text-gray-400' : 'bg-primary/10 text-primary'} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-0.5 flex-wrap">
           <p className="font-bold text-primary-dark truncate">{u.nom}</p>
@@ -284,22 +275,7 @@ export const Utilisateurs = () => {
                 {/* Header profil */}
                 <div className="p-5 bg-gradient-to-br from-primary/5 to-transparent border-b border-gray-100">
                   <div className="flex items-center gap-4">
-                    {selectedFull.avatar && (selectedFull.avatar.startsWith('http') || selectedFull.avatar.startsWith('/')) ? (
-                      <img 
-                        src={selectedFull.avatar} 
-                        alt={selectedFull.nom} 
-                        className="w-16 h-16 rounded-2xl object-cover flex-shrink-0 border border-black/5 shadow-sm"
-                        onError={(e) => {
-                          e.currentTarget.style.display = 'none';
-                          if (e.currentTarget.nextSibling) {
-                            e.currentTarget.nextSibling.style.display = 'flex';
-                          }
-                        }}
-                      />
-                    ) : null}
-                    <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black flex-shrink-0 ${selectedFull.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-primary/10 text-primary'} ${selectedFull.avatar && (selectedFull.avatar.startsWith('http') || selectedFull.avatar.startsWith('/')) ? 'hidden' : ''}`}>
-                      {selectedFull.initiales || (selectedFull.nom || '').substring(0,2).toUpperCase()}
-                    </div>
+                    <Avatar user={selectedFull} className="w-16 h-16 rounded-2xl shadow-sm" textSize="text-xl" bgClass={selectedFull.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-primary/10 text-primary'} />
                     <div>
                       <div className="flex items-center gap-2 mb-1 flex-wrap">
                         <p className="font-bold text-lg text-primary-dark">{selectedFull.nom}</p>

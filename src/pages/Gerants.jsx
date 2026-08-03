@@ -7,8 +7,8 @@ import {
   IconLoader2
 } from '@tabler/icons-react';
 import { supabase } from '../lib/supabase';
-import { fetchGerants } from '../services/profiles';
-import { updateProfileStatut } from '../services/profiles';
+import { fetchGerants, updateProfileStatut } from '../services/profiles';
+import { Avatar } from '../components/Avatar';
 
 /* ── Helpers ── */
 const fmt = (n) => {
@@ -58,13 +58,16 @@ const GerantCard = ({ g, onClick }) => (
     className="w-full bg-white rounded-2xl border border-black/5 shadow-subtle p-4 flex items-center gap-4 text-left hover:shadow-md hover:-translate-y-0.5 active:scale-[0.98] transition-all duration-200"
     style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}
   >
-    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-black flex-shrink-0 ${
-      g.statut === 'actif' ? 'bg-primary/10 text-primary' :
-      g.statut === 'suspendu' ? 'bg-red-50 text-red-500' :
-      'bg-yellow-50 text-yellow-600'
-    }`}>
-      {g.initiales}
-    </div>
+    <Avatar
+      user={g}
+      className="w-12 h-12 rounded-xl"
+      textSize="text-sm"
+      bgClass={
+        g.statut === 'actif' ? 'bg-primary/10 text-primary' :
+        g.statut === 'suspendu' ? 'bg-red-50 text-red-500' :
+        'bg-yellow-50 text-yellow-600'
+      }
+    />
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-2 mb-0.5">
         <p className="font-bold text-primary-dark truncate">{g.nom}</p>
@@ -304,10 +307,15 @@ export const Gerants = () => {
             {/* Profil header */}
             <div className="p-5 bg-gradient-to-br from-primary/5 to-transparent border-b border-gray-100">
               <div className="flex items-center gap-4">
-                <div className={`w-16 h-16 rounded-2xl flex items-center justify-center text-xl font-black flex-shrink-0 ${
-                  selected.statut === 'actif' ? 'bg-primary/10 text-primary' :
-                  selected.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-yellow-50 text-yellow-600'
-                }`}>{selected.initiales}</div>
+                <Avatar
+                  user={selected}
+                  className="w-16 h-16 rounded-2xl"
+                  textSize="text-xl"
+                  bgClass={
+                    selected.statut === 'actif' ? 'bg-primary/10 text-primary' :
+                    selected.statut === 'suspendu' ? 'bg-red-50 text-red-500' : 'bg-yellow-50 text-yellow-600'
+                  }
+                />
                 <div>
                   <p className="font-bold text-lg text-primary-dark">{selected.nom}</p>
                   <StatusBadge statut={selected.statut} />

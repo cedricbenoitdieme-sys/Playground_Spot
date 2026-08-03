@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { IconBell, IconSearch, IconX, IconCheck, IconHome, IconBallFootball } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
+import { Avatar } from './Avatar';
 import { PlanBadge } from './PlanBadge';
 
 export const Header = ({ title: passedTitle, showSearch = false, setView, displayPlan: passedDisplayPlan }) => {
@@ -240,13 +241,9 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
         {/* Mobile Avatar */}
         <div 
           onClick={handleProfileClick}
-          className="lg:hidden w-10 h-10 rounded-full border-2 border-primary/20 flex-shrink-0 flex items-center justify-center bg-primary text-white font-black text-sm cursor-pointer hover:scale-105 active:scale-95 transition-transform overflow-hidden"
+          className="lg:hidden flex-shrink-0 cursor-pointer hover:scale-105 active:scale-95 transition-transform"
         >
-          {currentUser.avatar && (currentUser.avatar.startsWith('http') || currentUser.avatar.startsWith('/')) ? (
-            <img src={currentUser.avatar} alt={currentUser.nom} className="w-full h-full object-cover" />
-          ) : (
-            currentUser.initiales || (currentUser.nom || '').substring(0, 2).toUpperCase()
-          )}
+          <Avatar user={currentUser} className="w-10 h-10 rounded-full border-2 border-primary/20" textSize="text-sm" />
         </div>
       </div>
 

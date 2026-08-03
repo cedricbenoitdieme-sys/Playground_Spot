@@ -13,6 +13,7 @@ import {
   IconLoader2
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
+import { Avatar } from '../components/Avatar';
 import { supabase } from '../lib/supabase';
 import { formatAmountAbbreviated } from '../services/stats';
 import { updateOwnProfile } from '../services/profiles';
@@ -161,18 +162,7 @@ export const JoueurProfile = () => {
         style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}
       >
         <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
-          {hasAvatarUrl && !imgError ? (
-            <img 
-              src={currentUser.avatar} 
-              alt={currentUser.nom} 
-              className="w-16 h-16 rounded-full object-cover border-4 border-primary/20 shadow-lg shadow-primary/10 flex-shrink-0"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-primary text-white font-black text-xl flex items-center justify-center border-4 border-primary/20 shadow-lg shadow-primary/10 flex-shrink-0">
-              {currentUser?.initiales || (currentUser?.nom || '').substring(0, 2).toUpperCase() || '??'}
-            </div>
-          )}
+          <Avatar user={currentUser} className="w-16 h-16 rounded-full border-4 border-primary/20 shadow-lg shadow-primary/10" textSize="text-xl" />
           <div>
             <h2 className="text-xl font-display font-bold text-primary-dark">{currentUser?.nom || 'Joueur'}</h2>
             <p className="text-xs text-gray-500 font-semibold flex items-center gap-1 justify-center md:justify-start mt-0.5">

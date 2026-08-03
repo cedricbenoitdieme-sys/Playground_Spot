@@ -43,6 +43,7 @@ const ReservationFailed = lazy(() => import('./pages/ReservationFailed'));
 import { TrialBanner } from './components/TrialBanner';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { useUser } from './context/UserContext';
+import { Avatar } from './components/Avatar';
 import { signOut } from './services/auth';
 import { fetchReservations } from './services/reservations';
 import { supabase } from './lib/supabase';
@@ -437,9 +438,7 @@ function App() {
           <div className="flex-1 overflow-y-auto px-5 py-6 bg-background space-y-6 pb-28">
             <div className="flex items-center gap-4 bg-white p-5 rounded-[20px] shadow-subtle border border-black/5"
               style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}>
-              <div className="w-14 h-14 rounded-2xl bg-primary text-white flex items-center justify-center text-xl font-black shadow-lg shadow-primary/20">
-                {currentUser?.avatar}
-              </div>
+              <Avatar user={currentUser} className="w-14 h-14 rounded-2xl shadow-lg shadow-primary/20" textSize="text-xl" />
               <div>
                 <p className="font-bold text-primary-dark text-lg">{currentUser?.nom}</p>
                 <span className="text-[10px] font-bold text-primary bg-primary/5 px-2.5 py-1 rounded-full border border-primary/20 uppercase tracking-wider">Super Administrateur</span>

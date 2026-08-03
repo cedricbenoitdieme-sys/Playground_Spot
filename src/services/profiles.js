@@ -256,6 +256,40 @@ export const fetchProfileWithHistory = async (profileId, { currentUserId = null,
 };
 
 // ── Helpers ─────────────────────────────────────────────
+export const uploadAvatarPhoto = async (blob, userId, oldAvatarUrl = null) => {
+  if (!userId) throw new Error("ID utilisateur requis pour l'upload d'avatar.");
+  
+  const filename = `${crypto.randomUUID()}.jpg`;
+  const filePath = `${userId}/${filename}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from('avatars')
+    .upload(filePath, blob, {
+      contentType: 'image/jpeg',
+      upsert: false
+    });
+
+  if (uploadError) throw handleServiceError(uploadError, 'uploadAvatarPhoto');
+
+  const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+  const publicUrl = data.publicUrl;
+
+  // Supprimer l'ancien fichier s'il appartenait au bucket avatars
+  if (oldAvatarUrl && typeof oldAvatarUrl === 'string' && oldAvatarUrl.includes('/avatars/')) {
+    try {
+      const parts = oldAvatarUrl.split('/avatars/');
+      if (parts[1]) {
+        const oldPath = parts[1].split('?')[0];
+        await supabase.storage.from('avatars').remove([oldPath]);
+      }
+    } catch (err) {
+      console.warn("Nettoyage de l'ancien avatar ignoré:", err);
+    }
+  }
+
+  return publicUrl;
+};
+
 const getInitiales = (nom) => {
   if (!nom) return '??';
   return nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);

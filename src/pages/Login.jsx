@@ -194,7 +194,7 @@ export const Login = ({ setView }) => {
           role: profile.role,
           quartier: profile.quartier,
           tel: profile.tel,
-          avatar: profile.avatar || profile.nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2),
+          avatar: profile.avatar || null,
           statut: profile.statut,
         };
 

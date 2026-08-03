@@ -5,11 +5,14 @@ import {
   IconUser, IconLock, IconBell, IconSettings, IconInfoCircle,
   IconChevronRight, IconCheck, IconX, IconEye, IconEyeOff,
   IconMail, IconPhone, IconBuildingStore, IconLogout,
-  IconEdit, IconShield, IconPalette, IconDeviceMobile,
+  IconEdit, IconShield, IconPalette, IconDeviceMobile, IconCamera,
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
 import { updateProfile } from '../services/auth';
+import { uploadAvatarPhoto } from '../services/profiles';
+import { Avatar } from '../components/Avatar';
+import { ImageCropperModal } from '../components/ImageCropperModal';
 
 const ROLE_LABELS = { admin: 'Super Administrateur', gerant: 'Gérant Terrain', joueur: 'Joueur' };
 /* ── Toggle switch ── */
@@ -78,6 +81,38 @@ export const Parametres = ({ setView }) => {
       setProfil({ nom: currentUser.nom || '', email: currentUser.email || '', tel: currentUser.tel || '' });
     }
   }, [currentUser]);
+
+  // Avatar upload states
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  const handleAvatarFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      setCropperOpen(true);
+    }
+  };
+
+  const handleCropComplete = async (croppedBlob) => {
+    if (!currentUser?.id) return;
+    setCropperOpen(false);
+    showToast('Téléversement de la photo…');
+    try {
+      const publicUrl = await uploadAvatarPhoto(croppedBlob, currentUser.id, currentUser.avatar);
+      await updateProfile(currentUser.id, { avatar: publicUrl });
+      setCurrentUser(prev => ({ ...prev, avatar: publicUrl }));
+      setProfil(prev => ({ ...prev, avatar: publicUrl }));
+      showToast('Photo de profil mise à jour ✓');
+    } catch (err) {
+      console.error('Erreur upload avatar:', err);
+      showToast(`❌ ${err.userMessage || err.message || "Échec de l'enregistrement de la photo"}`);
+    } finally {
+      setAvatarFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   // Mot de passe
   const [editPwd, setEditPwd] = useState(false);
@@ -251,8 +286,23 @@ export const Parametres = ({ setView }) => {
         <Section title="Mon profil" icon={IconUser} delay={0.05}>
           {/* Avatar */}
           <div className="px-5 py-5 flex items-center gap-4 border-b border-gray-50">
-            <div className="w-16 h-16 rounded-2xl bg-primary text-white flex items-center justify-center text-2xl font-black shadow-lg shadow-primary/20 flex-shrink-0">
-              {currentUser?.avatar || '??'}
+            <div className="relative group">
+              <Avatar user={currentUser} className="w-16 h-16 rounded-2xl shadow-lg shadow-primary/20" textSize="text-2xl" />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="absolute -bottom-1 -right-1 p-1.5 bg-primary text-white rounded-xl shadow hover:bg-primary-dark transition-all cursor-pointer"
+                title="Changer la photo de profil"
+              >
+                <IconCamera size={14} />
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/heic"
+                className="hidden"
+                onChange={handleAvatarFileSelect}
+              />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-bold text-primary-dark text-base">{profil.nom}</p>
@@ -514,6 +564,22 @@ export const Parametres = ({ setView }) => {
           </p>
         </div>
       </Sheet>
+
+      {/* Cropper Modal pour Avatar */}
+      <ImageCropperModal
+        isOpen={cropperOpen}
+        imageFile={avatarFile}
+        onClose={() => {
+          setCropperOpen(false);
+          setAvatarFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }}
+        onCropComplete={handleCropComplete}
+        aspectRatio={1}
+        cropShape="circle"
+        title="Recadrer la photo de profil"
+        subtitle="Ajustez l'image pour un rendu optimal sur votre profil."
+      />
 
       {/* Toast */}
       {toast && (
