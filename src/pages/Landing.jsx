@@ -1088,11 +1088,6 @@ export const Landing = ({ setView }) => {
               <div className="bg-white px-3 py-1.5 rounded-lg flex items-center justify-center text-[#1a56db] font-bold text-sm tracking-tight">Wave</div>
               <div className="bg-black px-3 py-1.5 rounded-lg flex items-center justify-center border border-white/10 text-[#ff6600] font-bold text-xs tracking-tight">Orange Money</div>
             </div>
-            <div className="mt-6 flex gap-4">
-              <span className="text-gray-400 hover:text-white transition-colors cursor-pointer">Facebook</span>
-              <span className="text-gray-400 hover:text-white transition-colors cursor-pointer">Instagram</span>
-              <span className="text-gray-400 hover:text-white transition-colors cursor-pointer">LinkedIn</span>
-            </div>
           </div>
         </div>
         
