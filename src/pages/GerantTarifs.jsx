@@ -2,26 +2,31 @@ import React, { useState, useEffect } from 'react';
 import { 
   IconCheck, 
   IconSparkles, 
-  IconShieldCheck, 
   IconCrown, 
   IconArrowRight, 
-  IconBuildingStore, 
-  IconCalendarEvent, 
-  IconChartBar, 
   IconHelpCircle,
-  IconClock,
-  IconLoader2
+  IconLoader2,
+  IconAlertCircle
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
-import { fetchUserPlanAndLimits, fetchAllPlanLimits } from '../services/subscriptions';
+import { 
+  fetchUserPlanAndLimits, 
+  fetchAllPlanLimits,
+  activateFreePlan,
+  startTrial
+} from '../services/subscriptions';
+import { PLANS_CONFIG } from '../config/plansConfig';
 import { SubscriptionCheckoutModal } from '../components/SubscriptionCheckoutModal';
 
 export const GerantTarifs = ({ setView }) => {
-  const { currentUser } = useUser();
+  const { currentUser, setDisplayPlan } = useUser();
   const [billingCycle, setBillingCycle] = useState('mensuel'); // 'mensuel' | 'annuel'
   const [plans, setPlans] = useState([]);
   const [currentPlanInfo, setCurrentPlanInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null);
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   // Selected plan for checkout modal
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -37,7 +42,6 @@ export const GerantTarifs = ({ setView }) => {
         ]);
 
         if (plansList && plansList.length > 0) {
-          // Garanti l'ordre exact: free -> starter -> pro -> entreprise
           const order = ['free', 'starter', 'pro', 'entreprise'];
           const sorted = [...plansList].sort((a, b) => {
             return order.indexOf(a.plan_id) - order.indexOf(b.plan_id);
@@ -58,27 +62,75 @@ export const GerantTarifs = ({ setView }) => {
     loadPlansData();
   }, [currentUser]);
 
-  const handleSelectPlan = (plan) => {
-    if (plan.plan_id === 'free') {
-      return; // Déjà attribué par défaut
+  // Action 1: Activer plan Free
+  const handleActivateFree = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setActionLoading('free');
+    try {
+      const res = await activateFreePlan();
+      if (res?.success) {
+        setSuccessMessage('Votre compte a été basculé sur le plan Free.');
+        if (setDisplayPlan) setDisplayPlan('Free');
+        const userPlan = currentUser?.id ? await fetchUserPlanAndLimits(currentUser.id) : null;
+        if (userPlan) setCurrentPlanInfo(userPlan);
+      } else {
+        setErrorMessage(res?.error || 'Impossible d\'activer le plan Free.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Erreur lors de l\'activation.');
+    } finally {
+      setActionLoading(null);
     }
+  };
+
+  // Action 2: Essayer 30 jours (start_trial)
+  const handleStartTrial = async (plan) => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setActionLoading(plan.plan_id);
+
+    try {
+      const res = await startTrial(plan.plan_id);
+      if (res?.success) {
+        setSuccessMessage(`Essai de 30 jours activé pour le plan ${plan.nom} !`);
+        if (setDisplayPlan) setDisplayPlan(`${plan.nom} · Essai 30j`);
+        const userPlan = currentUser?.id ? await fetchUserPlanAndLimits(currentUser.id) : null;
+        if (userPlan) setCurrentPlanInfo(userPlan);
+      } else {
+        setErrorMessage(res.error);
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Erreur lors de l\'activation de l\'essai.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Action 3: Payer avec Wave / OM
+  const handleSelectPlan = (plan) => {
+    if (plan.plan_id === 'free') return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
     setSelectedPlan(plan);
     setCheckoutModalOpen(true);
   };
 
   const handleCheckoutSuccess = (subData) => {
     setCheckoutModalOpen(false);
-    // Note: Redirection vers PaymentSuccess supprimée tant qu'aucune Edge Function de souscription n'est déployée.
+    if (subData?.plan_id && setDisplayPlan) {
+      const planMap = { free: 'Free', starter: 'Starter', pro: 'Pro', entreprise: 'Entreprise' };
+      const planName = planMap[subData.plan_id] || (subData.plan_id.charAt(0).toUpperCase() + subData.plan_id.slice(1));
+      setDisplayPlan(planName);
+    }
   };
 
-  // Rétention de chiffre d'affaires (Gain-framing pour la commission)
   const getRetentionPercentage = (commissionRate) => {
     const rate = parseFloat(commissionRate || 0);
     const retention = 100 - rate;
     return `${retention}%`;
   };
 
-  // Calcul du montant économisé en FCFA pour l'abonnement annuel
   const getSavingsFCFA = (plan) => {
     if (!plan.prix_annuel || !plan.prix_mensuel) return null;
     const fullYearMonthly = plan.prix_mensuel * 12;
@@ -90,7 +142,6 @@ export const GerantTarifs = ({ setView }) => {
     <div className="p-4 md:p-8 space-y-8 max-w-7xl mx-auto animate-fadeIn">
       {/* Hero Banner Card */}
       <div className="bg-gradient-to-br from-[#0F2318] via-[#143322] to-[#1A7A4A] p-8 md:p-12 rounded-[2.5rem] shadow-xl border border-emerald-900/30 text-white relative overflow-hidden text-center space-y-5 max-w-4xl mx-auto">
-        {/* Glow de fond */}
         <div className="absolute top-0 left-1/2 -translate-x-1/2 w-96 h-96 bg-primary/20 rounded-full blur-3xl pointer-events-none -mt-20"></div>
 
         <div className="relative z-10 inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-bold uppercase tracking-wider shadow-sm">
@@ -128,6 +179,21 @@ export const GerantTarifs = ({ setView }) => {
             </span>
           </div>
         </div>
+
+        {/* Alerts */}
+        {errorMessage && (
+          <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-xs text-red-300 max-w-lg mx-auto flex items-center gap-2 text-left shadow-lg">
+            <IconAlertCircle size={20} className="shrink-0 text-red-400" />
+            <span>{errorMessage}</span>
+          </div>
+        )}
+
+        {successMessage && (
+          <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 max-w-lg mx-auto flex items-center gap-2 text-left shadow-lg">
+            <IconCheck size={20} className="shrink-0 text-emerald-400" />
+            <span>{successMessage}</span>
+          </div>
+        )}
       </div>
 
       {loading ? (
@@ -143,14 +209,14 @@ export const GerantTarifs = ({ setView }) => {
             const isPro = plan.plan_id === 'pro';
             const isEntreprise = plan.plan_id === 'entreprise';
             const isFree = plan.plan_id === 'free';
-            const isStarter = plan.plan_id === 'starter';
+            const configObj = PLANS_CONFIG[plan.plan_id] || plan;
 
-            // Prices
+            // Prices from config
             const isYearlySelected = billingCycle === 'annuel' && (isPro || isEntreprise);
-            const displayPrice = isYearlySelected && plan.prix_annuel
-              ? Math.round(plan.prix_annuel / 12)
-              : plan.prix_mensuel;
-            const savingsFCFA = getSavingsFCFA(plan);
+            const displayPrice = isYearlySelected && configObj.prix_annuel
+              ? Math.round(configObj.prix_annuel / 12)
+              : configObj.prix_mensuel;
+            const savingsFCFA = getSavingsFCFA(configObj);
 
             return (
               <div
@@ -181,7 +247,7 @@ export const GerantTarifs = ({ setView }) => {
                   {/* Title & Description */}
                   <div className="flex items-center justify-between">
                     <h3 className={`text-xl font-bold font-display ${isEntreprise ? 'text-amber-300' : 'text-white'}`}>
-                      {plan.nom}
+                      {plan.nom || configObj.nom}
                     </h3>
                     {isCurrent && (
                       <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -203,7 +269,7 @@ export const GerantTarifs = ({ setView }) => {
                     {isYearlySelected ? (
                       <div className="mt-1 space-y-0.5">
                         <p className="text-xs text-white/60">
-                          Facturé {plan.prix_annuel.toLocaleString('fr-FR')} FCFA / an
+                          Facturé {configObj.prix_annuel.toLocaleString('fr-FR')} FCFA / an
                         </p>
                         {savingsFCFA && (
                           <p className="text-xs font-bold text-amber-400">
@@ -218,52 +284,52 @@ export const GerantTarifs = ({ setView }) => {
                     )}
                   </div>
 
-                  {/* Key Selling Argument (Gain framing on commission) */}
+                  {/* Retention percentage */}
                   <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs space-y-1.5">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span className="text-white/70 font-medium">Rétention ventes :</span>
                       <span className="font-bold text-emerald-400">
-                        Gardez {getRetentionPercentage(plan.commission_rate)} de vos ventes
+                        Gardez {getRetentionPercentage(configObj.commission_rate)} de vos ventes
                       </span>
                     </div>
                     <p className="text-[11px] text-white/50 leading-normal">
-                      Frais de plateforme : {plan.commission_rate}%
+                      Frais de plateforme : {configObj.commission_rate}%
                     </p>
                   </div>
 
-                  {/* Feature Checklist */}
+                  {/* Feature Checklist (Exact representation of plan rights) */}
                   <ul className="space-y-3 pt-2 text-xs leading-relaxed flex-1">
                     <li className="flex items-start gap-2.5">
                       <IconCheck size={16} className="text-primary shrink-0 mt-0.5" />
                       <span className="text-white/90">
                         <strong>
-                          {plan.max_terrains ? `${plan.max_terrains} terrain${plan.max_terrains > 1 ? 's' : ''}` : 'Terrains illimités'}
+                          {configObj.max_terrains ? `${configObj.max_terrains} terrain` : 'Terrains illimités'}
                         </strong>
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
                       <IconCheck size={16} className="text-primary shrink-0 mt-0.5" />
                       <span className="text-white/90">
-                        {plan.max_reservations_mois
-                          ? `${plan.max_reservations_mois} réservations / mois`
+                        {configObj.max_reservations_mois
+                          ? `${configObj.max_reservations_mois} réservations / mois`
                           : 'Réservations mensuelles illimitées'}
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.pdf_export ? 'text-primary' : 'text-white/20'}`} />
-                      <span className={plan.pdf_export ? 'text-white/90' : 'text-white/40 line-through'}>
+                      <IconCheck size={16} className={`shrink-0 mt-0.5 ${configObj.pdf_export ? 'text-primary' : 'text-white/20'}`} />
+                      <span className={configObj.pdf_export ? 'text-white/90' : 'text-white/40 line-through'}>
                         Export PDF des factures & tickets
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.dashboard_avance ? 'text-primary' : 'text-white/20'}`} />
-                      <span className={plan.dashboard_avance ? 'text-white/90' : 'text-white/40 line-through'}>
+                      <IconCheck size={16} className={`shrink-0 mt-0.5 ${configObj.dashboard_avance ? 'text-primary' : 'text-white/20'}`} />
+                      <span className={configObj.dashboard_avance ? 'text-white/90' : 'text-white/40 line-through'}>
                         Tableau de bord statistique avancé
                       </span>
                     </li>
                     <li className="flex items-start gap-2.5">
-                      <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.multi_sites ? 'text-amber-400' : 'text-white/20'}`} />
-                      <span className={plan.multi_sites ? 'text-amber-300 font-bold' : 'text-white/40 line-through'}>
+                      <IconCheck size={16} className={`shrink-0 mt-0.5 ${configObj.multi_sites ? 'text-amber-400' : 'text-white/20'}`} />
+                      <span className={configObj.multi_sites ? 'text-amber-300 font-bold' : 'text-white/40 line-through'}>
                         Multi-sites & accès API dédié
                       </span>
                     </li>
@@ -276,20 +342,48 @@ export const GerantTarifs = ({ setView }) => {
                   </ul>
                 </div>
 
-                {/* Call to action button */}
+                {/* Call to action buttons */}
                 <div className="pt-6 space-y-2 mt-auto">
                   {isFree ? (
                     <button
-                      disabled
-                      className="w-full py-3.5 bg-white/5 border border-white/10 text-white/40 font-semibold rounded-2xl text-xs cursor-default"
+                      onClick={handleActivateFree}
+                      disabled={actionLoading === 'free' || isCurrent}
+                      className={`w-full py-3.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                        isCurrent
+                          ? 'bg-white/5 border border-white/10 text-white/40 cursor-default'
+                          : 'bg-white/10 hover:bg-white/20 text-white cursor-pointer'
+                      }`}
                     >
-                      Offre de démarrage incluse
+                      {actionLoading === 'free' ? (
+                        <IconLoader2 size={16} className="animate-spin" />
+                      ) : isCurrent ? (
+                        'Offre de démarrage incluse'
+                      ) : (
+                        'Activer l\'offre Free'
+                      )}
                     </button>
                   ) : (
-                    <>
+                    <div className="space-y-2">
+                      {/* Bouton Essayer 30 jours (start_trial) */}
+                      <button
+                        onClick={() => handleStartTrial(plan)}
+                        disabled={actionLoading === plan.plan_id}
+                        className="w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                      >
+                        {actionLoading === plan.plan_id ? (
+                          <IconLoader2 size={14} className="animate-spin" />
+                        ) : (
+                          <>
+                            <IconSparkles size={14} />
+                            <span>Essayer 30 jours (1× par compte)</span>
+                          </>
+                        )}
+                      </button>
+
+                      {/* Bouton Payer (create-payment) */}
                       <button
                         onClick={() => handleSelectPlan(plan)}
-                        className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
+                        className={`w-full py-3 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
                           isPro
                             ? 'bg-primary hover:bg-primary-hover text-white shadow-primary/30'
                             : isEntreprise
@@ -297,13 +391,10 @@ export const GerantTarifs = ({ setView }) => {
                             : 'bg-white/10 hover:bg-white/20 text-white'
                         }`}
                       >
-                        <span>Essayer 30 jours gratuitement</span>
-                        <IconArrowRight size={16} />
+                        <span>Payer avec Wave / OM</span>
+                        <IconArrowRight size={14} />
                       </button>
-                      <p className="text-[10px] text-center text-white/50">
-                        Annulable sous 7 jours sans engagement
-                      </p>
-                    </>
+                    </div>
                   )}
                 </div>
               </div>

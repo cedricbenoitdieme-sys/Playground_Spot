@@ -12,25 +12,16 @@ const MIN_PAYMENT_AMOUNT = 100;     // 100 FCFA min
 // UUID v4 regex
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-// Format téléphone Sénégal : +221 7X XXX XX XX ou 7X XXX XX XX
-const SENEGAL_PHONE_REGEX = /^(?:\+221)?[[:space:]-]?7[0678][[:space:]-]?\d{3}[[:space:]-]?\d{2}[[:space:]-]?\d{2}$/;
-// Version simplifiée pour le JS
-const PHONE_REGEX = /^(\+221\s?)?7[0678]\s?\d{3}\s?\d{2}\s?\d{2}$/;
+// Format téléphone Sénégal exact : 7X XXXXXXX (avec préfixe +221 ou 221 toléré)
+const SENEGAL_PHONE_RE = /^(\+221|221)?7[0-9]{8}$/;
 
 const ALLOWED_ROLES = ['admin', 'super_admin', 'gerant', 'joueur'];
 
 // ── Règle 2.4 — Validation UUID ─────────────────────────────
-/**
- * Valide qu'un ID est un UUID v4 bien formé.
- * JAMAIS accepter les IDs sans validation.
- * @param {string} id - L'identifiant à valider
- * @returns {{ valid: boolean, error?: string }}
- */
 export const validateUUID = (id) => {
   if (!id) {
     return { valid: false, error: 'ID requis' };
   }
-  // En mode développement, autoriser les identifiants numériques simples (fixtures locales)
   if (import.meta.env?.DEV) {
     if (typeof id === 'number' || /^\d+$/.test(id)) {
       return { valid: true };
@@ -48,41 +39,34 @@ export const validateUUID = (id) => {
 // ── Règle 1.2 — Validation Téléphone Sénégal ────────────────
 /**
  * Valide un numéro de téléphone au format sénégalais.
- * Accepte : +221 77 123 45 67, 77 123 45 67, 771234567
  * @param {string} tel - Le numéro de téléphone
+ * @param {boolean} isRequired - Si le champ est obligatoirement requis (ex: Orange Money)
+ * @param {boolean} isOrangeMoney - Si la méthode est Orange Money pour le message d'erreur approprié
  * @returns {{ valid: boolean, error?: string, sanitized?: string }}
  */
-export const validatePhone = (tel) => {
-  if (!tel || typeof tel !== 'string') {
-    return { valid: false, error: 'Numéro de téléphone requis' };
-  }
-  
-  // Nettoyer les espaces, tirets et points
-  const cleaned = tel.replace(/[\s\-().]/g, '');
-  
-  // Vérifier le pattern sénégalais
-  if (!PHONE_REGEX.test(tel.trim())) {
-    // Tenter avec le numéro nettoyé
-    const cleanedCheck = /^(\+221)?7[0678]\d{7}$/.test(cleaned);
-    if (!cleanedCheck) {
-      return { valid: false, error: 'Format invalide. Attendu : +221 7X XXX XX XX ou 7X XXX XX XX' };
+export const validatePhone = (tel, isRequired = true, isOrangeMoney = false) => {
+  const raw = typeof tel === 'string' ? tel : '';
+  const cleaned = raw.replace(/[\s\-().]/g, '');
+
+  if (!cleaned) {
+    if (isRequired) {
+      const emptyMsg = isOrangeMoney ? 'Numéro Orange Money requis' : 'Numéro de téléphone requis';
+      return { valid: false, error: emptyMsg };
     }
+    return { valid: true, sanitized: '' };
   }
-  
-  // Formater proprement
-  const digits = cleaned.replace(/^\+221/, '');
+
+  if (!SENEGAL_PHONE_RE.test(cleaned)) {
+    return { valid: false, error: 'Format invalide (ex : 77 123 45 67)' };
+  }
+
+  const digits = cleaned.replace(/^(\+221|221)/, '');
   const sanitized = `+221 ${digits.slice(0, 2)} ${digits.slice(2, 5)} ${digits.slice(5, 7)} ${digits.slice(7, 9)}`;
-  
+
   return { valid: true, sanitized };
 };
 
 // ── Règle 1.1 — Validation Montant ──────────────────────────
-/**
- * Vérifie que le montant est > 0 et < limite max définie.
- * @param {number} montant - Le montant en FCFA
- * @param {object} options - Options de validation
- * @returns {{ valid: boolean, error?: string }}
- */
 export const validateAmount = (montant, options = {}) => {
   const min = options.min ?? MIN_PAYMENT_AMOUNT;
   const max = options.max ?? MAX_PAYMENT_AMOUNT;
@@ -109,11 +93,6 @@ export const validateAmount = (montant, options = {}) => {
 };
 
 // ── Règle 2.2 — Validation Rôle ─────────────────────────────
-/**
- * Vérifie que le rôle est valide.
- * @param {string} role
- * @returns {{ valid: boolean, error?: string }}
- */
 export const validateRole = (role) => {
   if (!role || typeof role !== 'string') {
     return { valid: false, error: 'Rôle requis' };
@@ -125,12 +104,6 @@ export const validateRole = (role) => {
 };
 
 // ── Règle 3.3 — Sanitisation Input ──────────────────────────
-/**
- * Nettoie les entrées utilisateur pour prévenir le XSS.
- * JAMAIS utiliser dangerouslySetInnerHTML avec du contenu utilisateur non nettoyé.
- * @param {string} input
- * @returns {string} - Input nettoyé
- */
 export const sanitizeInput = (input) => {
   if (!input || typeof input !== 'string') return '';
   return input
@@ -143,17 +116,11 @@ export const sanitizeInput = (input) => {
 };
 
 // ── Règle 1.2 — Validation Email ─────────────────────────────
-/**
- * Validation basique d'email.
- * @param {string} email
- * @returns {{ valid: boolean, error?: string }}
- */
 export const validateEmail = (email) => {
   if (!email || typeof email !== 'string') {
     return { valid: false, error: 'Email requis' };
   }
   const trimmed = email.trim().toLowerCase();
-  // RFC 5322 simplifié
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(trimmed)) {
     return { valid: false, error: 'Format email invalide' };
@@ -165,11 +132,6 @@ export const validateEmail = (email) => {
 };
 
 // ── Règle 4.3 — Validation Mot de Passe ─────────────────────
-/**
- * Vérifie la force du mot de passe.
- * @param {string} password
- * @returns {{ valid: boolean, error?: string }}
- */
 export const validatePassword = (password) => {
   if (!password || typeof password !== 'string') {
     return { valid: false, error: 'Mot de passe requis' };

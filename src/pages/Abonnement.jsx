@@ -7,10 +7,17 @@ import {
   IconArrowRight, 
   IconHelpCircle,
   IconLoader2,
-  IconLogout
+  IconLogout,
+  IconAlertCircle
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
-import { fetchUserPlanAndLimits, fetchAllPlanLimits } from '../services/subscriptions';
+import { 
+  fetchUserPlanAndLimits, 
+  fetchAllPlanLimits, 
+  activateFreePlan, 
+  startTrial 
+} from '../services/subscriptions';
+import { PLANS_CONFIG } from '../config/plansConfig';
 import { SubscriptionCheckoutModal } from '../components/SubscriptionCheckoutModal';
 import { signOut } from '../services/auth';
 import { IS_PAIEMENT_ABONNEMENT_ACTIF } from '../config/paymentConfig';
@@ -21,6 +28,9 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
   const [plans, setPlans] = useState([]);
   const [currentPlanInfo, setCurrentPlanInfo] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(null); // 'free' | plan_id (trial)
+  const [errorMessage, setErrorMessage] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
 
   // Selected plan for checkout modal
   const [selectedPlan, setSelectedPlan] = useState(null);
@@ -56,8 +66,60 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
     loadPlansData();
   }, [currentUser]);
 
-  const handleSelectPlan = (plan) => {
+  // Action 1: Activer le plan Free sans paiement
+  const handleActivateFree = async () => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setActionLoading('free');
+
+    try {
+      const res = await activateFreePlan();
+      if (res?.success) {
+        setSuccessMessage('Votre compte a été activé sous le plan Free gratuit.');
+        if (setDisplayPlan) setDisplayPlan('Free');
+        const userPlan = currentUser?.id ? await fetchUserPlanAndLimits(currentUser.id) : null;
+        if (userPlan) setCurrentPlanInfo(userPlan);
+        if (onSuccess) onSuccess({ plan_id: 'free' });
+      } else {
+        setErrorMessage(res?.error || 'Impossible d\'activer le plan Free.');
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Erreur lors de l\'activation du plan Free.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Action 2: Essayer 30 jours (start_trial)
+  const handleStartTrial = async (plan) => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setActionLoading(plan.plan_id);
+
+    try {
+      const res = await startTrial(plan.plan_id);
+      if (res?.success) {
+        setSuccessMessage(`Période d'essai de 30 jours activée avec succès pour le plan ${plan.nom} !`);
+        if (setDisplayPlan) setDisplayPlan(`${plan.nom} · Essai 30j`);
+        const userPlan = currentUser?.id ? await fetchUserPlanAndLimits(currentUser.id) : null;
+        if (userPlan) setCurrentPlanInfo(userPlan);
+        if (onSuccess) onSuccess({ plan_id: plan.plan_id, is_trial: true });
+      } else {
+        // Message d'erreur spécifique pour "Période d'essai déjà utilisée"
+        setErrorMessage(res.error);
+      }
+    } catch (err) {
+      setErrorMessage(err.message || 'Erreur lors de l\'activation de la période d\'essai.');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  // Action 3: Payer avec Wave / OM
+  const handleOpenCheckout = (plan) => {
     if (plan.plan_id === 'free') return;
+    setErrorMessage(null);
+    setSuccessMessage(null);
     setSelectedPlan(plan);
     setCheckoutModalOpen(true);
   };
@@ -164,6 +226,21 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
               </span>
             </div>
           </div>
+
+          {/* Alertes d'état (Succès / Erreur spécifique) */}
+          {errorMessage && (
+            <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-2xl text-xs text-red-300 max-w-lg mx-auto flex items-center gap-2 text-left shadow-lg">
+              <IconAlertCircle size={20} className="shrink-0 text-red-400" />
+              <span>{errorMessage}</span>
+            </div>
+          )}
+
+          {successMessage && (
+            <div className="p-4 bg-emerald-500/10 border border-emerald-500/30 rounded-2xl text-xs text-emerald-300 max-w-lg mx-auto flex items-center gap-2 text-left shadow-lg">
+              <IconCheck size={20} className="shrink-0 text-emerald-400" />
+              <span>{successMessage}</span>
+            </div>
+          )}
         </div>
 
         {loading ? (
@@ -179,13 +256,14 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
               const isPro = plan.plan_id === 'pro';
               const isEntreprise = plan.plan_id === 'entreprise';
               const isFree = plan.plan_id === 'free';
+              const configObj = PLANS_CONFIG[plan.plan_id] || plan;
 
-              // Prices
+              // Prices from config
               const isYearlySelected = billingCycle === 'annuel' && (isPro || isEntreprise);
-              const displayPrice = isYearlySelected && plan.prix_annuel
-                ? Math.round(plan.prix_annuel / 12)
-                : plan.prix_mensuel;
-              const savingsFCFA = getSavingsFCFA(plan);
+              const displayPrice = isYearlySelected && configObj.prix_annuel
+                ? Math.round(configObj.prix_annuel / 12)
+                : configObj.prix_mensuel;
+              const savingsFCFA = getSavingsFCFA(configObj);
 
               return (
                 <div
@@ -216,7 +294,7 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
                     {/* Title & Description */}
                     <div className="flex items-center justify-between">
                       <h3 className={`text-xl font-bold font-display ${isEntreprise ? 'text-amber-300' : 'text-white'}`}>
-                        {plan.nom}
+                        {plan.nom || configObj.nom}
                       </h3>
                       {isCurrent && (
                         <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
@@ -238,7 +316,7 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
                       {isYearlySelected ? (
                         <div className="mt-1 space-y-0.5">
                           <p className="text-xs text-white/60">
-                            Facturé {plan.prix_annuel.toLocaleString('fr-FR')} FCFA / an
+                            Facturé {configObj.prix_annuel.toLocaleString('fr-FR')} FCFA / an
                           </p>
                           {savingsFCFA && (
                             <p className="text-xs font-bold text-amber-400">
@@ -258,70 +336,112 @@ export const Abonnement = ({ onSuccess, onLogout }) => {
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                         <span className="text-white/70 font-medium">Rétention ventes :</span>
                         <span className="font-bold text-emerald-400">
-                          Gardez {getRetentionPercentage(plan.commission_rate)} de vos ventes
+                          Gardez {getRetentionPercentage(configObj.commission_rate)} de vos ventes
                         </span>
                       </div>
                       <p className="text-[11px] text-white/50 leading-normal">
-                        Frais de plateforme : {plan.commission_rate}%
+                        Frais de plateforme : {configObj.commission_rate}%
                       </p>
                     </div>
 
-                    {/* Feature Checklist */}
+                    {/* Feature Checklist (Exact representation of plan rights) */}
                     <ul className="space-y-3 pt-2 text-xs leading-relaxed flex-1">
                       <li className="flex items-start gap-2.5">
                         <IconCheck size={16} className="text-primary shrink-0 mt-0.5" />
                         <span className="text-white/90">
                           <strong>
-                            {plan.max_terrains ? `${plan.max_terrains} terrain${plan.max_terrains > 1 ? 's' : ''}` : 'Terrains illimités'}
+                            {configObj.max_terrains ? `${configObj.max_terrains} terrain` : 'Terrains illimités'}
                           </strong>
                         </span>
                       </li>
                       <li className="flex items-start gap-2.5">
                         <IconCheck size={16} className="text-primary shrink-0 mt-0.5" />
                         <span className="text-white/90">
-                          {plan.max_reservations_mois
-                            ? `${plan.max_reservations_mois} réservations / mois`
+                          {configObj.max_reservations_mois
+                            ? `${configObj.max_reservations_mois} réservations / mois`
                             : 'Réservations mensuelles illimitées'}
                         </span>
                       </li>
                       <li className="flex items-start gap-2.5">
-                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.pdf_export ? 'text-primary' : 'text-white/20'}`} />
-                        <span className={plan.pdf_export ? 'text-white/90' : 'text-white/40 line-through'}>
+                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${configObj.pdf_export ? 'text-primary' : 'text-white/20'}`} />
+                        <span className={configObj.pdf_export ? 'text-white/90' : 'text-white/40 line-through'}>
                           Export PDF des factures & tickets
                         </span>
                       </li>
                       <li className="flex items-start gap-2.5">
-                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${plan.dashboard_avance ? 'text-primary' : 'text-white/20'}`} />
-                        <span className={plan.dashboard_avance ? 'text-white/90' : 'text-white/40 line-through'}>
+                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${configObj.dashboard_avance ? 'text-primary' : 'text-white/20'}`} />
+                        <span className={configObj.dashboard_avance ? 'text-white/90' : 'text-white/40 line-through'}>
                           Tableau de bord statistique avancé
                         </span>
                       </li>
+                      <li className="flex items-start gap-2.5">
+                        <IconCheck size={16} className={`shrink-0 mt-0.5 ${configObj.multi_sites ? 'text-amber-400' : 'text-white/20'}`} />
+                        <span className={configObj.multi_sites ? 'text-amber-300 font-bold' : 'text-white/40 line-through'}>
+                          Multi-sites & accès API dédié
+                        </span>
+                      </li>
+                      {!isFree && (
+                        <li className="flex items-start gap-2.5 text-primary font-semibold">
+                          <IconSparkles size={16} className="shrink-0 mt-0.5" />
+                          <span>Accès au Module Budget Visibilité</span>
+                        </li>
+                      )}
                     </ul>
                   </div>
 
-                  {/* Call to action button */}
+                  {/* Call to action buttons */}
                   <div className="pt-6 space-y-2 mt-auto">
                     {isFree ? (
                       <button
-                        disabled
-                        className="w-full py-3.5 bg-white/5 border border-white/10 text-white/40 font-semibold rounded-2xl text-xs cursor-default"
-                      >
-                        Plan de départ
-                      </button>
-                    ) : (
-                      <button
-                        onClick={() => handleSelectPlan(plan)}
-                        className={`w-full py-3.5 rounded-2xl font-bold text-sm transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
-                          isPro
-                            ? 'bg-primary hover:bg-primary-hover text-white shadow-primary/30'
-                            : isEntreprise
-                            ? 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-black shadow-amber-500/20'
-                            : 'bg-white/10 hover:bg-white/20 text-white'
+                        onClick={handleActivateFree}
+                        disabled={actionLoading === 'free' || isCurrent}
+                        className={`w-full py-3.5 rounded-2xl text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                          isCurrent
+                            ? 'bg-white/5 border border-white/10 text-white/40 cursor-default'
+                            : 'bg-white/10 hover:bg-white/20 text-white cursor-pointer'
                         }`}
                       >
-                        <span>S'abonner avec Wave / OM</span>
-                        <IconArrowRight size={16} />
+                        {actionLoading === 'free' ? (
+                          <IconLoader2 size={16} className="animate-spin" />
+                        ) : isCurrent ? (
+                          'Plan de départ actif'
+                        ) : (
+                          'Activer l\'offre Free'
+                        )}
                       </button>
+                    ) : (
+                      <div className="space-y-2">
+                        {/* Bouton Essayer 30 jours (start_trial) */}
+                        <button
+                          onClick={() => handleStartTrial(plan)}
+                          disabled={actionLoading === plan.plan_id}
+                          className="w-full py-2.5 bg-emerald-500/20 hover:bg-emerald-500/30 border border-emerald-500/40 text-emerald-300 font-bold rounded-2xl text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          {actionLoading === plan.plan_id ? (
+                            <IconLoader2 size={14} className="animate-spin" />
+                          ) : (
+                            <>
+                              <IconSparkles size={14} />
+                              <span>Essayer 30 jours (1× par compte)</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* Bouton Payer (create-payment) */}
+                        <button
+                          onClick={() => handleOpenCheckout(plan)}
+                          className={`w-full py-3 rounded-2xl font-bold text-xs transition-all flex items-center justify-center gap-2 shadow-lg cursor-pointer ${
+                            isPro
+                              ? 'bg-primary hover:bg-primary-hover text-white shadow-primary/30'
+                              : isEntreprise
+                              ? 'bg-gradient-to-r from-amber-500 to-yellow-600 hover:from-amber-600 hover:to-yellow-700 text-black shadow-amber-500/20'
+                              : 'bg-white/10 hover:bg-white/20 text-white'
+                          }`}
+                        >
+                          <span>Payer avec Wave / OM</span>
+                          <IconArrowRight size={14} />
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
