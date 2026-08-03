@@ -10,6 +10,26 @@ import * as amplitude from '@amplitude/unified';
 //   "sessionReplay": { "sampleRate": 1 }
 // });
 
+// Réinitialiser le flag de tentative de rechargement lors d'un chargement réussi de l'application
+try {
+  sessionStorage.removeItem('chunk-reload-attempted');
+} catch (e) {
+  // Ignorer les erreurs si sessionStorage est désactivé
+}
+
+// Écouteur officiel Vite pour intercepter les échecs de préchargement de modules (nouveau déploiement)
+window.addEventListener('vite:preloadError', (event) => {
+  try {
+    const attempted = sessionStorage.getItem('chunk-reload-attempted');
+    if (!attempted) {
+      sessionStorage.setItem('chunk-reload-attempted', 'true');
+      window.location.reload();
+    }
+  } catch (e) {
+    window.location.reload();
+  }
+});
+
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <UserProvider>

@@ -1,6 +1,18 @@
 import React from 'react';
 import { IconAlertTriangle, IconRefresh } from '@tabler/icons-react';
 
+const isChunkLoadError = (error) => {
+  if (!error || !error.message) return false;
+  const msg = String(error.message).toLowerCase();
+  return (
+    msg.includes('failed to fetch dynamically imported module') ||
+    msg.includes('error loading dynamically imported module') ||
+    msg.includes('importing a module script failed') ||
+    msg.includes('loading chunk') ||
+    msg.includes('failed to load module script')
+  );
+};
+
 export class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -13,6 +25,22 @@ export class ErrorBoundary extends React.Component {
 
   componentDidCatch(error, errorInfo) {
     console.error('[ErrorBoundary] Erreur interceptée :', error, errorInfo);
+
+    // Détection des échecs de chargement de chunk JS (ex: après un nouveau déploiement Vercel)
+    if (isChunkLoadError(error)) {
+      try {
+        const attempted = sessionStorage.getItem('chunk-reload-attempted');
+        if (!attempted) {
+          console.warn('[ErrorBoundary] Détection d\'un chunk obsolète post-déploiement. Rechargement automatique de la page...');
+          sessionStorage.setItem('chunk-reload-attempted', 'true');
+          window.location.reload();
+          return;
+        }
+      } catch (e) {
+        window.location.reload();
+        return;
+      }
+    }
   }
 
   render() {
@@ -33,6 +61,9 @@ export class ErrorBoundary extends React.Component {
           <button
             onClick={() => {
               this.setState({ hasError: false, error: null });
+              try {
+                sessionStorage.removeItem('chunk-reload-attempted');
+              } catch (e) {}
               window.location.reload();
             }}
             className="w-full py-2.5 bg-red-600 hover:bg-red-700 text-white font-bold text-xs rounded-xl flex items-center justify-center gap-2 transition-all cursor-pointer shadow-sm"
