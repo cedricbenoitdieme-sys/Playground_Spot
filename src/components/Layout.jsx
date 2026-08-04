@@ -25,10 +25,9 @@ export const Layout = ({ children, currentView, setView }) => {
       <main 
         className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto ${
           isAdminDashboard ? 'lg:ml-0' : 'lg:ml-64'
-        } lg:pb-0 ${
-          isDetailView ? 'pb-0' : ''
+        } ${
+          isDetailView ? 'pb-0' : 'pb-bottom-nav-mobile'
         }`}
-        style={!isDetailView ? { paddingBottom: 'calc(64px + max(0px, env(safe-area-inset-bottom)))' } : undefined}
       >
         {children}
       </main>

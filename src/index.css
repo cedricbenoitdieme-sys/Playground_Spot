@@ -70,6 +70,14 @@ html, body {
   .pb-safe {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
   }
+  .pb-bottom-nav-mobile {
+    padding-bottom: calc(64px + max(0px, env(safe-area-inset-bottom)));
+  }
+  @media (min-width: 1024px) {
+    .pb-bottom-nav-mobile {
+      padding-bottom: 0px !important;
+    }
+  }
 }
 
 /* ── Sleek Custom Scrollbars globally ── */
