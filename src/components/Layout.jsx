@@ -22,11 +22,14 @@ export const Layout = ({ children, currentView, setView }) => {
     <div className="flex h-screen w-full overflow-hidden bg-[#F4F6F4] text-primary-dark">
       {!isAdminDashboard && <Sidebar currentView={currentView} setView={setView} />}
       
-      <main className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto ${
-        isAdminDashboard ? 'lg:ml-0' : 'lg:ml-64'
-      } lg:pb-0 ${
-        isDetailView ? 'pb-0' : 'pb-[60px] pb-safe'
-      }`}>
+      <main 
+        className={`flex-1 flex flex-col h-full min-h-0 overflow-y-auto ${
+          isAdminDashboard ? 'lg:ml-0' : 'lg:ml-64'
+        } lg:pb-0 ${
+          isDetailView ? 'pb-0' : ''
+        }`}
+        style={!isDetailView ? { paddingBottom: 'calc(64px + max(0px, env(safe-area-inset-bottom)))' } : undefined}
+      >
         {children}
       </main>
 
