@@ -128,12 +128,12 @@ export const AdminUsers = () => {
   const roleBadge = (r) => {
     switch (r) {
       case 'admin':
-        return <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-full border border-purple-200">Super Admin</span>;
+        return <span className="bg-purple-100 text-purple-700 text-xs font-bold px-2.5 py-1 rounded-full border border-purple-200 whitespace-nowrap">Super Admin</span>;
       case 'gerant':
-        return <span className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full border border-primary/20">Gérant</span>;
+        return <span className="bg-primary/10 text-primary text-xs font-bold px-2.5 py-1 rounded-full border border-primary/20 whitespace-nowrap">Gérant</span>;
       case 'joueur':
       default:
-        return <span className="bg-gray-100 text-gray-700 text-xs font-bold px-2.5 py-1 rounded-full border border-gray-200">Joueur</span>;
+        return <span className="bg-gray-100 text-gray-700 text-xs font-bold px-2.5 py-1 rounded-full border border-gray-200 whitespace-nowrap">Joueur</span>;
     }
   };
 
