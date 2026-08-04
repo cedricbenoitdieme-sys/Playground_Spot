@@ -138,7 +138,7 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
       default:
         return {
           title: `Bonjour ${currentUser.nom.split(' ')[0]} 👋`,
-          sub: `Quartier ${currentUser.quartier}`,
+          sub: currentUser.quartier ? `Quartier ${currentUser.quartier}` : '',
           badge: "JOUEUR PLATFORM"
         };
     }

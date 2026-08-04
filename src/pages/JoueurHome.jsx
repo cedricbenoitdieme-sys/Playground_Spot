@@ -175,20 +175,6 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
         </button>
       </div>
 
-      {/* Promos slider */}
-      <div 
-        className="bg-gradient-to-r from-secondary/15 to-primary/5 border border-secondary/20 p-5 rounded-[2rem] flex flex-col sm:flex-row items-center justify-between gap-4"
-        style={{ animation: 'slideUp 0.4s 0.05s cubic-bezier(.22,1,.36,1) both' }}
-      >
-        <div className="space-y-1 text-center sm:text-left">
-          <span className="text-[9px] font-bold text-secondary uppercase tracking-widest bg-secondary/10 px-2 py-0.5 rounded-full">Offre Flash</span>
-          <h3 className="font-bold text-primary-dark text-sm">Promotion Ramadan : -20% sur les créneaux du matin !</h3>
-          <p className="text-[10px] text-gray-500 font-semibold">Valable sur tous les terrains de Dakar de 08:00 à 12:00.</p>
-        </div>
-        <button onClick={() => setView('discovery')} className="bg-[#0F2318] text-white hover:bg-primary py-2.5 px-5 rounded-xl text-xs font-bold transition-all active:scale-95 cursor-pointer whitespace-nowrap flex items-center gap-2">
-          Réserver maintenant <IconArrowRight size={14} />
-        </button>
-      </div>
 
       {/* Recommended Terrains horizontal cards grid */}
       <div className="space-y-4">
