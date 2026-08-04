@@ -106,6 +106,12 @@ export const handleServiceError = (error, context = 'unknown') => {
     return new SafeError(error.message, { code: 'AUTH_ERROR', statusCode: 401, details: error.message });
   }
 
+  // Quota de terrains atteint (limite du plan)
+  if (message.includes('quota_terrains_atteint')) {
+    const cleanMsg = error.message.replace(/^.*quota_terrains_atteint:\s*/i, '');
+    return new SafeError(cleanMsg, { code: 'QUOTA_TERRAINS_ATTEINT', statusCode: 403, details: error.message });
+  }
+
   // Fallback — erreur générique
   return new SafeError(GENERIC_MESSAGES.server, { code: 'SERVER_ERROR', statusCode: 500, details: error.message });
 };

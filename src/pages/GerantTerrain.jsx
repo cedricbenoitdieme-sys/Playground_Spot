@@ -10,13 +10,16 @@ import {
   IconPlus,
   IconClock,
   IconAlertCircle,
+  IconCircleCheck,
   IconEdit,
   IconMapPin,
   IconPhoto,
-  IconCoin
+  IconCoin,
+  IconChevronLeft
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { useGerantTerrains } from '../hooks/useGerantTerrains';
+import { supabase } from '../lib/supabase';
 import { 
   updateTerrain, 
   addAmenity, 
@@ -33,7 +36,11 @@ export const GerantTerrain = () => {
   const [actionError, setActionError] = useState(null);
   const error = actionError || fetchError;
   const setError = setActionError;
-  const [terrain, setTerrain] = useState(null);
+
+  const [selectedTerrainId, setSelectedTerrainId] = useState(null);
+  const selectedTerrain = (terrains || []).find(t => t.id === selectedTerrainId) || null;
+  const terrain = selectedTerrain || (terrains?.length === 1 ? terrains[0] : null);
+
   const [saving, setSaving] = useState(false);
 
   const [selectedSpec, setSelectedSpec] = useState(null);
@@ -41,23 +48,42 @@ export const GerantTerrain = () => {
   const [newAmenity, setNewAmenity] = useState('');
   const [priceInput, setPriceInput] = useState(0);
 
+  // Quota info du gérant
+  const [quotaInfo, setQuotaInfo] = useState(null);
+
+  const fetchQuota = async () => {
+    if (!currentUser?.id) return;
+    try {
+      const { data } = await supabase.rpc('check_quota', { p_user_id: currentUser.id, p_quota_type: 'terrains' });
+      setQuotaInfo(data);
+    } catch (e) {
+      console.error("Erreur chargement quota terrains:", e);
+    }
+  };
+
+  useEffect(() => {
+    fetchQuota();
+  }, [currentUser?.id, terrains]);
+
   // Modal de création/édition
   const [isModalOpen, setIsModalOpen] = useState(false);
-  // Généré à l'ouverture pour un NOUVEAU terrain : nécessaire dès l'upload
-  // de la 1ère photo (le chemin de stockage RLS exige <terrain_id>/...,
-  // avant même que la ligne terrains n'existe encore).
+  const [modalEditingTerrain, setModalEditingTerrain] = useState(null);
   const [newTerrainId, setNewTerrainId] = useState(null);
 
   const openCreateModal = () => {
+    setModalEditingTerrain(null);
     setNewTerrainId(crypto.randomUUID());
     setIsModalOpen(true);
   };
 
+  const openEditModal = (t) => {
+    setModalEditingTerrain(t);
+    setIsModalOpen(true);
+  };
+
   useEffect(() => {
-    const mine = terrains[0] || null;
-    setTerrain(mine);
-    if (mine) setPriceInput(mine.price || 0);
-  }, [terrains]);
+    if (terrain) setPriceInput(terrain.price || 0);
+  }, [terrain]);
 
   const [principalPhotoUrl, setPrincipalPhotoUrl] = useState(null);
   const [loadingPhoto, setLoadingPhoto] = useState(false);
@@ -84,25 +110,21 @@ export const GerantTerrain = () => {
 
   const handleFormSubmit = async (formData) => {
     setSaving(true);
+    setActionError(null);
     try {
-      if (terrain) {
-        // Repasse en 'pending' uniquement si le terrain était 'rejected'
-        // (resoumission) — un terrain déjà 'approved' ou 'pending' garde
-        // son statut, la modification s'applique immédiatement sans
-        // redéclencher de validation admin (cf. resubmitGerantTerrain).
+      const targetTerrain = modalEditingTerrain || selectedTerrain;
+      if (targetTerrain) {
         await resubmitGerantTerrain(
-          terrain.id,
+          targetTerrain.id,
           { ...formData, gerant_id: currentUser.id },
-          terrain.status
+          targetTerrain.status
         );
         setSuccessToast(
-          terrain.status === 'rejected'
+          targetTerrain.status === 'rejected'
             ? "Fiche terrain corrigée et resoumise avec succès pour homologation."
             : "Fiche terrain mise à jour avec succès."
         );
       } else {
-        // Création d'un nouveau terrain -> status = pending, id pré-généré
-        // à l'ouverture de la modale (voir openCreateModal).
         await createGerantTerrain({
           ...formData,
           id: newTerrainId,
@@ -111,10 +133,17 @@ export const GerantTerrain = () => {
         setSuccessToast("Terrain créé avec succès ! Votre fiche est maintenant en attente d'homologation admin.");
       }
       await refetch();
+      await fetchQuota();
       setIsModalOpen(false);
       setTimeout(() => setSuccessToast(null), 5000);
     } catch (err) {
       console.error('Erreur soumission terrain dans GerantTerrain:', err);
+      if (err.code === 'QUOTA_TERRAINS_ATTEINT' || err.message?.includes('quota_terrains_atteint')) {
+        const userMsg = err.userMessage || "Votre quota de terrains pour votre plan actuel est atteint. Passez au plan supérieur pour ajouter d'autres terrains.";
+        setActionError(userMsg);
+        setIsModalOpen(false);
+        return;
+      }
       throw err;
     } finally {
       setSaving(false);
@@ -185,10 +214,160 @@ export const GerantTerrain = () => {
     }
   };
 
+  const renderStatusBadge = (statut, status) => {
+    const s = status || statut;
+    if (s === 'pending') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">
+          <IconClock size={14} /> En attente
+        </span>
+      );
+    }
+    if (s === 'rejected') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-100 text-red-800 border border-red-200">
+          <IconAlertCircle size={14} /> Refusé
+        </span>
+      );
+    }
+    if (s === 'en_maintenance' || statut === 'en_maintenance') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-yellow-100 text-yellow-800 border border-yellow-200">
+          <IconAlertCircle size={14} /> En maintenance
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+        <IconCircleCheck size={14} /> Actif
+      </span>
+    );
+  };
+
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center py-24 text-gray-400 text-sm animate-pulse font-medium">
-        Chargement de votre terrain...
+      <div className="flex-1 p-8 text-center text-gray-500 font-medium animate-pulse">
+        Chargement des terrains...
+      </div>
+    );
+  }
+
+  // ── ÉTAT 0 : Vue Liste Multi-Terrains (si aucun terrain n'est sélectionné et terrains.length > 0) ──
+  if (!selectedTerrainId && terrains && terrains.length > 0) {
+    return (
+      <div className="flex-1 space-y-6 pb-28 overflow-y-auto px-6 lg:px-8 py-6">
+        {successToast && (
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-2 duration-300">
+            <IconCheck size={18} className="text-emerald-600 shrink-0" />
+            <span>{successToast}</span>
+          </div>
+        )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm font-semibold">
+            {error}
+          </div>
+        )}
+
+        {/* Header section avec Quota */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-card border border-black/5 shadow-subtle">
+          <div>
+            <div className="flex items-center gap-3">
+              <h1 className="text-xl md:text-2xl font-bold font-display text-primary-dark">Mes Terrains</h1>
+              <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full border border-primary/20">
+                {terrains.length} terrain{terrains.length > 1 ? 's' : ''}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 font-medium mt-1">
+              {quotaInfo ? (
+                quotaInfo.illimite ? (
+                  <span className="text-emerald-600 font-bold">✨ Terrains illimités avec votre abonnement</span>
+                ) : (
+                  <span>Quota abonnement : <strong className="text-primary-dark font-bold">{quotaInfo.utilise} / {quotaInfo.limite}</strong> terrain(s) utilisé(s)</span>
+                )
+              ) : (
+                'Gérez vos terrains de football'
+              )}
+            </p>
+          </div>
+
+          <button
+            onClick={openCreateModal}
+            disabled={quotaInfo?.quota_atteint}
+            title={quotaInfo?.quota_atteint ? `Quota atteint (${quotaInfo.limite} max). Passez au plan supérieur.` : 'Ajouter un nouveau terrain'}
+            className={`px-5 py-3 rounded-2xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md ${
+              quotaInfo?.quota_atteint
+                ? 'bg-gray-200 text-gray-400 cursor-not-allowed border border-gray-300 shadow-none'
+                : 'bg-primary hover:bg-primary-dark text-white shadow-primary/20 cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+            }`}
+          >
+            <IconPlus size={18} />
+            <span>Ajouter un terrain</span>
+          </button>
+        </div>
+
+        {/* Message d'avertissement quota atteint */}
+        {quotaInfo?.quota_atteint && (
+          <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-xs font-medium flex items-center justify-between gap-3 shadow-sm">
+            <span>⚠️ Vous avez atteint la limite de <strong>{quotaInfo.limite} terrain(s)</strong> de votre offre actuelle. Pour ajouter d'autres terrains, souscrivez au plan Starter ou Pro dans l'onglet Abonnement.</span>
+          </div>
+        )}
+
+        {/* Grille des terrains */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {terrains.map((t) => (
+            <div
+              key={t.id}
+              className="bg-white rounded-card overflow-hidden border border-gray-100 shadow-subtle hover:shadow-md transition-all flex flex-col justify-between"
+            >
+              <div className="p-6 space-y-4">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-primary bg-primary/10 px-2.5 py-0.5 rounded-full inline-block mb-1.5 border border-primary/20">
+                      {t.quartier || 'Dakar'}
+                    </span>
+                    <h3 className="font-bold font-display text-primary-dark text-lg truncate">{t.nom}</h3>
+                  </div>
+                  {renderStatusBadge(t.statut, t.status)}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-xs pt-3 border-t border-gray-100 text-gray-600">
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Surface</span>
+                    <span className="font-semibold text-gray-800">{t.surface || 'Synthétique'}</span>
+                  </div>
+                  <div>
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Format</span>
+                    <span className="font-semibold text-gray-800">{t.size || '5v5'}</span>
+                  </div>
+                  <div className="col-span-2 pt-1">
+                    <span className="text-gray-400 block text-[10px] uppercase font-bold">Tarif Horaire</span>
+                    <span className="font-black text-primary text-sm">{(t.price || 0).toLocaleString('fr-FR')} FCFA</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="p-4 bg-gray-50/80 border-t border-gray-100 flex items-center justify-between gap-2">
+                <button
+                  onClick={() => setSelectedTerrainId(t.id)}
+                  className="w-full py-2.5 bg-primary hover:bg-primary-dark text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-colors cursor-pointer flex items-center justify-center gap-2 shadow-sm"
+                >
+                  <IconBuildingStore size={16} />
+                  <span>Gérer ce terrain</span>
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <TerrainFormModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          initialData={modalEditingTerrain}
+          terrainId={modalEditingTerrain ? modalEditingTerrain.id : newTerrainId}
+          onSubmit={handleFormSubmit}
+          saving={saving}
+        />
       </div>
     );
   }
@@ -239,6 +418,13 @@ export const GerantTerrain = () => {
   if (terrain.status === 'pending') {
     return (
       <div className="flex-1 space-y-6 pb-28 overflow-y-auto px-6 lg:px-8 py-6">
+        <button
+          onClick={() => setSelectedTerrainId(null)}
+          className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl border border-primary/20 transition-all cursor-pointer shadow-sm"
+        >
+          <IconChevronLeft size={16} />
+          <span>← Voir tous mes terrains ({terrains?.length || 1})</span>
+        </button>
         {successToast && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-2 duration-300">
             <IconCheck size={18} className="text-emerald-600 shrink-0" />
@@ -338,6 +524,13 @@ export const GerantTerrain = () => {
   if (terrain.status === 'rejected') {
     return (
       <div className="flex-1 space-y-6 pb-28 overflow-y-auto px-6 lg:px-8 py-6">
+        <button
+          onClick={() => setSelectedTerrainId(null)}
+          className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl border border-primary/20 transition-all cursor-pointer shadow-sm"
+        >
+          <IconChevronLeft size={16} />
+          <span>← Voir tous mes terrains ({terrains?.length || 1})</span>
+        </button>
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-sm font-semibold">
             {error}
@@ -391,6 +584,13 @@ export const GerantTerrain = () => {
   // ── ÉTAT 4 : Terrain Approuvé (Approved) -> Dashboard Complet Standard ──
   return (
     <div className="flex-1 space-y-6 pb-28 overflow-y-auto px-6 lg:px-8 py-6">
+      <button
+        onClick={() => setSelectedTerrainId(null)}
+        className="inline-flex items-center gap-2 text-xs font-bold text-primary hover:underline bg-primary/10 hover:bg-primary/20 px-3.5 py-2 rounded-xl border border-primary/20 transition-all cursor-pointer shadow-sm"
+      >
+        <IconChevronLeft size={16} />
+        <span>← Voir tous mes terrains ({terrains?.length || 1})</span>
+      </button>
       {successToast && (
         <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-2 duration-300">
           <IconCheck size={18} className="text-emerald-600 shrink-0" />
