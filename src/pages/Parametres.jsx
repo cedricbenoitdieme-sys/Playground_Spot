@@ -431,77 +431,79 @@ export const Parametres = ({ setView }) => {
         </Section>
 
         {/* ── Plateforme ── */}
-        <Section title="Plateforme" icon={IconSettings} delay={0.2}>
-          <Row label="Mode maintenance" sub={plateforme.modeMainten ? 'Site inaccessible aux joueurs' : 'Plateforme en ligne'}>
-            <Toggle value={plateforme.modeMainten} onChange={handleToggleMaintenance} />
-          </Row>
-          <Row label="Devise" sub={plateforme.devise}>
-            <span className="text-sm font-bold text-primary">{plateforme.devise}</span>
-          </Row>
-          <Row label="Fuseau horaire" sub={plateforme.fuseauHoraire}>
-            <span className="text-[11px] text-gray-400 font-medium">UTC+0</span>
-          </Row>
+        {['admin', 'super_admin'].includes(currentUser?.role) && (
+          <Section title="Plateforme" icon={IconSettings} delay={0.2}>
+            <Row label="Mode maintenance" sub={plateforme.modeMainten ? 'Site inaccessible aux joueurs' : 'Plateforme en ligne'}>
+              <Toggle value={plateforme.modeMainten} onChange={handleToggleMaintenance} />
+            </Row>
+            <Row label="Devise" sub={plateforme.devise}>
+              <span className="text-sm font-bold text-primary">{plateforme.devise}</span>
+            </Row>
+            <Row label="Fuseau horaire" sub={plateforme.fuseauHoraire}>
+              <span className="text-[11px] text-gray-400 font-medium">UTC+0</span>
+            </Row>
 
-          {/* Affichage des taux réels par plan (lecture seule) */}
-          <div className="px-5 py-4 border-t border-gray-50 space-y-3">
-            <div className="flex items-center justify-between">
-              <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Commissions par plan (Taux réels)</p>
-              <span className="text-[10px] text-gray-400 italic">Fixé par offre</span>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {planRates.map(p => (
-                <div key={p.plan_id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
-                  <p className="text-xs font-bold text-gray-700 capitalize">{p.nom || p.plan_id}</p>
-                  <p className="text-sm font-black text-primary mt-0.5">{p.commission_rate ?? 0}%</p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Dérogation temporaire globale */}
-          <div className="px-5 py-4 border-t border-gray-50 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-semibold text-gray-800">Dérogation temporaire globale</p>
-                <p className="text-[11px] text-gray-500 font-medium mt-0.5">Applique un taux temporaire à tous les gérants</p>
+            {/* Affichage des taux réels par plan (lecture seule) */}
+            <div className="px-5 py-4 border-t border-gray-50 space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Commissions par plan (Taux réels)</p>
+                <span className="text-[10px] text-gray-400 italic">Fixé par offre</span>
               </div>
-              {!override && (
-                <button
-                  type="button"
-                  onClick={() => setShowOverrideModal(true)}
-                  className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer shrink-0"
-                >
-                  Activer
-                </button>
-              )}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {planRates.map(p => (
+                  <div key={p.plan_id} className="bg-gray-50 border border-gray-100 rounded-xl p-3 text-center">
+                    <p className="text-xs font-bold text-gray-700 capitalize">{p.nom || p.plan_id}</p>
+                    <p className="text-sm font-black text-primary mt-0.5">{p.commission_rate ?? 0}%</p>
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {override ? (
-              <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2 text-amber-900">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-[11px] font-bold uppercase tracking-wider bg-amber-200/60 text-amber-900 px-2.5 py-1 rounded-full">
-                    Dérogation Active
-                  </span>
+            {/* Dérogation temporaire globale */}
+            <div className="px-5 py-4 border-t border-gray-50 space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-gray-800">Dérogation temporaire globale</p>
+                  <p className="text-[11px] text-gray-500 font-medium mt-0.5">Applique un taux temporaire à tous les gérants</p>
+                </div>
+                {!override && (
                   <button
                     type="button"
-                    onClick={handleClearOverride}
-                    className="text-xs font-bold text-red-600 hover:text-red-700 underline cursor-pointer"
+                    onClick={() => setShowOverrideModal(true)}
+                    className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-sm transition-colors cursor-pointer shrink-0"
                   >
-                    Désactiver maintenant
+                    Activer
                   </button>
-                </div>
-                <p className="text-sm font-bold">
-                  Taux appliqué : <span className="text-base text-primary font-black">{override.rate}%</span> sur toutes les réservations
-                </p>
-                <p className="text-xs text-amber-800">
-                  Expire le : <span className="font-semibold">{new Date(override.expires_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</span>
-                </p>
+                )}
               </div>
-            ) : (
-              <p className="text-xs text-gray-400 italic">Aucune dérogation temporaire en cours. Les commissions par plan s'appliquent normalement.</p>
-            )}
-          </div>
-        </Section>
+
+              {override ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 space-y-2 text-amber-900">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-[11px] font-bold uppercase tracking-wider bg-amber-200/60 text-amber-900 px-2.5 py-1 rounded-full">
+                      Dérogation Active
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleClearOverride}
+                      className="text-xs font-bold text-red-600 hover:text-red-700 underline cursor-pointer"
+                    >
+                      Désactiver maintenant
+                    </button>
+                  </div>
+                  <p className="text-sm font-bold">
+                    Taux appliqué : <span className="text-base text-primary font-black">{override.rate}%</span> sur toutes les réservations
+                  </p>
+                  <p className="text-xs text-amber-800">
+                    Expire le : <span className="font-semibold">{new Date(override.expires_at).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' })}</span>
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-gray-400 italic">Aucune dérogation temporaire en cours. Les commissions par plan s'appliquent normalement.</p>
+              )}
+            </div>
+          </Section>
+        )}
 
         {/* ── Application ── */}
         <Section title="Application" icon={IconDeviceMobile} delay={0.25}>
