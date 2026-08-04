@@ -45,7 +45,7 @@ export const Sidebar = ({ currentView, setView }) => {
       case 'super_admin':
         return [
           { id: 'landing', label: 'Site Vitrine', icon: IconHome },
-          { id: 'dashboard', label: 'Dashboard', icon: IconLayoutDashboard },
+          { id: 'dashboard', label: 'Espace Admin', icon: IconLayoutDashboard },
           { id: 'telemetrie', label: 'Télémétrie', icon: IconChartBar },
           { id: 'discovery', label: 'Découverte', icon: IconBallFootball },
           { id: 'reservations', label: 'Réservations', icon: IconCalendarEvent },
