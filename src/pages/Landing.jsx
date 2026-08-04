@@ -96,6 +96,14 @@ const CountUp = ({ end, duration = 1500, suffix = "" }) => {
   return <span ref={elementRef}>{formatNumber(count)}{suffix}</span>;
 };
 
+const CTA_ROTATING_PHRASES = [
+  'en 30 secondes',
+  "sans passer d'appel",
+  'où que tu sois',
+  'en un clic',
+  'à toute heure',
+];
+
 export const Landing = ({ setView }) => {
   const { currentUser, setCurrentUser } = useUser();
   const [activeTab, setActiveTab] = useState('joueur');
@@ -104,6 +112,15 @@ export const Landing = ({ setView }) => {
   const [gerantFormSubmitted, setGerantFormSubmitted] = useState(false);
   const [gerantFormLoading, setGerantFormLoading] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+
+  const [ctaPhraseIndex, setCtaPhraseIndex] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCtaPhraseIndex(prev => (prev + 1) % CTA_ROTATING_PHRASES.length);
+    }, 2200);
+    return () => clearInterval(interval);
+  }, []);
 
   // Form State
   const [gerantName, setGerantName] = useState('');
@@ -361,6 +378,13 @@ export const Landing = ({ setView }) => {
         .animate-float-phone {
           animation: floatPhone 6s ease-in-out infinite;
         }
+        @keyframes ctaWordCycle {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-cta-word {
+          animation: ctaWordCycle 0.5s cubic-bezier(.22,1,.36,1) both;
+        }
         .shadow-glow-emerald:hover {
           box-shadow: 0 25px 60px -5px rgba(26, 122, 74, 0.45);
         }
@@ -403,10 +427,16 @@ export const Landing = ({ setView }) => {
             <div className="flex flex-col sm:flex-row items-center gap-3 justify-center w-full max-w-sm pt-2 animate-slide-up-fast mx-auto">
               <button 
                 onClick={() => handleGoToApp('joueur', 'discovery')} 
-                className="w-full sm:w-auto bg-primary text-white font-bold text-base px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center gap-3 shadow-glow hover:-translate-y-1 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer hover:bg-emerald-600"
+                className="w-full sm:w-auto bg-primary text-white font-bold text-base px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center gap-2 shadow-glow hover:-translate-y-1 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer hover:bg-emerald-600"
               >
                 <IconMapPin size={22} />
-                Trouver un terrain
+                <span className="whitespace-nowrap">Réserve ton terrain</span>
+                <span
+                  key={ctaPhraseIndex}
+                  className="whitespace-nowrap font-semibold text-sm text-[#E8DCC8] animate-cta-word"
+                >
+                  {CTA_ROTATING_PHRASES[ctaPhraseIndex]}
+                </span>
               </button>
               <button 
                 onClick={() => { setActiveModal('gerant'); setGerantFormSubmitted(false); }} 
