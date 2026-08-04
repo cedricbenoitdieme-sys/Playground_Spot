@@ -10,14 +10,16 @@ import {
   IconPhone,
   IconMail,
   IconMapPin,
-  IconLoader2
+  IconLoader2,
+  IconCamera
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { Avatar } from '../components/Avatar';
 import { supabase } from '../lib/supabase';
 import { formatAmountAbbreviated } from '../services/stats';
-import { updateOwnProfile } from '../services/profiles';
+import { updateOwnProfile, uploadAvatarPhoto } from '../services/profiles';
 import { getLoyaltyBadge, getRangClient } from '../lib/loyalty';
+import { ImageCropperModal } from '../components/ImageCropperModal';
 
 const OFFICIAL_QUARTIERS = [
   'Almadies', 'Plateau', 'Médina', 'Parcelles Assainies',
@@ -46,6 +48,36 @@ export const JoueurProfile = () => {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState(null);
   const [imgError, setImgError] = useState(false);
+
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const fileInputRef = React.useRef(null);
+
+  const handleAvatarFileSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setAvatarFile(file);
+      setCropperOpen(true);
+    }
+  };
+
+  const handleCropComplete = async (croppedBlob) => {
+    if (!currentUser?.id) return;
+    setCropperOpen(false);
+    showToast('Téléversement de la photo…');
+    try {
+      const publicUrl = await uploadAvatarPhoto(croppedBlob, currentUser.id, currentUser.avatar);
+      await updateOwnProfile(currentUser.id, { avatar: publicUrl });
+      setCurrentUser(prev => ({ ...prev, avatar: publicUrl }));
+      showToast('Photo de profil mise à jour ✓');
+    } catch (err) {
+      console.error('Erreur upload avatar:', err);
+      showToast(err.userMessage || err.message || "Échec de l'enregistrement de la photo");
+    } finally {
+      setAvatarFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
 
   useEffect(() => {
     if (currentUser) {
@@ -162,7 +194,24 @@ export const JoueurProfile = () => {
         style={{ animation: 'slideUp 0.4s cubic-bezier(.22,1,.36,1) both' }}
       >
         <div className="flex flex-col md:flex-row items-center gap-4 text-center md:text-left">
-          <Avatar user={currentUser} className="w-16 h-16 rounded-full border-4 border-primary/20 shadow-lg shadow-primary/10" textSize="text-xl" />
+          <div className="relative group">
+            <Avatar user={currentUser} className="w-16 h-16 rounded-full border-4 border-primary/20 shadow-lg shadow-primary/10" textSize="text-xl" />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="absolute -bottom-1 -right-1 p-1.5 bg-primary text-white rounded-xl shadow hover:bg-primary-dark transition-all cursor-pointer"
+              title="Changer la photo de profil"
+            >
+              <IconCamera size={14} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/heic"
+              className="hidden"
+              onChange={handleAvatarFileSelect}
+            />
+          </div>
           <div>
             <h2 className="text-xl font-display font-bold text-primary-dark">{currentUser?.nom || 'Joueur'}</h2>
             <p className="text-xs text-gray-500 font-semibold flex items-center gap-1 justify-center md:justify-start mt-0.5">
@@ -338,6 +387,21 @@ export const JoueurProfile = () => {
           <span className="text-sm font-medium">{toast}</span>
         </div>
       )}
+
+      <ImageCropperModal
+        isOpen={cropperOpen}
+        imageFile={avatarFile}
+        onClose={() => {
+          setCropperOpen(false);
+          setAvatarFile(null);
+          if (fileInputRef.current) fileInputRef.current.value = '';
+        }}
+        onCropComplete={handleCropComplete}
+        aspectRatio={1}
+        cropShape="circle"
+        title="Recadrer la photo de profil"
+        subtitle="Ajustez l'image pour un rendu optimal sur votre profil."
+      />
     </div>
   );
 };
