@@ -405,7 +405,8 @@ export const AdminDashboard = ({ onNavigate }) => {
               {signupsTrend.map((d, i) => {
                 const total = (d.joueurs || 0) + (d.gerants || 0);
                 const maxInTrend = Math.max(...signupsTrend.map(x => (x.joueurs || 0) + (x.gerants || 0)), 1);
-                const dayLabel = d.jour ? d.jour.split('-').slice(1).join('/') : '';
+                const dayLabel = d.jour ? d.jour.split('-')[2] : '';
+                const showLabel = i % 5 === 0 || i === signupsTrend.length - 1;
                 return (
                   <div key={i} className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group relative">
                     {/* Tooltip */}
@@ -416,7 +417,9 @@ export const AdminDashboard = ({ onNavigate }) => {
                       <div className="w-full bg-amber-500 transition-all duration-300" style={{ height: `${Math.round(((d.gerants || 0) / maxInTrend) * 100)}px` }}></div>
                       <div className="w-full bg-primary transition-all duration-300" style={{ height: `${Math.round(((d.joueurs || 0) / maxInTrend) * 100)}px` }}></div>
                     </div>
-                    <span className="text-[9px] text-gray-400 font-semibold">{dayLabel}</span>
+                    <span className="text-[9px] text-gray-400 font-semibold h-3">
+                      {showLabel ? dayLabel : ''}
+                    </span>
                   </div>
                 );
               })}
