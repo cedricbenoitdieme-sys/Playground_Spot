@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { IconSearch, IconAdjustmentsHorizontal, IconCurrentLocation, IconX } from '@tabler/icons-react';
 
 const FILTER_TOOLTIPS = {
@@ -14,32 +15,69 @@ const FILTER_TOOLTIPS = {
 
 export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearchQuery, activeFilters, onToggleFilter, onNearby }) => {
   const [activeTooltip, setActiveTooltip] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState(null);
   const [pressingFilter, setPressingFilter] = useState(null);
   const filterContainerRef = useRef(null);
+  const buttonRefs = useRef({});
   const hoverTimerRef = useRef(null);
   const longPressTimerRef = useRef(null);
   const isLongPressRef = useRef(false);
 
-  // Fermer le tooltip en tapant n'importe où en dehors
+  const calculateTooltipPosition = (filterName) => {
+    const btn = buttonRefs.current[filterName];
+    if (!btn) return;
+    const rect = btn.getBoundingClientRect();
+    const tooltipWidth = 224; // w-56 = 14rem = 224px
+    let left = rect.left + rect.width / 2;
+
+    // Clamp horizontal pour les écrans étroits
+    const padding = 12;
+    const minLeft = tooltipWidth / 2 + padding;
+    const maxLeft = window.innerWidth - tooltipWidth / 2 - padding;
+    left = Math.max(minLeft, Math.min(left, maxLeft));
+
+    setTooltipPos({
+      top: rect.bottom + 8,
+      left: left,
+      arrowLeft: rect.left + rect.width / 2 - (left - tooltipWidth / 2),
+    });
+  };
+
+  const openTooltip = (filterName) => {
+    calculateTooltipPosition(filterName);
+    setActiveTooltip(filterName);
+  };
+
+  // Fermer le tooltip en tapant n'importe où en dehors ou lors du scroll
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (filterContainerRef.current && !filterContainerRef.current.contains(e.target)) {
         setActiveTooltip(null);
       }
     };
+    const handleScroll = () => {
+      if (activeTooltip) {
+        calculateTooltipPosition(activeTooltip);
+      }
+    };
+
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('touchstart', handleClickOutside);
+    window.addEventListener('scroll', handleScroll, true);
+    window.addEventListener('resize', handleScroll);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
+      window.removeEventListener('scroll', handleScroll, true);
+      window.removeEventListener('resize', handleScroll);
     };
-  }, []);
+  }, [activeTooltip]);
 
-  // ── Gestion du survol desktop (hover 200ms) ──
+  // ── Gestion du survol desktop (hover 250ms) ──
   const handleMouseEnter = (filter) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
-      setActiveTooltip(filter);
+      openTooltip(filter);
     }, 250);
   };
 
@@ -48,7 +86,7 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
     setActiveTooltip(prev => (prev === filter ? null : prev));
   };
 
-  // ── Gestion du tactile mobile (Appui long 3s) ──
+  // ── Gestion du tactile mobile (Appui long 600ms) ──
   const handleTouchStart = (filter) => {
     isLongPressRef.current = false;
     setPressingFilter(filter);
@@ -57,9 +95,9 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
 
     longPressTimerRef.current = setTimeout(() => {
       isLongPressRef.current = true;
-      setActiveTooltip(filter);
+      openTooltip(filter);
       setPressingFilter(null);
-    }, 3000);
+    }, 600);
   };
 
   const handleTouchEnd = () => {
@@ -71,7 +109,6 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
   };
 
   const handleClick = (filter) => {
-    // Si c'était un appui long de 3s, ne pas basculer l'état du filtre
     if (isLongPressRef.current) {
       isLongPressRef.current = false;
       return;
@@ -133,9 +170,7 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
       >
         {['Synthétique', 'Naturel', 'Béton', '5v5', '7v7', '11v11', 'Éclairage', 'Parking'].map((filter) => {
           const isSelected = activeFilters.includes(filter);
-          const isTooltipOpen = activeTooltip === filter;
           const isPressing = pressingFilter === filter;
-          const tooltipText = FILTER_TOOLTIPS[filter];
 
           return (
             <div 
@@ -145,6 +180,7 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
               onMouseLeave={() => handleMouseLeave(filter)}
             >
               <button 
+                ref={(el) => (buttonRefs.current[filter] = el)}
                 type="button"
                 onClick={() => handleClick(filter)}
                 onTouchStart={() => handleTouchStart(filter)}
@@ -156,46 +192,58 @@ export const DiscoveryFilters = ({ viewMode, setViewMode, searchQuery, setSearch
                     : 'border-gray-100 text-gray-600 hover:border-primary/30 hover:text-primary hover:bg-primary/5'
                 }`}
               >
-                {/* Feedback visuel lors de l'appui long (remplissage progressif 3s) */}
+                {/* Feedback visuel lors de l'appui long (remplissage progressif 600ms) */}
                 {isPressing && (
                   <span 
                     className="absolute inset-0 bg-primary/30 pointer-events-none rounded-full animate-pulse"
                     style={{
-                      animationDuration: '3000ms',
+                      animationDuration: '600ms',
                     }}
                   />
                 )}
 
                 <span className="relative z-10">{filter}</span>
               </button>
-
-              {/* Box d'info Tooltip */}
-              {isTooltipOpen && tooltipText && (
-                <div 
-                  className="absolute top-full left-1/2 -translate-x-1/2 mt-2 w-56 bg-[#0F2318] text-white p-2.5 rounded-xl shadow-2xl border border-white/10 text-[11px] font-medium leading-tight z-[60] animate-in fade-in zoom-in-95 duration-150 flex items-start justify-between gap-2 pointer-events-auto"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <span>{tooltipText}</span>
-                  <button 
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setActiveTooltip(null);
-                    }}
-                    className="text-white/50 hover:text-white p-0.5 rounded transition-colors shrink-0 cursor-pointer"
-                    title="Fermer"
-                  >
-                    <IconX size={13} />
-                  </button>
-
-                  {/* Flèche indicatrice orientée vers le haut */}
-                  <div className="absolute bottom-full left-1/2 -translate-x-1/2 border-4 border-transparent border-b-[#0F2318]" />
-                </div>
-              )}
             </div>
           );
         })}
       </div>
+
+      {/* Box d'info Tooltip rendu via React Portal dans document.body */}
+      {activeTooltip && FILTER_TOOLTIPS[activeTooltip] && tooltipPos && createPortal(
+        <div 
+          className="fixed w-56 bg-[#0F2318] text-white p-2.5 rounded-xl shadow-2xl border border-white/10 text-[11px] font-medium leading-tight z-[9999] animate-in fade-in zoom-in-95 duration-150 flex items-start justify-between gap-2 pointer-events-auto"
+          style={{
+            top: `${tooltipPos.top}px`,
+            left: `${tooltipPos.left}px`,
+            transform: 'translateX(-50%)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <span>{FILTER_TOOLTIPS[activeTooltip]}</span>
+          <button 
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveTooltip(null);
+            }}
+            className="text-white/50 hover:text-white p-0.5 rounded transition-colors shrink-0 cursor-pointer"
+            title="Fermer"
+          >
+            <IconX size={13} />
+          </button>
+
+          {/* Flèche indicatrice orientée vers le haut */}
+          <div 
+            className="absolute bottom-full border-4 border-transparent border-b-[#0F2318]"
+            style={{
+              left: `${tooltipPos.arrowLeft}px`,
+              transform: 'translateX(-50%)',
+            }}
+          />
+        </div>,
+        document.body
+      )}
     </div>
   );
 };
