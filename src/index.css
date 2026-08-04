@@ -83,7 +83,7 @@ html, body {
 /* ── Sleek Custom Scrollbars globally ── */
 ::-webkit-scrollbar {
   width: 6px;
-  height: 0px; /* Hide horizontal scrollbars globally */
+  height: 4px;
 }
 
 ::-webkit-scrollbar-track {
@@ -91,12 +91,26 @@ html, body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(26, 122, 74, 0.25); /* Vert Terrain scrollbar thumb */
+  background: rgba(15, 35, 24, 0.15);
   border-radius: 10px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(26, 122, 74, 0.45);
+  background: rgba(26, 122, 74, 0.4);
+}
+
+.custom-horizontal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(26, 122, 74, 0.3) transparent;
+}
+
+.custom-horizontal-scrollbar::-webkit-scrollbar {
+  height: 4px;
+}
+
+.custom-horizontal-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(26, 122, 74, 0.3);
+  border-radius: 9999px;
 }
 
 .no-scrollbar::-webkit-scrollbar {

@@ -14,9 +14,9 @@ export const KpiDetailModal = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
-      <div className="bg-white w-full max-w-xl mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100 flex flex-col max-h-[90vh]">
+      <div className="bg-white w-full max-w-2xl mx-auto rounded-[2rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 border border-gray-100 flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="p-6 border-b border-gray-100 space-y-4 shrink-0 bg-gray-50/50">
+        <div className="p-6 border-b border-gray-100 space-y-4 shrink-0 bg-gray-50/50 min-w-0">
           <div className="flex items-center justify-between gap-4">
             <h3 className="font-display font-bold text-lg text-primary-dark truncate">
               {title}
@@ -30,7 +30,7 @@ export const KpiDetailModal = ({
           </div>
 
           {/* Period Selector in Header */}
-          <div className="pt-1">
+          <div className="pt-1 max-w-full overflow-hidden">
             <PeriodSelector value={periode} onChange={onPeriodeChange} />
           </div>
         </div>

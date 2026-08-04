@@ -40,9 +40,11 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
   };
 
   return (
-    <div className={`flex flex-wrap items-center gap-2 ${className}`}>
+    <div className={`flex flex-col sm:flex-row sm:items-center gap-2 max-w-full ${className}`}>
       {/* Barre de boutons préréglages */}
-      <div className="flex bg-gray-100/90 p-1 rounded-2xl border border-gray-200/80 overflow-x-auto max-w-full no-scrollbar items-center gap-1">
+      <div 
+        className="flex bg-gray-100/90 p-1.5 rounded-2xl border border-gray-200/80 overflow-x-auto max-w-full custom-horizontal-scrollbar items-center gap-1 shrink-0 pb-2.5 sm:pb-1.5"
+      >
         {PRESET_OPTIONS.map((p) => {
           const isActive = currentMode === 'preset' && currentPreset === p.key;
           return (
@@ -50,7 +52,7 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
               key={p.key}
               type="button"
               onClick={() => handleSelectPreset(p.key)}
-              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap min-h-[36px] cursor-pointer ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap min-h-[34px] cursor-pointer shrink-0 ${
                 isActive
                   ? 'bg-white text-primary-dark shadow-sm scale-105 border border-gray-200/60'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
@@ -64,7 +66,7 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
         <button
           type="button"
           onClick={handleCustomToggle}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 min-h-[36px] cursor-pointer ${
+          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 min-h-[34px] cursor-pointer shrink-0 ${
             currentMode === 'custom'
               ? 'bg-[#1A7A4A] text-white shadow-sm scale-105'
               : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
