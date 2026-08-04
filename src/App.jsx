@@ -52,6 +52,8 @@ import { IconCheck, IconX, IconTrendingUp, IconUsers, IconTrophy, IconUsersGroup
 
 import { ErrorBoundary } from './components/ErrorBoundary';
 
+const ADMIN_EMAILS = [];
+
 function App() {
   const path = window.location.pathname;
   const isVerify = path.startsWith('/verify/');

@@ -169,7 +169,7 @@ export const StatsGrid = () => {
           { label: 'Revenus totaux', value: current.revenues, change: current.changeRev, isPositive: current.isPosRev, isCurrency: true },
           { label: "Réservations", value: current.bookings, change: current.changeBook, isPositive: current.isPosBook, isCurrency: false },
           { label: 'Terrains actifs', value: current.activePitches, change: '+1', isPositive: true, isCurrency: false },
-          { label: 'Joueurs inscrits', value: current.users, change: filter === '24h' ? '-0.1%' : '+2.4%', isPositive: filter !== '24h', isCurrency: false, isRawInt: true },
+          { label: 'Joueurs inscrits', value: current.users, change: presetKey === '24h' ? '-0.1%' : '+2.4%', isPositive: presetKey !== '24h', isCurrency: false, isRawInt: true },
         ].map((stat, index) => (
           <div 
             key={index} 
@@ -197,10 +197,10 @@ export const StatsGrid = () => {
               <div 
                 className={`h-full rounded-full transition-all duration-700 ease-out ${stat.isPositive ? 'bg-primary' : 'bg-status-cancelled'}`} 
                 style={{ 
-                  width: filter === '24h' ? '35%' 
-                       : filter === '48h' ? '50%' 
-                       : filter === '7j' ? '68%' 
-                       : filter === '30j' ? '82%' 
+                  width: presetKey === '24h' ? '35%' 
+                       : presetKey === '48h' ? '50%' 
+                       : presetKey === '1w' ? '68%' 
+                       : presetKey === '1m' ? '82%' 
                        : '95%' 
                 }}
               ></div>
@@ -239,7 +239,7 @@ export const StatsGrid = () => {
               </div>
               <div className="min-w-0">
                 <h3 className="text-xl font-display font-bold text-primary-dark leading-tight truncate whitespace-normal break-words">{detailContent.title}</h3>
-                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mt-0.5">Période : {filterOptions.find(o => o.id === filter)?.label}</span>
+                <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest block mt-0.5">Période : {presetKey}</span>
               </div>
             </div>
 

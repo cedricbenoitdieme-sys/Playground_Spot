@@ -17,7 +17,7 @@ import { Avatar } from '../components/Avatar';
 import { supabase } from '../lib/supabase';
 import { formatAmountAbbreviated } from '../services/stats';
 import { updateOwnProfile } from '../services/profiles';
-import { getLoyaltyBadge } from '../lib/loyalty';
+import { getLoyaltyBadge, getRangClient } from '../lib/loyalty';
 
 const OFFICIAL_QUARTIERS = [
   'Almadies', 'Plateau', 'Médina', 'Parcelles Assainies',

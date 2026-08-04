@@ -29,7 +29,10 @@ import { TerrainFormModal } from '../components/TerrainFormModal';
 
 export const GerantTerrain = () => {
   const { currentUser } = useUser();
-  const { terrains, loading, error, refetch } = useGerantTerrains(currentUser?.id);
+  const { terrains, loading, error: fetchError, refetch } = useGerantTerrains(currentUser?.id);
+  const [actionError, setActionError] = useState(null);
+  const error = actionError || fetchError;
+  const setError = setActionError;
   const [terrain, setTerrain] = useState(null);
   const [saving, setSaving] = useState(false);
 

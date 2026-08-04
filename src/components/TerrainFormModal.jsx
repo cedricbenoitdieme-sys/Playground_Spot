@@ -955,7 +955,7 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
           {/* Section 6 : Coordonnées de Versement & Transparence Commission */}
           <div className="space-y-4 pt-4 border-t border-gray-100 bg-[#0F2318]/5 p-5 rounded-2xl border border-[#1A7A4A]/20">
             <h4 className="font-bold text-sm text-[#0F2318] flex items-center gap-2">
-              <IconCash size={18} className="text-[#1A7A4A]" />
+              <IconCoin size={18} className="text-[#1A7A4A]" />
               6. Coordonnées de Versement des Revenus *
             </h4>
             

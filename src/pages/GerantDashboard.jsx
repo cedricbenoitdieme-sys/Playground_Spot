@@ -639,7 +639,7 @@ export const GerantDashboard = ({ setView }) => {
               ) : selectedSlotDetail.status === 'reserved' ? (
                 <>
                   <button 
-                    onClick={() => { setSelectedReservation(slot.reservation); setSelectedSlotDetail(null); }}
+                    onClick={() => { setSelectedReservation(selectedSlotDetail.reservation); setSelectedSlotDetail(null); }}
                     className="w-full btn-primary h-12 rounded-2xl font-bold flex items-center justify-center gap-2 cursor-pointer shadow-lg shadow-primary/20"
                   >
                     Voir détails réservation
