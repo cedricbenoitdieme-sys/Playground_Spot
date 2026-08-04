@@ -143,27 +143,38 @@ export const Landing = ({ setView }) => {
   const [popularTerrains, setPopularTerrains] = useState([]);
   const [loadingTerrains, setLoadingTerrains] = useState(true);
 
-  // Platform Stats Cache State
+  // Platform Stats Cache & Settings State
   const [platformStats, setPlatformStats] = useState(null);
+  const [ribbonVisible, setRibbonVisible] = useState(true);
 
   useEffect(() => {
-    const fetchPlatformStats = async () => {
+    const fetchPlatformData = async () => {
       try {
-        const { data } = await supabase
+        const { data: statsData } = await supabase
           .from('stats_plateforme_cache')
           .select('*')
           .eq('id', true)
           .maybeSingle();
 
-        if (data) {
-          setPlatformStats(data);
+        if (statsData) {
+          setPlatformStats(statsData);
+        }
+
+        const { data: settingData } = await supabase
+          .from('system_settings')
+          .select('value')
+          .eq('key', 'landing_stats_ribbon_visible')
+          .maybeSingle();
+
+        if (settingData?.value !== undefined) {
+          setRibbonVisible(!!settingData.value);
         }
       } catch (err) {
-        console.warn('Stats plateforme indisponibles:', err);
+        console.warn('Stats plateforme ou réglages indisponibles:', err);
       }
     };
 
-    fetchPlatformStats();
+    fetchPlatformData();
   }, []);
 
   useEffect(() => {
@@ -461,37 +472,39 @@ export const Landing = ({ setView }) => {
           </div>
 
           {/* Real-time Dynamic Stats Ribbon */}
-          <div className="w-full max-w-xl bg-white/5 border border-white/10 rounded-3xl p-4 sm:p-5 backdrop-blur-md shadow-subtle flex flex-wrap gap-4 justify-around items-center mt-2 animate-slide-up-medium mx-auto">
-            <div className="text-center group cursor-default">
-              <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
-                <CountUp end={platformStats?.nombre_joueurs ?? 1} suffix="+" />
-              </p>
-              <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Joueurs Dakarois</span>
-            </div>
-            <div className="w-px h-8 bg-white/10 hidden sm:block"></div>
-            <div className="text-center group cursor-default">
-              <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
-                <CountUp end={platformStats?.nombre_terrains ?? 1} suffix={platformStats?.nombre_terrains > 0 ? "" : "+"} />
-              </p>
-              <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Terrains Homologués</span>
-            </div>
-            <div className="w-px h-8 bg-white/10 hidden sm:block"></div>
-            <div className="text-center group cursor-default">
-              {platformStats?.taux_satisfaction != null ? (
-                <p className="text-2xl sm:text-3xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
-                  <CountUp end={platformStats.taux_satisfaction} suffix="%" />
+          {ribbonVisible && (
+            <div className="w-full max-w-xl bg-white/5 border border-white/10 rounded-3xl p-4 sm:p-5 backdrop-blur-md shadow-subtle flex flex-wrap gap-4 justify-around items-center mt-2 animate-slide-up-medium mx-auto">
+              <div className="text-center group cursor-default">
+                <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
+                  <CountUp end={platformStats?.nombre_joueurs ?? 1} suffix="+" />
                 </p>
-              ) : (
-                <p className="text-xl sm:text-2xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300 pt-1">
-                  Nouveau ! ⭐
+                <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Joueurs Dakarois</span>
+              </div>
+              <div className="w-px h-8 bg-white/10 hidden sm:block"></div>
+              <div className="text-center group cursor-default">
+                <p className="text-2xl sm:text-3xl font-black text-emerald-400 font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
+                  <CountUp end={platformStats?.nombre_terrains ?? 1} suffix={platformStats?.nombre_terrains > 0 ? "" : "+"} />
                 </p>
-              )}
-              <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Taux de Satisfaction</span>
+                <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Terrains Homologués</span>
+              </div>
+              <div className="w-px h-8 bg-white/10 hidden sm:block"></div>
+              <div className="text-center group cursor-default">
+                {platformStats?.taux_satisfaction != null ? (
+                  <p className="text-2xl sm:text-3xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300">
+                    <CountUp end={platformStats.taux_satisfaction} suffix="%" />
+                  </p>
+                ) : (
+                  <p className="text-xl sm:text-2xl font-black text-[#E8DCC8] font-display drop-shadow group-hover:scale-105 transition-transform duration-300 pt-1">
+                    Nouveau ! ⭐
+                  </p>
+                )}
+                <span className="text-[9px] sm:text-[10px] text-gray-400 font-bold uppercase tracking-widest mt-1 block">Taux de Satisfaction</span>
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Dakar Interactive Booking Simulator (AHA Moment & Investment Bias) */}
-          <div className="relative w-full max-w-sm mx-auto mt-8 animate-slide-up-extra-slow">
+          <div className={`relative w-full max-w-sm mx-auto ${ribbonVisible ? 'mt-8' : 'mt-4'} animate-slide-up-extra-slow`}>
             {/* Decorative blur behind */}
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-primary/20 blur-[80px] rounded-full pointer-events-none"></div>
             

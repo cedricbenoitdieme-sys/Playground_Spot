@@ -163,7 +163,11 @@ export const Parametres = ({ setView }) => {
     devise: 'FCFA',
     fuseauHoraire: 'Africa/Dakar',
     modeMainten: false,
+    statsRibbonVisible: true,
   });
+
+  const [statsLive, setStatsLive] = useState(null);
+  const [refreshingStats, setRefreshingStats] = useState(false);
 
   // Toast
   const [toast, setToast] = useState(null);
@@ -174,20 +178,45 @@ export const Parametres = ({ setView }) => {
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showSupport, setShowSupport] = useState(false);
 
-  // Chargement mode maintenance au montage
+  // Chargement mode maintenance & stats ribbon au montage
   useEffect(() => {
-    const fetchMaintenance = async () => {
-      const { data } = await supabase
+    const fetchPlatformSettings = async () => {
+      // 1. Mode maintenance
+      const { data: maintData } = await supabase
         .from('system_settings')
         .select('value')
         .eq('key', 'mode_maintenance')
         .maybeSingle();
-      if (data?.value !== undefined) {
-        setPlateforme(prev => ({ ...prev, modeMainten: !!data.value }));
+
+      if (maintData?.value !== undefined) {
+        setPlateforme(prev => ({ ...prev, modeMainten: !!maintData.value }));
+      }
+
+      // 2. Visibilité du ruban de stats
+      const { data: ribbonData } = await supabase
+        .from('system_settings')
+        .select('value')
+        .eq('key', 'landing_stats_ribbon_visible')
+        .maybeSingle();
+
+      if (ribbonData?.value !== undefined) {
+        setPlateforme(prev => ({ ...prev, statsRibbonVisible: !!ribbonData.value }));
+      }
+
+      // 3. Charger les stats affichées et live
+      const { data: statsCache } = await supabase
+        .from('stats_plateforme_cache')
+        .select('*')
+        .eq('id', true)
+        .maybeSingle();
+
+      if (statsCache) {
+        setStatsLive(statsCache);
       }
     };
+
     if (['admin', 'super_admin'].includes(currentUser?.role)) {
-      fetchMaintenance();
+      fetchPlatformSettings();
     }
   }, [currentUser]);
 
@@ -202,6 +231,38 @@ export const Parametres = ({ setView }) => {
     if (error) {
       showToast(`❌ ${error.message}`);
       setPlateforme(prev => ({ ...prev, modeMainten: !v }));
+    }
+  };
+
+  // Handler bascule Ruban de stats
+  const handleToggleStatsRibbon = async (v) => {
+    showToast(v ? '✓ Ruban de stats activé' : 'ℹ️ Ruban de stats masqué');
+    setPlateforme(prev => ({ ...prev, statsRibbonVisible: v }));
+    const { error } = await supabase
+      .from('system_settings')
+      .update({ value: v, updated_at: new Date().toISOString() })
+      .eq('key', 'landing_stats_ribbon_visible');
+    if (error) {
+      showToast(`❌ ${error.message}`);
+      setPlateforme(prev => ({ ...prev, statsRibbonVisible: !v }));
+    }
+  };
+
+  // Recalcul immédiat des stats plateforme super admin
+  const handleRefreshPlatformStats = async () => {
+    setRefreshingStats(true);
+    try {
+      const { data, error } = await supabase.rpc('admin_refresh_stats_plateforme');
+      if (error) throw error;
+      if (data) {
+        setStatsLive(data);
+        showToast('✓ Statistiques recalculées avec succès');
+      }
+    } catch (err) {
+      console.error('Erreur recalcul stats:', err);
+      showToast(`❌ ${err.message || 'Échec du recalcul'}`);
+    } finally {
+      setRefreshingStats(false);
     }
   };
 
@@ -436,6 +497,46 @@ export const Parametres = ({ setView }) => {
             <Row label="Mode maintenance" sub={plateforme.modeMainten ? 'Site inaccessible aux joueurs' : 'Plateforme en ligne'}>
               <Toggle value={plateforme.modeMainten} onChange={handleToggleMaintenance} />
             </Row>
+
+            <Row label="Ruban de stats (landing page)" sub={plateforme.statsRibbonVisible ? 'Visible sur la page d\'accueil publique' : 'Masqué — le simulateur remonte à sa place'}>
+              <Toggle value={plateforme.statsRibbonVisible} onChange={handleToggleStatsRibbon} />
+            </Row>
+
+            {/* Comparatif Stats Publiques (High-Water Mark) vs Données Live Réelles */}
+            {statsLive && (
+              <div className="px-5 py-4 bg-gray-50/70 border-t border-b border-gray-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wider text-gray-500">Statistiques Landing Page</p>
+                  <button
+                    onClick={handleRefreshPlatformStats}
+                    disabled={refreshingStats}
+                    className="text-[11px] font-bold text-primary hover:text-primary-dark cursor-pointer disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {refreshingStats ? 'Calcul en cours...' : '🔄 Recalculer maintenant'}
+                  </button>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs text-gray-600">
+                  <div className="bg-white p-3 rounded-xl border border-gray-200/80 shadow-xs">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Joueurs Dakarois</span>
+                    <p className="mt-1">Affiché : <b className="text-primary-dark font-display text-sm">{statsLive.nombre_joueurs}</b></p>
+                    <p className="text-[11px] text-gray-500 font-medium">Réel actuel : {statsLive.nombre_joueurs_live}</p>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-gray-200/80 shadow-xs">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Terrains Homologués</span>
+                    <p className="mt-1">Affiché : <b className="text-primary-dark font-display text-sm">{statsLive.nombre_terrains}</b></p>
+                    <p className="text-[11px] text-gray-500 font-medium">Réel actuel : {statsLive.nombre_terrains_live}</p>
+                  </div>
+
+                  <div className="bg-white p-3 rounded-xl border border-gray-200/80 shadow-xs">
+                    <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block">Taux Satisfaction</span>
+                    <p className="mt-1">Affiché : <b className="text-[#1A7A4A] font-display text-sm">{statsLive.taux_satisfaction != null ? `${statsLive.taux_satisfaction}%` : 'Nouveau ! ⭐'}</b></p>
+                    <p className="text-[11px] text-gray-500 font-medium">Réel actuel : {statsLive.taux_satisfaction_live != null ? `${statsLive.taux_satisfaction_live}%` : 'Nouveau ! ⭐'}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <Row label="Devise" sub={plateforme.devise}>
               <span className="text-sm font-bold text-primary">{plateforme.devise}</span>
             </Row>
