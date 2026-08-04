@@ -168,12 +168,24 @@ export const AdminTerrains = () => {
   const validationBadge = (stValidation) => {
     switch (stValidation) {
       case 'approved':
-        return <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200 inline-flex items-center gap-1">✓ Approuvé</span>;
+        return (
+          <span className="bg-emerald-100 text-emerald-800 text-xs font-bold px-2.5 py-1 rounded-full border border-emerald-200 inline-flex items-center gap-1 whitespace-nowrap">
+            <IconCheck size={14} strokeWidth={3} /> Approuvé
+          </span>
+        );
       case 'rejected':
-        return <span className="bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded-full border border-red-200 inline-flex items-center gap-1">✕ Refusé</span>;
+        return (
+          <span className="bg-red-100 text-red-800 text-xs font-bold px-2.5 py-1 rounded-full border border-red-200 inline-flex items-center gap-1 whitespace-nowrap">
+            <IconX size={14} strokeWidth={3} /> Refusé
+          </span>
+        );
       case 'pending':
       default:
-        return <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-300 animate-pulse inline-flex items-center gap-1">⌛ En attente</span>;
+        return (
+          <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2.5 py-1 rounded-full border border-amber-300 animate-pulse inline-flex items-center gap-1 whitespace-nowrap">
+            <IconClock size={14} strokeWidth={2.5} /> En attente
+          </span>
+        );
     }
   };
 
