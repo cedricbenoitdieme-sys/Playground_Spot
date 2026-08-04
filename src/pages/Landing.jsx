@@ -111,8 +111,6 @@ export const Landing = ({ setView }) => {
   const [activeModal, setActiveModal] = useState(null); // 'cgu', 'privacy', 'gerant'
   const [gerantFormSubmitted, setGerantFormSubmitted] = useState(false);
   const [gerantFormLoading, setGerantFormLoading] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
-
   const [ctaPhraseIndex, setCtaPhraseIndex] = useState(0);
 
   useEffect(() => {
@@ -121,6 +119,7 @@ export const Landing = ({ setView }) => {
     }, 2200);
     return () => clearInterval(interval);
   }, []);
+  const [scrolled, setScrolled] = useState(false);
 
   // Form State
   const [gerantName, setGerantName] = useState('');
@@ -357,6 +356,13 @@ export const Landing = ({ setView }) => {
           0%, 100% { transform: translateY(0) scale(1); }
           50% { transform: translateY(-12px) scale(1.015); }
         }
+        @keyframes ctaWordCycle {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-cta-word {
+          animation: ctaWordCycle 0.5s cubic-bezier(.22,1,.36,1) both;
+        }
         .animate-slide-up-slow {
           animation: slideUpSlow 0.9s cubic-bezier(.22,1,.36,1) both;
         }
@@ -377,13 +383,6 @@ export const Landing = ({ setView }) => {
         }
         .animate-float-phone {
           animation: floatPhone 6s ease-in-out infinite;
-        }
-        @keyframes ctaWordCycle {
-          from { opacity: 0; transform: translateY(6px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .animate-cta-word {
-          animation: ctaWordCycle 0.5s cubic-bezier(.22,1,.36,1) both;
         }
         .shadow-glow-emerald:hover {
           box-shadow: 0 25px 60px -5px rgba(26, 122, 74, 0.45);
@@ -415,7 +414,13 @@ export const Landing = ({ setView }) => {
             </div>
             
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-display font-bold leading-[1.15] tracking-tight drop-shadow-md animate-slide-up-slow text-center mx-auto max-w-2xl">
-              Fini de chercher un terrain dispo pendant <span className="text-[#E8F5E9] drop-shadow-lg text-primary-light bg-gradient-to-r from-emerald-400 to-[#E8DCC8] bg-clip-text text-transparent">1h sur WhatsApp</span>
+              Réserve ton terrain{' '}
+              <span
+                key={ctaPhraseIndex}
+                className="text-[#E8F5E9] drop-shadow-lg text-primary-light bg-gradient-to-r from-emerald-400 to-[#E8DCC8] bg-clip-text text-transparent inline-block animate-cta-word"
+              >
+                {CTA_ROTATING_PHRASES[ctaPhraseIndex]}
+              </span>
             </h1>
             
             <p className="text-gray-300 text-sm sm:text-base md:text-lg max-w-xl drop-shadow animate-slide-up-medium leading-relaxed text-center mx-auto">
@@ -427,16 +432,10 @@ export const Landing = ({ setView }) => {
             <div className="flex flex-col sm:flex-row items-center gap-3 justify-center w-full max-w-sm pt-2 animate-slide-up-fast mx-auto">
               <button 
                 onClick={() => handleGoToApp('joueur', 'discovery')} 
-                className="w-full sm:w-auto bg-primary text-white font-bold text-base px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center gap-2 shadow-glow hover:-translate-y-1 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer hover:bg-emerald-600"
+                className="w-full sm:w-auto bg-primary text-white font-bold text-base px-8 py-4 min-h-[48px] rounded-2xl flex items-center justify-center gap-3 shadow-glow hover:-translate-y-1 hover:shadow-lg transition-all active:scale-[0.98] cursor-pointer hover:bg-emerald-600"
               >
                 <IconMapPin size={22} />
-                <span className="whitespace-nowrap">Réserve ton terrain</span>
-                <span
-                  key={ctaPhraseIndex}
-                  className="whitespace-nowrap font-semibold text-sm text-[#E8DCC8] animate-cta-word"
-                >
-                  {CTA_ROTATING_PHRASES[ctaPhraseIndex]}
-                </span>
+                Trouver un terrain
               </button>
               <button 
                 onClick={() => { setActiveModal('gerant'); setGerantFormSubmitted(false); }} 
