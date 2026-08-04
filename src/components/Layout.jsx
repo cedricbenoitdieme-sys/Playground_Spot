@@ -11,7 +11,7 @@ export const Layout = ({ children, currentView, setView }) => {
 
   if (isFullPageView) {
     return (
-      <div className="min-h-screen w-full bg-[#0F2318] text-white overflow-x-hidden">
+      <div className="h-dvh w-full overflow-y-auto overflow-x-hidden bg-[#0F2318] text-white">
         {children}
         <ChatWidget currentView={currentView} />
       </div>
