@@ -252,39 +252,43 @@ export const AdminUsers = () => {
                       <td className="py-3.5 px-4 text-xs text-gray-500">
                         {u.quartier || 'Dakar'}
                       </td>
-                      <td className="py-3.5 px-4 text-right space-x-2">
-                        {!isRevealed ? (
-                          <button
-                            onClick={() => handleRevealContact(u.id)}
-                            disabled={revealingId === u.id}
-                            className="px-2.5 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-bold rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
-                            title="Révéler les coordonnées (loggé)"
-                          >
-                            <IconEye size={14} /> Révéler
-                          </button>
-                        ) : (
-                          <span className="text-[10px] bg-green-50 text-green-600 font-bold px-2 py-0.5 rounded-md">Contact Révélé</span>
-                        )}
+                      <td className="py-3.5 px-4">
+                        <div className="flex flex-col items-end gap-2">
+                          {!isRevealed ? (
+                            <button
+                              onClick={() => handleRevealContact(u.id)}
+                              disabled={revealingId === u.id}
+                              className="px-2.5 py-1 bg-gray-100 text-gray-700 hover:bg-gray-200 text-xs font-bold rounded-lg transition-all cursor-pointer inline-flex items-center gap-1"
+                              title="Révéler les coordonnées (loggé)"
+                            >
+                              <IconEye size={14} /> Révéler
+                            </button>
+                          ) : (
+                            <span className="text-[10px] bg-green-50 text-green-600 font-bold px-2 py-0.5 rounded-md">Contact Révélé</span>
+                          )}
 
-                        <div className="w-36">
-                          <CustomSelect
-                            value={u.role}
-                            onChange={(val) => handleUpdateRole(u.id, val)}
-                            options={[
-                              { value: 'joueur', label: 'Joueur' },
-                              { value: 'gerant', label: 'Gérant' },
-                              { value: 'admin', label: 'Super Admin' }
-                            ]}
-                          />
+                          <div className="flex items-center gap-2">
+                            <div className="w-36">
+                              <CustomSelect
+                                value={u.role}
+                                onChange={(val) => handleUpdateRole(u.id, val)}
+                                options={[
+                                  { value: 'joueur', label: 'Joueur' },
+                                  { value: 'gerant', label: 'Gérant' },
+                                  { value: 'admin', label: 'Super Admin' }
+                                ]}
+                              />
+                            </div>
+
+                            <button
+                              onClick={() => handleResetAccess(u)}
+                              className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                              title="Réinitialiser l'accès"
+                            >
+                              <IconKey size={16} />
+                            </button>
+                          </div>
                         </div>
-
-                        <button
-                          onClick={() => handleResetAccess(u)}
-                          className="p-1.5 text-gray-400 hover:text-amber-600 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
-                          title="Réinitialiser l'accès"
-                        >
-                          <IconKey size={16} />
-                        </button>
                       </td>
                     </tr>
                   );
