@@ -126,22 +126,26 @@ export const AdminSubscriptions = () => {
 
       {/* Résumé des Commissions Plateforme */}
       <div className="bg-gradient-to-br from-[#0F2318] to-[#122A1D] rounded-card p-6 text-white shadow-xl space-y-6 relative overflow-hidden">
-        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 border-b border-white/10 pb-4">
-          <div className="flex items-center gap-3">
-            <div className="p-3 bg-white/10 rounded-2xl border border-white/10 text-primary">
-              <IconReceipt size={28} />
+        <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-6 border-b border-white/10 pb-5">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-primary shrink-0 shadow-inner">
+              <IconReceipt size={26} />
             </div>
             <div>
-              <span className="text-xs font-bold text-primary uppercase tracking-widest bg-primary/10 px-3 py-1 rounded-full border border-primary/20 inline-block mb-1">
-                Période : {commissionSummary?.periode_debut || 'Ce mois'} au {commissionSummary?.periode_fin || 'Aujourd\'hui'}
-              </span>
-              <h3 className="text-2xl font-bold font-display">
-                Commissions Totales : {formatFCFA(commissionSummary?.total_commission)}
+              <div className="flex flex-wrap items-center gap-2 mb-1">
+                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20 whitespace-nowrap">
+                  Période : {commissionSummary?.periode_debut || '...'} au {commissionSummary?.periode_fin || '...'}
+                </span>
+              </div>
+              <h3 className="text-2xl lg:text-3xl font-black font-display tracking-tight text-white">
+                Commissions Totales : <span className="text-secondary">{formatFCFA(commissionSummary?.total_commission)}</span>
               </h3>
             </div>
           </div>
 
-          <PeriodSelector value={periode} onChange={setPeriode} />
+          <div className="w-full xl:w-auto overflow-x-auto no-scrollbar">
+            <PeriodSelector value={periode} onChange={setPeriode} />
+          </div>
         </div>
 
         <p className="text-xs text-white/60">
