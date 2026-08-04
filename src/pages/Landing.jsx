@@ -197,17 +197,19 @@ export const Landing = ({ setView }) => {
     fetchPopular();
   }, []);
 
-  // Scroll effect for Navbar
+  // Scroll effect for Navbar (support à la fois window et conteneur de scroll parent)
   useEffect(() => {
-    const handleScroll = () => {
-      if (window.scrollY > 50) {
+    const handleScroll = (e) => {
+      const scrollY = e?.target?.scrollTop !== undefined ? e.target.scrollTop : window.scrollY;
+      if (scrollY > 50) {
         setScrolled(true);
       } else {
         setScrolled(false);
       }
     };
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    window.addEventListener('scroll', handleScroll, true);
+    return () => window.removeEventListener('scroll', handleScroll, true);
   }, []);
 
   const handleGoToApp = (role, targetView) => {
