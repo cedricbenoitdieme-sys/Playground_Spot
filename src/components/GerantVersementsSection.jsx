@@ -76,7 +76,7 @@ export const GerantVersementsSection = ({ gerantId }) => {
         <div>
           <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
             <IconCash className="w-6 h-6 text-[#1A7A4A]" />
-            Versements & Revenus Net SenePay
+            Versements & Revenus Nets
           </h3>
           <p className="text-xs text-gray-600 mt-1 font-medium">
             Suivi automatique des virements Wave/Orange Money suite aux réservations confirmées

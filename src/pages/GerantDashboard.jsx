@@ -470,7 +470,7 @@ export const GerantDashboard = ({ setView }) => {
         </div>
       </div>
 
-      {/* Section Versements & Revenus Net SenePay */}
+      {/* Section Versements & Revenus Nets */}
       <GerantVersementsSection gerantId={currentUser?.id} />
 
       {/* Analytics Modal */}
