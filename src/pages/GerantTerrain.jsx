@@ -160,8 +160,8 @@ export const GerantTerrain = () => {
     if (!terrain || priceInput === terrain.price) return;
     setSaving(true);
     try {
-      const updated = await updateTerrain(terrain.id, { price: priceInput });
-      setTerrain(t => ({ ...t, price: updated.price }));
+      await updateTerrain(terrain.id, { price: priceInput });
+      await refetch();
     } catch (err) {
       setError(err.userMessage || err.message || 'Impossible de mettre à jour le prix.');
     } finally {
@@ -174,8 +174,8 @@ export const GerantTerrain = () => {
     const nextStatut = terrain.statut === 'en_maintenance' ? 'actif' : 'en_maintenance';
     setSaving(true);
     try {
-      const updated = await updateTerrain(terrain.id, { statut: nextStatut });
-      setTerrain(t => ({ ...t, statut: updated.statut }));
+      await updateTerrain(terrain.id, { statut: nextStatut });
+      await refetch();
     } catch (err) {
       setError(err.userMessage || err.message || 'Impossible de changer le statut du terrain.');
     } finally {
@@ -187,12 +187,8 @@ export const GerantTerrain = () => {
     e.preventDefault();
     if (!newAmenity.trim() || !terrain) return;
     try {
-      const created = await addAmenity(terrain.id, newAmenity.trim());
-      setTerrain(t => ({
-        ...t,
-        amenities: [...(t.amenities || []), created.label],
-        terrain_amenities: [...(t.terrain_amenities || []), created],
-      }));
+      await addAmenity(terrain.id, newAmenity.trim());
+      await refetch();
       setNewAmenity('');
       setShowAddAmenity(false);
     } catch (err) {
@@ -204,11 +200,7 @@ export const GerantTerrain = () => {
     if (!terrain) return;
     try {
       await removeAmenity(amenityId);
-      setTerrain(t => ({
-        ...t,
-        terrain_amenities: (t.terrain_amenities || []).filter(a => a.id !== amenityId),
-        amenities: (t.terrain_amenities || []).filter(a => a.id !== amenityId).map(a => a.label),
-      }));
+      await refetch();
     } catch (err) {
       setError(err.userMessage || err.message || "Impossible de retirer cette commodité.");
     }
