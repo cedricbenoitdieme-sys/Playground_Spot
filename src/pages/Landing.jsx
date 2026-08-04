@@ -112,11 +112,16 @@ export const Landing = ({ setView }) => {
   const [gerantFormSubmitted, setGerantFormSubmitted] = useState(false);
   const [gerantFormLoading, setGerantFormLoading] = useState(false);
   const [ctaPhraseIndex, setCtaPhraseIndex] = useState(0);
+  const [ctaPhraseVisible, setCtaPhraseVisible] = useState(true);
 
   useEffect(() => {
     const interval = setInterval(() => {
-      setCtaPhraseIndex(prev => (prev + 1) % CTA_ROTATING_PHRASES.length);
-    }, 2200);
+      setCtaPhraseVisible(false);
+      setTimeout(() => {
+        setCtaPhraseIndex(prev => (prev + 1) % CTA_ROTATING_PHRASES.length);
+        setCtaPhraseVisible(true);
+      }, 350);
+    }, 3400);
     return () => clearInterval(interval);
   }, []);
   const [scrolled, setScrolled] = useState(false);
@@ -356,12 +361,19 @@ export const Landing = ({ setView }) => {
           0%, 100% { transform: translateY(0) scale(1); }
           50% { transform: translateY(-12px) scale(1.015); }
         }
-        @keyframes ctaWordCycle {
-          from { opacity: 0; transform: translateY(6px); }
+        @keyframes ctaWordCycleIn {
+          from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .animate-cta-word {
-          animation: ctaWordCycle 0.5s cubic-bezier(.22,1,.36,1) both;
+        @keyframes ctaWordCycleOut {
+          from { opacity: 1; transform: translateY(0); }
+          to { opacity: 0; transform: translateY(-10px); }
+        }
+        .animate-cta-word-in {
+          animation: ctaWordCycleIn 0.6s cubic-bezier(.22,1,.36,1) both;
+        }
+        .animate-cta-word-out {
+          animation: ctaWordCycleOut 0.35s cubic-bezier(.4,0,1,1) both;
         }
         .animate-slide-up-slow {
           animation: slideUpSlow 0.9s cubic-bezier(.22,1,.36,1) both;
@@ -417,7 +429,7 @@ export const Landing = ({ setView }) => {
               Réserve ton terrain{' '}
               <span
                 key={ctaPhraseIndex}
-                className="text-[#E8F5E9] drop-shadow-lg text-primary-light bg-gradient-to-r from-emerald-400 to-[#E8DCC8] bg-clip-text text-transparent inline-block animate-cta-word"
+                className={`text-[#E8F5E9] drop-shadow-lg text-primary-light bg-gradient-to-r from-emerald-400 to-[#E8DCC8] bg-clip-text text-transparent inline-block ${ctaPhraseVisible ? 'animate-cta-word-in' : 'animate-cta-word-out'}`}
               >
                 {CTA_ROTATING_PHRASES[ctaPhraseIndex]}
               </span>
