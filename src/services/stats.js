@@ -123,9 +123,9 @@ export const fetchRecentReservations = async (limit = 10) => {
  * Statistiques gérant filtrées par période (RPC Postgres get_gerant_stats_period).
  * Un seul appel RPC remplaçant l'agrégation côté client.
  */
-export const fetchGerantStatsPeriod = async (gerantId, terrainId = null, period = { mode: 'preset', preset: '1m' }) => {
+export const fetchGerantStatsPeriod = async (gerantId, terrainId = null, period = { mode: 'preset', preset: '31d' }) => {
   const pTerrainId = terrainId && terrainId !== 'all' ? terrainId : null;
-  const pPreset = period?.mode === 'preset' ? period.preset : (typeof period === 'string' ? (period === 'week' ? '1w' : period === 'quarter' ? '3m' : '1m') : null);
+  const pPreset = period?.mode === 'preset' ? period.preset : (typeof period === 'string' ? (period === 'week' ? '7d' : period === 'quarter' ? '3m' : '31d') : null);
   const pStartDate = period?.mode === 'custom' ? period.startDate : null;
   const pEndDate = period?.mode === 'custom' ? period.endDate : null;
 
@@ -147,7 +147,7 @@ export const fetchGerantStatsPeriod = async (gerantId, terrainId = null, period 
 /**
  * Statistiques dashboard admin filtrées par période (RPC get_admin_dashboard_stats_period).
  */
-export const fetchAdminDashboardStatsPeriod = async (period = { mode: 'preset', preset: '1m' }) => {
+export const fetchAdminDashboardStatsPeriod = async (period = { mode: 'preset', preset: '31d' }) => {
   const pPreset = period?.mode === 'preset' ? period.preset : (typeof period === 'string' ? period : null);
   const pStartDate = period?.mode === 'custom' ? period.startDate : null;
   const pEndDate = period?.mode === 'custom' ? period.endDate : null;

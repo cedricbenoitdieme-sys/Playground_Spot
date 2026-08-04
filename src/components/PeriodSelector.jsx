@@ -4,13 +4,14 @@ import { CustomDatePicker } from './CustomDatePicker';
 
 export const PRESET_OPTIONS = [
   { key: '24h', label: '24h' },
-  { key: '48h', label: '48h' },
-  { key: '3d', label: '3 jours' },
-  { key: '1w', label: '1 sem.' },
-  { key: '2w', label: '2 sem.' },
-  { key: '1m', label: '1 mois' },
-  { key: '3m', label: '3 mois' },
-  { key: '1y', label: '1 an' },
+  { key: '72h', label: '72h' },
+  { key: '7d',  label: '7j' },
+  { key: '14d', label: '14j' },
+  { key: '31d', label: '31j' },
+  { key: '45d', label: '45j' },
+  { key: '3m',  label: '3 mois' },
+  { key: '6m',  label: '6 mois' },
+  { key: '1y',  label: '1 an' },
   { key: 'all', label: 'Depuis toujours' },
 ];
 
@@ -19,7 +20,7 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
   const defaultStart = new Date(Date.now() - 30 * 86400000).toISOString().split('T')[0];
 
   const currentMode = typeof value === 'object' && value !== null ? (value.mode || 'preset') : 'preset';
-  const currentPreset = typeof value === 'object' && value !== null ? (value.preset || '1m') : (typeof value === 'string' ? (value === 'week' ? '1w' : value === 'quarter' ? '3m' : value === 'month' ? '1m' : '1m') : '1m');
+  const currentPreset = typeof value === 'object' && value !== null ? (value.preset || '31d') : (typeof value === 'string' ? (value === 'week' ? '7d' : value === 'quarter' ? '3m' : value === 'month' ? '31d' : '31d') : '31d');
   
   const startDate = (typeof value === 'object' && value?.startDate) || defaultStart;
   const endDate = (typeof value === 'object' && value?.endDate) || todayStr;
@@ -49,7 +50,7 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
               key={p.key}
               type="button"
               onClick={() => handleSelectPreset(p.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap min-h-[36px] cursor-pointer ${
+              className={`px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap min-h-[36px] cursor-pointer ${
                 isActive
                   ? 'bg-white text-primary-dark shadow-sm scale-105 border border-gray-200/60'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'

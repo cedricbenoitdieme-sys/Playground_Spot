@@ -16,13 +16,31 @@ import {
   IconUserCheck,
   IconExternalLink
 } from '@tabler/icons-react';
+import { 
+  ResponsiveContainer, 
+  PieChart, 
+  Pie, 
+  Cell, 
+  Tooltip as RechartsTooltip, 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  BarChart, 
+  Bar, 
+  Legend 
+} from 'recharts';
 import { exportCSV, exportPDFReport } from '../../utils/exportReports';
 import { CustomAlertModal } from '../../components/CustomAlertModal';
+import { PeriodSelector } from '../../components/PeriodSelector';
 
 const formatFCFA = (amount) => {
   if (amount === null || amount === undefined) return '0 FCFA';
   return new Intl.NumberFormat('fr-FR').format(amount) + ' FCFA';
 };
+
+const PLAN_COLORS = ['#1A7A4A', '#F59E0B', '#3B82F6', '#10B981', '#6366F1'];
 
 export const AdminDashboard = ({ onNavigate }) => {
   const [stats, setStats] = useState(null);
@@ -34,6 +52,7 @@ export const AdminDashboard = ({ onNavigate }) => {
   const [ltvFunnel, setLtvFunnel] = useState(null);
   const [churn, setChurn] = useState(null);
   const [signupsTrend, setSignupsTrend] = useState(null);
+  const [signupsPeriod, setSignupsPeriod] = useState({ mode: 'preset', preset: '31d' });
 
   // Alert modal
   const [alertConfig, setAlertConfig] = useState(null);
@@ -57,12 +76,28 @@ export const AdminDashboard = ({ onNavigate }) => {
 
   useEffect(() => {
     fetchStats();
-    // Chargement indépendant des 4 nouvelles RPC analytics super admin
+    // Chargement indépendant des RPCs analytics super admin
     callRpc('admin_get_revenue_kpis').then(setRevenueKpis).catch(err => console.error('admin_get_revenue_kpis:', err));
     callRpc('admin_get_ltv_funnel').then(setLtvFunnel).catch(err => console.error('admin_get_ltv_funnel:', err));
     callRpc('admin_get_churn_rate').then(setChurn).catch(err => console.error('admin_get_churn_rate:', err));
-    callRpc('admin_get_signups_trend', { p_jours: 30 }).then(setSignupsTrend).catch(err => console.error('admin_get_signups_trend:', err));
   }, []);
+
+  // Effet pour recharger la tendance d'inscription quand la période change
+  useEffect(() => {
+    let days = 31;
+    if (signupsPeriod.mode === 'preset') {
+      const presetMap = {
+        '24h': 1, '72h': 3, '7d': 7, '14d': 14, '31d': 31, '45d': 45, '3m': 90, '6m': 180, '1y': 365, 'all': 730
+      };
+      days = presetMap[signupsPeriod.preset] || 31;
+    } else if (signupsPeriod.mode === 'custom' && signupsPeriod.startDate && signupsPeriod.endDate) {
+      const start = new Date(signupsPeriod.startDate);
+      const end = new Date(signupsPeriod.endDate);
+      const diffTime = Math.abs(end - start);
+      days = Math.max(1, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
+    }
+    callRpc('admin_get_signups_trend', { p_jours: days }).then(setSignupsTrend).catch(err => console.error('admin_get_signups_trend:', err));
+  }, [signupsPeriod]);
 
   if (loading) {
     return (
@@ -300,25 +335,97 @@ export const AdminDashboard = ({ onNavigate }) => {
           })()}
         </div>
 
-        {/* Répartition MRR par Plan */}
-        {revenueKpis?.par_plan && revenueKpis.par_plan.length > 0 && (
-          <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-4">
-            <h3 className="text-sm font-bold text-primary-dark font-display uppercase tracking-wider">
-              Répartition du MRR par Plan d'Abonnement
-            </h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
-              {revenueKpis.par_plan.map((p, idx) => (
-                <div key={idx} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-1">
-                  <div className="flex justify-between items-center text-xs font-bold text-gray-600">
-                    <span className="capitalize">{p.plan_nom || p.plan_id}</span>
-                    <span className="text-primary-dark bg-primary/10 px-2 py-0.5 rounded-full text-[10px]">{p.nb_abonnes} abonné(s)</span>
-                  </div>
-                  <p className="text-lg font-black text-primary font-display">{formatFCFA(p.mrr_contribue)}</p>
+        {/* Répartition MRR par Plan & Historique MRR 12 Mois */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Répartition MRR par Plan */}
+          {revenueKpis?.par_plan && revenueKpis.par_plan.length > 0 && (
+            <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-4 flex flex-col justify-between">
+              <h3 className="text-sm font-bold text-primary-dark font-display uppercase tracking-wider">
+                Répartition du MRR par Plan d'Abonnement
+              </h3>
+              
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="w-full md:w-1/2 h-48">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={revenueKpis.par_plan}
+                        dataKey="mrr_contribue"
+                        nameKey="plan_nom"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={4}
+                      >
+                        {revenueKpis.par_plan.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={PLAN_COLORS[index % PLAN_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip
+                        formatter={(val) => [formatFCFA(val), 'MRR']}
+                        contentStyle={{ backgroundColor: '#0F2318', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px' }}
+                      />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
-              ))}
+
+                <div className="w-full md:w-1/2 space-y-2">
+                  {revenueKpis.par_plan.map((p, idx) => (
+                    <div key={idx} className="bg-gray-50 p-3 rounded-xl border border-gray-100 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-3 h-3 rounded-full" style={{ backgroundColor: PLAN_COLORS[idx % PLAN_COLORS.length] }}></span>
+                        <span className="text-xs font-bold text-gray-700 capitalize">{p.plan_nom || p.plan_id}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-black text-primary font-display block">{formatFCFA(p.mrr_contribue)}</span>
+                        <span className="text-[10px] text-gray-400 font-semibold">{p.nb_abonnes} abonné(s)</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Historique Tendance MRR (12 derniers mois) */}
+          <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-4 flex flex-col justify-between">
+            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+              <h3 className="text-sm font-bold text-primary-dark font-display uppercase tracking-wider flex items-center gap-2">
+                <IconTrendingUp className="text-primary" size={18} />
+                Évolution du MRR (12 Derniers Mois)
+              </h3>
+              <span className="text-[10px] font-bold text-gray-400 bg-gray-100 px-2 py-0.5 rounded-full">12 mois</span>
+            </div>
+
+            <div className="h-48 w-full">
+              {revenueKpis?.tendance_12_mois && revenueKpis.tendance_12_mois.length > 0 ? (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={revenueKpis.tendance_12_mois}>
+                    <defs>
+                      <linearGradient id="colorMrr" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#1A7A4A" stopOpacity={0.4}/>
+                        <stop offset="95%" stopColor="#1A7A4A" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="mois" tick={{ fontSize: 10, fill: '#6b7280' }} />
+                    <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} tickFormatter={(val) => `${val / 1000}k`} />
+                    <RechartsTooltip
+                      formatter={(val) => [formatFCFA(val), 'Nouveau MRR']}
+                      contentStyle={{ backgroundColor: '#0F2318', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px' }}
+                    />
+                    <Area type="monotone" dataKey="nouveau_mrr" stroke="#1A7A4A" strokeWidth={2.5} fillOpacity={1} fill="url(#colorMrr)" />
+                  </AreaChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-full flex items-center justify-center text-xs text-gray-400 italic">
+                  Aucune donnée d'historique MRR enregistrée.
+                </div>
+              )}
             </div>
           </div>
-        )}
+        </div>
       </div>
 
       {/* ── SECTION FUNNEL D'ACTIVATION GÉRANTS ── */}
@@ -341,11 +448,11 @@ export const AdminDashboard = ({ onNavigate }) => {
             const f = ltvFunnel.funnel;
             const total = f.total_gerants || 1;
             const steps = [
-              { label: 'Gérants Inscrits', count: f.total_gerants, pct: 100 },
-              { label: 'Ayant créé un terrain', count: f.avec_terrain, pct: Math.round((f.avec_terrain / total) * 100) },
-              { label: 'Terrain homologué admin', count: f.avec_terrain_approuve, pct: Math.round((f.avec_terrain_approuve / total) * 100) },
-              { label: 'Première réservation reçue', count: f.avec_reservation, pct: Math.round((f.avec_reservation / total) * 100) },
-              { label: 'Abonné à un plan payant', count: f.avec_plan_payant, pct: Math.round((f.avec_plan_payant / total) * 100) },
+              { label: 'Gérants Inscrits', count: f.total_gerants, pct: 100, color: 'from-emerald-700 to-emerald-600' },
+              { label: 'Ayant créé un terrain', count: f.avec_terrain, pct: Math.round((f.avec_terrain / total) * 100), color: 'from-emerald-600 to-emerald-500' },
+              { label: 'Terrain homologué admin', count: f.avec_terrain_approuve, pct: Math.round((f.avec_terrain_approuve / total) * 100), color: 'from-emerald-500 to-emerald-400' },
+              { label: 'Première réservation reçue', count: f.avec_reservation, pct: Math.round((f.avec_reservation / total) * 100), color: 'from-emerald-400 to-teal-400' },
+              { label: 'Abonné à un plan payant', count: f.avec_plan_payant, pct: Math.round((f.avec_plan_payant / total) * 100), color: 'from-teal-400 to-cyan-400' },
             ];
 
             return (
@@ -358,10 +465,10 @@ export const AdminDashboard = ({ onNavigate }) => {
                         {step.count} gérant(s) <span className="text-gray-400 font-semibold">({step.pct}%)</span>
                       </span>
                     </div>
-                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="w-full h-3.5 bg-gray-200/80 rounded-full overflow-hidden p-0.5 border border-gray-200/50">
                       <div
-                        className="h-full bg-primary rounded-full transition-all duration-500"
-                        style={{ width: `${Math.max(step.pct, 3)}%` }}
+                        className={`h-full bg-gradient-to-r ${step.color} rounded-full transition-all duration-500 shadow-sm`}
+                        style={{ width: `${Math.max(step.pct, 2)}%` }}
                       ></div>
                     </div>
                   </div>
@@ -372,61 +479,54 @@ export const AdminDashboard = ({ onNavigate }) => {
         </div>
       )}
 
-      {/* ── SECTION INCRIPTIONS & TRAFIC ── */}
+      {/* ── SECTION INSCRIPTIONS & ACQUISITION ── */}
       <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-6">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-4">
           <div>
             <h3 className="text-base font-bold text-primary-dark font-display flex items-center gap-2">
               <IconUserCheck className="text-primary" size={20} />
-              Inscriptions & Acquisition (30 derniers jours)
+              Inscriptions & Acquisition
             </h3>
             <p className="text-xs text-gray-500">Nouveaux comptes créés par jour (Joueurs & Gérants)</p>
           </div>
 
-          <a
-            href="https://analytics.amplitude.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-xl transition-colors cursor-pointer border border-primary/20 w-fit"
-          >
-            <span>Trafic détaillé sur Amplitude</span>
-            <IconExternalLink size={14} />
-          </a>
+          <div className="flex flex-wrap items-center gap-3">
+            <PeriodSelector value={signupsPeriod} onChange={setSignupsPeriod} />
+            <a
+              href="https://analytics.amplitude.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-xl transition-colors cursor-pointer border border-primary/20 shrink-0"
+            >
+              <span>Amplitude</span>
+              <IconExternalLink size={14} />
+            </a>
+          </div>
         </div>
 
         {signupsTrend && signupsTrend.length > 0 ? (
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 text-xs font-bold text-gray-500">
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-primary rounded-sm"></span> Joueurs</span>
-              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-amber-500 rounded-sm"></span> Gérants</span>
-            </div>
-
-            <div className="h-40 flex items-end gap-1.5 pt-4 overflow-x-auto no-scrollbar border-b border-gray-100 pb-2">
-              {signupsTrend.map((d, i) => {
-                const total = (d.joueurs || 0) + (d.gerants || 0);
-                const maxInTrend = Math.max(...signupsTrend.map(x => (x.joueurs || 0) + (x.gerants || 0)), 1);
-                const dayLabel = d.jour ? d.jour.split('-')[2] : '';
-                const showLabel = i % 5 === 0 || i === signupsTrend.length - 1;
-                return (
-                  <div key={i} className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group relative">
-                    {/* Tooltip */}
-                    <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[10px] py-1 px-2 rounded-md whitespace-nowrap z-10 pointer-events-none shadow-lg">
-                      {d.jour}: {d.joueurs || 0} J, {d.gerants || 0} G
-                    </div>
-                    <div className="w-full bg-gray-100 rounded-t-sm flex flex-col justify-end overflow-hidden" style={{ height: '100px' }}>
-                      <div className="w-full bg-amber-500 transition-all duration-300" style={{ height: `${Math.round(((d.gerants || 0) / maxInTrend) * 100)}px` }}></div>
-                      <div className="w-full bg-primary transition-all duration-300" style={{ height: `${Math.round(((d.joueurs || 0) / maxInTrend) * 100)}px` }}></div>
-                    </div>
-                    <span className="text-[9px] text-gray-400 font-semibold h-3">
-                      {showLabel ? dayLabel : ''}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
+          <div className="h-64 w-full pt-2">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={signupsTrend}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis 
+                  dataKey="jour" 
+                  tick={{ fontSize: 10, fill: '#6b7280' }}
+                  tickFormatter={(str) => str ? str.split('-')[2] : ''}
+                />
+                <YAxis allowDecimals={false} tick={{ fontSize: 10, fill: '#6b7280' }} />
+                <RechartsTooltip
+                  labelFormatter={(label) => `Date: ${label}`}
+                  contentStyle={{ backgroundColor: '#0F2318', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', fontSize: '12px' }}
+                />
+                <Legend wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                <Bar dataKey="joueurs" name="Joueurs" stackId="a" fill="#1A7A4A" radius={[0, 0, 4, 4]} />
+                <Bar dataKey="gerants" name="Gérants" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         ) : (
-          <p className="text-xs text-gray-400 italic">Aucune donnée d'inscription enregistrée sur les 30 derniers jours.</p>
+          <p className="text-xs text-gray-400 italic">Aucune donnée d'inscription enregistrée sur cette période.</p>
         )}
       </div>
 

@@ -238,7 +238,7 @@ export const GerantStats = () => {
   const showAlert = (title, message, type = 'info') => {
     setAlertConfig({ isOpen: true, title, message, type, onClose: () => setAlertConfig(null) });
   };
-  const [periode, setPeriode]       = useState({ mode: 'preset', preset: '1m' });
+  const [periode, setPeriode]       = useState({ mode: 'preset', preset: '31d' });
   const [terrain, setTerrain]       = useState('all');
   const [showTerrainDD, setDD]      = useState(false);
   const [kpiSheet, setKpiSheet]     = useState(null);

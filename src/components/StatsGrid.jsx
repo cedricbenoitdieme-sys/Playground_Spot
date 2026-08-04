@@ -53,7 +53,7 @@ const AnimatedVal = ({ target, isCurrency, isRawInt }) => {
 };
 
 export const StatsGrid = () => {
-  const [period, setPeriod] = useState({ mode: 'preset', preset: '1m' });
+  const [period, setPeriod] = useState({ mode: 'preset', preset: '31d' });
   const [selectedStat, setSelectedStat] = useState(null);
   const [realStats, setRealStats] = useState(null);
 
@@ -74,17 +74,18 @@ export const StatsGrid = () => {
   // Simulated metrics map fallback
   const metricsMap = {
     '24h':   { revenues: 180000, bookings: 6,   activePitches: 12, users: 1412, changeRev: '+5.4%', changeBook: '+8.1%', isPosRev: true, isPosBook: true },
-    '48h':   { revenues: 390000, bookings: 14,  activePitches: 14, users: 1415, changeRev: '+8.2%', changeBook: '+12.5%', isPosRev: true, isPosBook: true },
-    '3d':    { revenues: 580000, bookings: 18,  activePitches: 14, users: 1418, changeRev: '+9.1%', changeBook: '+14.2%', isPosRev: true, isPosBook: true },
-    '1w':    { revenues: 1250000, bookings: 24,  activePitches: 15, users: 1420, changeRev: '+12.5%', changeBook: '+18.2%', isPosRev: true, isPosBook: true },
-    '2w':    { revenues: 2400000, bookings: 54,  activePitches: 15, users: 1435, changeRev: '+14.1%', changeBook: '+19.5%', isPosRev: true, isPosBook: true },
-    '1m':    { revenues: 4800000, bookings: 112, activePitches: 16, users: 1465, changeRev: '+15.8%', changeBook: '+22.1%', isPosRev: true, isPosBook: true },
+    '72h':   { revenues: 580000, bookings: 18,  activePitches: 14, users: 1418, changeRev: '+9.1%', changeBook: '+14.2%', isPosRev: true, isPosBook: true },
+    '7d':    { revenues: 1250000, bookings: 24,  activePitches: 15, users: 1420, changeRev: '+12.5%', changeBook: '+18.2%', isPosRev: true, isPosBook: true },
+    '14d':   { revenues: 2400000, bookings: 54,  activePitches: 15, users: 1435, changeRev: '+14.1%', changeBook: '+19.5%', isPosRev: true, isPosBook: true },
+    '31d':   { revenues: 4800000, bookings: 112, activePitches: 16, users: 1465, changeRev: '+15.8%', changeBook: '+22.1%', isPosRev: true, isPosBook: true },
+    '45d':   { revenues: 6900000, bookings: 160, activePitches: 16, users: 1490, changeRev: '+16.5%', changeBook: '+23.4%', isPosRev: true, isPosBook: true },
     '3m':    { revenues: 14200000, bookings: 340, activePitches: 17, users: 1520, changeRev: '+18.4%', changeBook: '+25.0%', isPosRev: true, isPosBook: true },
+    '6m':    { revenues: 28500000, bookings: 680, activePitches: 17, users: 1750, changeRev: '+21.0%', changeBook: '+28.0%', isPosRev: true, isPosBook: true },
     '1y':    { revenues: 54200000, bookings: 1240, activePitches: 18, users: 2150, changeRev: '+24.6%', changeBook: '+31.4%', isPosRev: true, isPosBook: true },
     'all':   { revenues: 78500000, bookings: 1850, activePitches: 20, users: 2450, changeRev: '+32.1%', changeBook: '+40.2%', isPosRev: true, isPosBook: true },
   };
 
-  const presetKey = period.mode === 'preset' ? period.preset : '1m';
+  const presetKey = period.mode === 'preset' ? period.preset : '31d';
   const current = realStats ? {
     revenues: realStats.revenus || 0,
     bookings: realStats.reservations || 0,
@@ -94,7 +95,7 @@ export const StatsGrid = () => {
     changeBook: '+18.2%',
     isPosRev: true,
     isPosBook: true,
-  } : (metricsMap[presetKey] || metricsMap['1m']);
+  } : (metricsMap[presetKey] || metricsMap['31d']);
 
 
   const getStatDetailsContent = () => {
