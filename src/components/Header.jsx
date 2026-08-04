@@ -157,7 +157,7 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
           <IconBallFootball size={22} />
         </div>
 
-        <div>
+        <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
             <h1 className="text-xl lg:text-3xl text-primary-dark tracking-tight font-display font-bold">{headerInfo.title}</h1>
             <span className="text-[9px] font-black tracking-widest text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded-full uppercase">
@@ -180,7 +180,7 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
       </div>
     </div>
 
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-4 shrink-0">
         {/* Search - Hidden on small mobile */}
         {showSearch && (
           <form onSubmit={handleSearch} className="hidden sm:flex items-center bg-white border border-gray-100 rounded-full px-4 py-2 w-64 shadow-sm focus-within:ring-2 ring-primary/20 transition-all">
