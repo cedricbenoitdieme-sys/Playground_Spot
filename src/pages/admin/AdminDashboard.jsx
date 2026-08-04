@@ -9,7 +9,12 @@ import {
   IconTrendingUp,
   IconClock,
   IconFileTypePdf,
-  IconDownload
+  IconDownload,
+  IconReportMoney,
+  IconChartPie,
+  IconFilter,
+  IconUserCheck,
+  IconExternalLink
 } from '@tabler/icons-react';
 import { exportCSV, exportPDFReport } from '../../utils/exportReports';
 import { CustomAlertModal } from '../../components/CustomAlertModal';
@@ -23,6 +28,12 @@ export const AdminDashboard = ({ onNavigate }) => {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Nouveaux états analytics (RPCs indépendantes)
+  const [revenueKpis, setRevenueKpis] = useState(null);
+  const [ltvFunnel, setLtvFunnel] = useState(null);
+  const [churn, setChurn] = useState(null);
+  const [signupsTrend, setSignupsTrend] = useState(null);
 
   // Alert modal
   const [alertConfig, setAlertConfig] = useState(null);
@@ -46,6 +57,11 @@ export const AdminDashboard = ({ onNavigate }) => {
 
   useEffect(() => {
     fetchStats();
+    // Chargement indépendant des 4 nouvelles RPC analytics super admin
+    callRpc('admin_get_revenue_kpis').then(setRevenueKpis).catch(err => console.error('admin_get_revenue_kpis:', err));
+    callRpc('admin_get_ltv_funnel').then(setLtvFunnel).catch(err => console.error('admin_get_ltv_funnel:', err));
+    callRpc('admin_get_churn_rate').then(setChurn).catch(err => console.error('admin_get_churn_rate:', err));
+    callRpc('admin_get_signups_trend', { p_jours: 30 }).then(setSignupsTrend).catch(err => console.error('admin_get_signups_trend:', err));
   }, []);
 
   if (loading) {
@@ -205,6 +221,210 @@ export const AdminDashboard = ({ onNavigate }) => {
             </div>
           </div>
         ))}
+      </div>
+
+      {/* ── SECTION ANALYTICS : MRR, LTV, CHURN ── */}
+      <div className="space-y-4">
+        <h2 className="text-base font-bold text-primary-dark font-display flex items-center gap-2 uppercase tracking-wider">
+          <IconReportMoney className="text-primary" size={22} />
+          Performance Financière & Abonnements (MRR, LTV, Churn)
+        </h2>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* MRR */}
+          <div className="bg-white rounded-card shadow-subtle border border-black/5 p-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">MRR (Mensuel)</span>
+              <div className="p-2.5 rounded-xl bg-emerald-50 text-emerald-600">
+                <IconReportMoney size={20} />
+              </div>
+            </div>
+            <span className="text-2xl font-black text-primary-dark font-display block">
+              {formatFCFA(revenueKpis?.mrr)}
+            </span>
+            <span className="text-[11px] text-gray-500 font-medium block">Revenu Mensuel Récurrent</span>
+          </div>
+
+          {/* ARR */}
+          <div className="bg-white rounded-card shadow-subtle border border-black/5 p-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">ARR (Annuel)</span>
+              <div className="p-2.5 rounded-xl bg-blue-50 text-blue-600">
+                <IconCash size={20} />
+              </div>
+            </div>
+            <span className="text-2xl font-black text-primary-dark font-display block">
+              {formatFCFA(revenueKpis?.arr)}
+            </span>
+            <span className="text-[11px] text-gray-500 font-medium block">Projection Annuelle Récurrente</span>
+          </div>
+
+          {/* LTV Moyen */}
+          <div className="bg-white rounded-card shadow-subtle border border-black/5 p-5 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">LTV Moyen</span>
+              <div className="p-2.5 rounded-xl bg-purple-50 text-purple-600">
+                <IconChartPie size={20} />
+              </div>
+            </div>
+            <span className="text-2xl font-black text-primary-dark font-display block">
+              {formatFCFA(ltvFunnel?.ltv_moyen)}
+            </span>
+            <span className="text-[11px] text-gray-500 font-medium block">Valeur moyenne générée / gérant</span>
+          </div>
+
+          {/* Taux de Churn */}
+          {(() => {
+            const churnPct = churn?.taux_churn_pct ?? 0;
+            const churnColor = churnPct > 15
+              ? 'bg-red-50 text-red-700 border-red-200'
+              : churnPct > 5
+              ? 'bg-amber-50 text-amber-700 border-amber-200'
+              : 'bg-emerald-50 text-emerald-700 border-emerald-200';
+            return (
+              <div className="bg-white rounded-card shadow-subtle border border-black/5 p-5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Taux de Churn (30j)</span>
+                  <div className={`px-2.5 py-1 rounded-full border text-xs font-black ${churnColor}`}>
+                    {churnPct}%
+                  </div>
+                </div>
+                <span className="text-2xl font-black text-primary-dark font-display block">
+                  {churnPct}%
+                </span>
+                <span className="text-[11px] text-gray-500 font-medium block truncate">
+                  {churn?.abonnes_payants_actuels ?? 0} abonnés | {churn?.perdus_30j ?? 0} résiliés (30j)
+                </span>
+              </div>
+            );
+          })()}
+        </div>
+
+        {/* Répartition MRR par Plan */}
+        {revenueKpis?.par_plan && revenueKpis.par_plan.length > 0 && (
+          <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-4">
+            <h3 className="text-sm font-bold text-primary-dark font-display uppercase tracking-wider">
+              Répartition du MRR par Plan d'Abonnement
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              {revenueKpis.par_plan.map((p, idx) => (
+                <div key={idx} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-1">
+                  <div className="flex justify-between items-center text-xs font-bold text-gray-600">
+                    <span className="capitalize">{p.plan_nom || p.plan_id}</span>
+                    <span className="text-primary-dark bg-primary/10 px-2 py-0.5 rounded-full text-[10px]">{p.nb_abonnes} abonné(s)</span>
+                  </div>
+                  <p className="text-lg font-black text-primary font-display">{formatFCFA(p.mrr_contribue)}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── SECTION FUNNEL D'ACTIVATION GÉRANTS ── */}
+      {ltvFunnel?.funnel && (
+        <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-6">
+          <div className="flex items-center justify-between border-b border-gray-100 pb-4">
+            <div>
+              <h3 className="text-base font-bold text-primary-dark font-display flex items-center gap-2">
+                <IconFilter className="text-primary" size={20} />
+                Funnel d'Activation des Gérants
+              </h3>
+              <p className="text-xs text-gray-500">Parcours d'onboarding gérant, de l'inscription au premier abonnement payant</p>
+            </div>
+            <span className="text-xs font-bold text-primary bg-primary/10 px-3 py-1 rounded-full">
+              Taux de Conversion
+            </span>
+          </div>
+
+          {(() => {
+            const f = ltvFunnel.funnel;
+            const total = f.total_gerants || 1;
+            const steps = [
+              { label: 'Gérants Inscrits', count: f.total_gerants, pct: 100 },
+              { label: 'Ayant créé un terrain', count: f.avec_terrain, pct: Math.round((f.avec_terrain / total) * 100) },
+              { label: 'Terrain homologué admin', count: f.avec_terrain_approuve, pct: Math.round((f.avec_terrain_approuve / total) * 100) },
+              { label: 'Première réservation reçue', count: f.avec_reservation, pct: Math.round((f.avec_reservation / total) * 100) },
+              { label: 'Abonné à un plan payant', count: f.avec_plan_payant, pct: Math.round((f.avec_plan_payant / total) * 100) },
+            ];
+
+            return (
+              <div className="space-y-3">
+                {steps.map((step, idx) => (
+                  <div key={idx} className="bg-gray-50 p-4 rounded-2xl border border-gray-100 space-y-2">
+                    <div className="flex justify-between items-center text-xs font-bold">
+                      <span className="text-gray-700">{step.label}</span>
+                      <span className="text-primary-dark font-display">
+                        {step.count} gérant(s) <span className="text-gray-400 font-semibold">({step.pct}%)</span>
+                      </span>
+                    </div>
+                    <div className="w-full h-3 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-primary rounded-full transition-all duration-500"
+                        style={{ width: `${Math.max(step.pct, 3)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+        </div>
+      )}
+
+      {/* ── SECTION INCRIPTIONS & TRAFIC ── */}
+      <div className="bg-white rounded-card shadow-subtle border border-black/5 p-6 space-y-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-gray-100 pb-4">
+          <div>
+            <h3 className="text-base font-bold text-primary-dark font-display flex items-center gap-2">
+              <IconUserCheck className="text-primary" size={20} />
+              Inscriptions & Acquisition (30 derniers jours)
+            </h3>
+            <p className="text-xs text-gray-500">Nouveaux comptes créés par jour (Joueurs & Gérants)</p>
+          </div>
+
+          <a
+            href="https://analytics.amplitude.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold rounded-xl transition-colors cursor-pointer border border-primary/20 w-fit"
+          >
+            <span>Trafic détaillé sur Amplitude</span>
+            <IconExternalLink size={14} />
+          </a>
+        </div>
+
+        {signupsTrend && signupsTrend.length > 0 ? (
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 text-xs font-bold text-gray-500">
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-primary rounded-sm"></span> Joueurs</span>
+              <span className="flex items-center gap-1.5"><span className="w-3 h-3 bg-amber-500 rounded-sm"></span> Gérants</span>
+            </div>
+
+            <div className="h-40 flex items-end gap-1.5 pt-4 overflow-x-auto no-scrollbar border-b border-gray-100 pb-2">
+              {signupsTrend.map((d, i) => {
+                const total = (d.joueurs || 0) + (d.gerants || 0);
+                const maxInTrend = Math.max(...signupsTrend.map(x => (x.joueurs || 0) + (x.gerants || 0)), 1);
+                const dayLabel = d.jour ? d.jour.split('-').slice(1).join('/') : '';
+                return (
+                  <div key={i} className="flex-1 min-w-[20px] flex flex-col items-center gap-1 group relative">
+                    {/* Tooltip */}
+                    <div className="absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-gray-900 text-white text-[10px] py-1 px-2 rounded-md whitespace-nowrap z-10 pointer-events-none shadow-lg">
+                      {d.jour}: {d.joueurs || 0} J, {d.gerants || 0} G
+                    </div>
+                    <div className="w-full bg-gray-100 rounded-t-sm flex flex-col justify-end overflow-hidden" style={{ height: '100px' }}>
+                      <div className="w-full bg-amber-500 transition-all duration-300" style={{ height: `${Math.round(((d.gerants || 0) / maxInTrend) * 100)}px` }}></div>
+                      <div className="w-full bg-primary transition-all duration-300" style={{ height: `${Math.round(((d.joueurs || 0) / maxInTrend) * 100)}px` }}></div>
+                    </div>
+                    <span className="text-[9px] text-gray-400 font-semibold">{dayLabel}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 italic">Aucune donnée d'inscription enregistrée sur les 30 derniers jours.</p>
+        )}
       </div>
 
       {/* Banner Homologation des Terrains (Admin Action Required) */}
