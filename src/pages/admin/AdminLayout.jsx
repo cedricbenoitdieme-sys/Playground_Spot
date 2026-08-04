@@ -94,10 +94,10 @@ export const AdminLayout = ({ onExit }) => {
   }
 
   return (
-    <div className="min-h-screen bg-[#F4F6F4] text-primary-dark flex flex-col md:flex-row font-sans">
+    <div className="h-dvh w-full bg-[#F4F6F4] text-primary-dark flex flex-col md:flex-row font-sans overflow-hidden">
       
       {/* Sidebar - Desktop */}
-      <aside className="hidden md:flex flex-col w-64 bg-[#0F2318] text-white p-5 gap-6 shrink-0 border-r border-white/5 h-screen sticky top-0">
+      <aside className="hidden md:flex flex-col w-64 bg-[#0F2318] text-white p-5 gap-6 shrink-0 border-r border-white/5 h-dvh sticky top-0">
         
         {/* Logo PlaygroundSpot */}
         <div className="flex items-center gap-3 pt-2">
