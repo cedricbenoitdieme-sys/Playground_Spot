@@ -40,6 +40,7 @@ import {
 } from '../services/terrains';
 import { CustomSelect } from './CustomSelect';
 import { Modal } from './Modal';
+import { supabase } from '../lib/supabase';
 
 // Custom Marker Icon for location picker
 const createPickerIcon = () => {
@@ -466,6 +467,17 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
 
     setSubmitting(true);
     try {
+      const { error: payoutInfoError } = await supabase.rpc('upsert_gerant_payout_info', {
+        p_phone: formData.payoutPhone.replace(/\s+/g, ''),
+        p_operator: formData.payoutOperator,
+      });
+
+      if (payoutInfoError) {
+        setFormError(payoutInfoError.message || "Impossible d'enregistrer vos informations de versement.");
+        setSubmitting(false);
+        return;
+      }
+
       await onSubmit(payload);
     } catch (err) {
       console.error('Erreur lors de la soumission du terrain:', err);

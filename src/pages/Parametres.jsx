@@ -6,6 +6,7 @@ import {
   IconChevronRight, IconCheck, IconX, IconEye, IconEyeOff,
   IconMail, IconPhone, IconBuildingStore, IconLogout,
   IconEdit, IconShield, IconPalette, IconDeviceMobile, IconCamera,
+  IconCash,
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
@@ -266,6 +267,37 @@ export const Parametres = ({ setView }) => {
     }
   };
 
+  // Compte de versement gérant
+  const [payoutInfo, setPayoutInfo] = useState({ phone: '', operator: 'wave' });
+  const [savingPayoutInfo, setSavingPayoutInfo] = useState(false);
+
+  useEffect(() => {
+    const fetchPayoutInfo = async () => {
+      if (currentUser?.role !== 'gerant') return;
+      const { data } = await supabase
+        .from('gerant_payout_info')
+        .select('phone, operator')
+        .eq('gerant_id', currentUser.id)
+        .maybeSingle();
+      if (data) setPayoutInfo({ phone: data.phone || '', operator: data.operator || 'wave' });
+    };
+    fetchPayoutInfo();
+  }, [currentUser?.id, currentUser?.role]);
+
+  const handleSavePayoutInfo = async () => {
+    setSavingPayoutInfo(true);
+    const { error } = await supabase.rpc('upsert_gerant_payout_info', {
+      p_phone: payoutInfo.phone.replace(/\s+/g, ''),
+      p_operator: payoutInfo.operator,
+    });
+    setSavingPayoutInfo(false);
+    if (error) {
+      showToast(`❌ ${error.message}`);
+    } else {
+      showToast('✓ Compte de versement mis à jour');
+    }
+  };
+
   // Commissions réelles par plan
   const [planRates, setPlanRates] = useState([]);
   useEffect(() => {
@@ -490,6 +522,49 @@ export const Parametres = ({ setView }) => {
             </Row>
           ))}
         </Section>
+
+        {/* ── Compte de versement gérant ── */}
+        {currentUser?.role === 'gerant' && (
+          <Section title="Compte de versement" icon={IconCash} delay={0.18}>
+            <div className="p-5 space-y-4">
+              <p className="text-xs text-gray-500">
+                Vos revenus de réservations (montant moins la commission de votre
+                plan) sont versés automatiquement sur ce compte après chaque
+                paiement confirmé.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Opérateur</label>
+                  <select
+                    value={payoutInfo.operator}
+                    onChange={(e) => setPayoutInfo(prev => ({ ...prev, operator: e.target.value }))}
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm"
+                  >
+                    <option value="wave">Wave Mobile Money</option>
+                    <option value="orange_money">Orange Money Sénégal</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-700 mb-1">Numéro de téléphone</label>
+                  <input
+                    type="tel"
+                    value={payoutInfo.phone}
+                    onChange={(e) => setPayoutInfo(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="77 123 45 67"
+                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={handleSavePayoutInfo}
+                disabled={savingPayoutInfo}
+                className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+              >
+                {savingPayoutInfo ? 'Enregistrement...' : 'Enregistrer'}
+              </button>
+            </div>
+          </Section>
+        )}
 
         {/* ── Plateforme ── */}
         {['admin', 'super_admin'].includes(currentUser?.role) && (
