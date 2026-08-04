@@ -19,7 +19,7 @@ export const Layout = ({ children, currentView, setView }) => {
   }
 
   return (
-    <div className="flex h-screen w-full overflow-hidden bg-[#F4F6F4] text-primary-dark">
+    <div className="flex h-dvh w-full overflow-hidden bg-[#F4F6F4] text-primary-dark">
       {!isAdminDashboard && <Sidebar currentView={currentView} setView={setView} />}
       
       <main 
