@@ -3,6 +3,7 @@ import { CustomSelect } from '../components/CustomSelect';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
 import { getTerrainPrincipalPhotoUrl } from '../services/terrains';
+import { TerrainImage } from '../components/TerrainImage';
 import { 
   IconBallFootball, 
   IconCheck, 
@@ -966,23 +967,18 @@ export const Landing = ({ setView }) => {
                   className="bg-[#162D20] rounded-[2rem] overflow-hidden border border-[#E8DCC8]/20 hover:-translate-y-2 hover:shadow-2xl hover:shadow-primary/20 transition-all group cursor-pointer relative flex flex-col justify-between"
                 >
                   <div className="relative h-48 overflow-hidden bg-[#0A1810] flex items-center justify-center">
-                    {terrain.principalPhotoUrl ? (
-                      <img 
-                        src={terrain.principalPhotoUrl} 
-                        alt={terrain.nom} 
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
-                      />
-                    ) : (
-                      <div className="flex flex-col items-center justify-center text-gray-500 gap-2 p-4 text-center">
-                        <IconBuildingStore size={36} className="text-primary/60" />
-                        <span className="text-xs font-bold text-gray-400">Terrain d'élite</span>
-                      </div>
-                    )}
-                    <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
+                    <TerrainImage 
+                      terrainId={terrain.id} 
+                      fallbackUrl={terrain.principalPhotoUrl || terrain.image || terrain.image_url} 
+                      alt={terrain.nom || terrain.name} 
+                      iconSize={36} 
+                      className="w-full h-full group-hover:scale-105 transition-transform duration-500" 
+                    />
+                    <div className="absolute top-4 right-4 bg-emerald-500/90 backdrop-blur-sm text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1 z-10">
                       <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse"></span> Disponible
                     </div>
                     {terrain.boost_actif && (
-                      <div className="absolute top-4 left-4 bg-purple-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg">
+                      <div className="absolute top-4 left-4 bg-purple-600/90 backdrop-blur-sm text-white text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg z-10">
                         ⚡ En vedette
                       </div>
                     )}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 /**
  * Avatar — Composant unifié d'affichage d'avatar utilisateur.
@@ -14,11 +14,12 @@ export const Avatar = ({
   textSize = "text-sm",
   bgClass = "bg-primary text-white"
 }) => {
+  const [hasError, setHasError] = useState(false);
   const avatarUrl = customAvatar ?? user?.avatar;
   const nom = customNom ?? user?.nom ?? '';
   const initiales = customInitiales ?? user?.initiales ?? (nom ? nom.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) : '');
 
-  const isValidUrl = typeof avatarUrl === 'string' && (avatarUrl.startsWith('http') || avatarUrl.startsWith('/'));
+  const isValidUrl = !hasError && typeof avatarUrl === 'string' && (avatarUrl.startsWith('http') || avatarUrl.startsWith('/'));
 
   if (isValidUrl) {
     return (
@@ -26,6 +27,7 @@ export const Avatar = ({
         src={avatarUrl}
         alt={nom || 'Avatar'}
         className={`${className} object-cover shrink-0`}
+        onError={() => setHasError(true)}
       />
     );
   }

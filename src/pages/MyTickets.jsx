@@ -11,6 +11,8 @@ import {
   IconSortDescending
 } from '@tabler/icons-react';
 
+import { TerrainImage } from '../components/TerrainImage';
+
 export const MyTickets = ({ reservations, onViewDetail }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState('newest'); // 'newest', 'oldest', 'az', 'za'
@@ -96,7 +98,12 @@ export const MyTickets = ({ reservations, onViewDetail }) => {
               >
                 {/* Visual Ticket Header */}
                 <div className="h-40 relative">
-                  <img src={ticket.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" alt={ticket.terrain} />
+                  <TerrainImage 
+                    terrainId={ticket.raw?.terrain_id || ticket.terrain_id} 
+                    fallbackUrl={ticket.image} 
+                    alt={ticket.terrain} 
+                    className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-1000" 
+                  />
                   <div className="absolute inset-0 bg-gradient-to-t from-primary-dark/90 via-primary-dark/40 to-transparent"></div>
                   <div className="absolute bottom-6 left-6 right-6">
                     <span className="bg-secondary text-white text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-widest mb-3 inline-block shadow-lg shadow-secondary/20">
