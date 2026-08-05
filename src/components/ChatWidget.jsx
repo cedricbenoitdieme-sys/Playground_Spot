@@ -22,13 +22,9 @@ export const ChatWidget = ({ currentView }) => {
   const { currentUser } = useUser();
   const [isOpen, setIsOpen] = useState(false);
 
-  // Détection de la présence d'une barre de navigation bas ou d'une barre d'action sticky
   const hasBottomNav = !!currentUser && !['terrain-detail', 'booking-flow', 'reservation-detail', 'dashboard'].includes(currentView);
   const hasStickyAction = currentView === 'terrain-detail';
   const hasStickyBottomBar = hasBottomNav || hasStickyAction;
-
-  // Calcul dynamique de la borne max Y (%) pour que le FAB flotte toujours AU-DESSUS des barres bas
-  const maxYPercent = hasStickyBottomBar ? 72 : 88;
   const [activeChannel, setActiveChannel] = useState('bot'); // 'bot', 'admin', 'gerant'
   const [terrains, setTerrains] = useState([]);
   const [selectedTerrainId, setSelectedTerrainId] = useState(null);
@@ -399,34 +395,26 @@ export const ChatWidget = ({ currentView }) => {
     }
   };
 
-  // ── Drag, Docking & Retraction States ──
+  // ── Docking & Retraction States (Ancrage fixe bas-coin, pas de Y libre) ──
   const [dockSide, setDockSide] = useState(() => localStorage.getItem('playgroundspot-chat-dock-side') || 'right');
-  const [dockY, setDockY] = useState(() => {
-    const saved = localStorage.getItem('playgroundspot-chat-dock-y');
-    const parsed = saved ? parseFloat(saved) : 68;
-    return Math.min(Math.max(parsed, 10), maxYPercent);
-  });
-
-  // Re-clamp dockY quand la page (currentView) change et qu'une barre bas apparaît/disparaît
-  useEffect(() => {
-    setDockY(prev => Math.min(Math.max(prev, 10), maxYPercent));
-  }, [maxYPercent]);
-
   const [isRetracted, setIsRetracted] = useState(() => localStorage.getItem('playgroundspot-chat-retracted') === 'true');
   const [isDragging, setIsDragging] = useState(false);
-  const dragRef = useRef({ startX: 0, startY: 0, initialYPercent: 68, hasMoved: false });
+  const dragRef = useRef({ startX: 0, startY: 0, hasMoved: false });
   const buttonRef = useRef(null);
 
-  // Persistence dans localStorage
+  // Nettoyage impératif de la clé dock-y pour purger les anciennes positions legacy
+  useEffect(() => {
+    localStorage.removeItem('playgroundspot-chat-dock-y');
+  }, []);
+
+  // Persistence uniquement du côté et de l'état rétracté
   useEffect(() => {
     localStorage.setItem('playgroundspot-chat-dock-side', dockSide);
-    localStorage.setItem('playgroundspot-chat-dock-y', dockY.toString());
     localStorage.setItem('playgroundspot-chat-retracted', isRetracted.toString());
-  }, [dockSide, dockY, isRetracted]);
+  }, [dockSide, isRetracted]);
 
-  // Handlers pour le Drag (Souris + Touch)
+  // Handlers pour le Drag latéral (Gauche / Droite) et Clic
   const handlePointerDown = (e) => {
-    // Éviter le drag si le chat est déjà ouvert
     if (isOpen) return;
 
     const clientX = e.touches ? e.touches[0].clientX : e.clientX;
@@ -435,7 +423,6 @@ export const ChatWidget = ({ currentView }) => {
     dragRef.current = {
       startX: clientX,
       startY: clientY,
-      initialYPercent: dockY,
       hasMoved: false
     };
 
@@ -450,16 +437,10 @@ export const ChatWidget = ({ currentView }) => {
         if (!dragRef.current.hasMoved) {
           dragRef.current.hasMoved = true;
           setIsDragging(true);
-          // Si on commence à glisser, on sort du mode rétracté
           if (isRetracted) setIsRetracted(false);
         }
 
-        // Calcul de la position verticale relative (%) avec garde-fou dynamique
-        const windowHeight = window.innerHeight;
-        const newYPercent = Math.min(Math.max((currentY / windowHeight) * 100, 10), maxYPercent);
-        setDockY(newYPercent);
-
-        // Détection du côté le plus proche pendant le drag
+        // Bascule automatique du côté (gauche / droite) selon la position X
         const windowWidth = window.innerWidth;
         if (currentX < windowWidth / 2) {
           setDockSide('left');
@@ -477,17 +458,14 @@ export const ChatWidget = ({ currentView }) => {
 
       setTimeout(() => setIsDragging(false), 50);
 
-      // Si l'utilisateur n'a pas glissé (simple clic)
       if (!dragRef.current.hasMoved) {
         if (isRetracted) {
-          // Premier clic : Déployer l'icône sans ouvrir le chat
           setIsRetracted(false);
         } else {
-          // Deuxième clic : Ouvrir le chat
           setIsOpen(true);
         }
       } else {
-        // Fin de drag : Snap auto et mise en mode rétracté automatique après un court délai
+        // En fin de geste latéral, on rétracte délicatement sur le bord choisi
         setIsRetracted(true);
       }
     };
@@ -505,16 +483,15 @@ export const ChatWidget = ({ currentView }) => {
 
   return (
     <>
-      {/* Floating Draggable Button (Only when chat is closed) */}
+      {/* Floating Button (Ancré en coin bas, au-dessus des barres fixes) */}
       {!isOpen && (
         <div 
           ref={buttonRef}
           className={`fixed z-[9990] font-sans transition-all duration-300 ease-out select-none ${
-            isDragging ? 'transition-none cursor-grabbing' : ''
-          }`}
+            hasStickyBottomBar ? 'bottom-20 lg:bottom-6' : 'bottom-6'
+          } ${isDragging ? 'transition-none cursor-grabbing' : ''}`}
           style={{
-            top: `${dockY}%`,
-            transform: 'translateY(-50%)',
+            paddingBottom: 'env(safe-area-inset-bottom, 0px)',
             ...(dockSide === 'left' 
               ? { left: isRetracted ? '-38px' : '16px' } 
               : { right: isRetracted ? '-38px' : '16px' }
@@ -528,7 +505,7 @@ export const ChatWidget = ({ currentView }) => {
               className={`w-14 h-14 rounded-full bg-primary hover:bg-primary-dark text-white flex items-center justify-center shadow-2xl shadow-primary/40 transition-all cursor-grab active:cursor-grabbing ${
                 isRetracted ? 'opacity-70 hover:opacity-100 scale-90' : 'hover:scale-105 active:scale-95'
               }`}
-              title={isRetracted ? "Cliquer pour déployer le chatbot" : "Glisser pour déplacer / Clic pour ouvrir"}
+              title={isRetracted ? "Cliquer pour déployer le chatbot" : "Glisser latéralement / Clic pour ouvrir"}
             >
               <div className="relative pointer-events-none">
                 <IconMessageChatbot size={26} />
