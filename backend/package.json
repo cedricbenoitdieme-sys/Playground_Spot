@@ -1,22 +1,10 @@
 {
   "name": "playgroundspot-backend",
   "version": "1.0.0",
-  "description": "Backend API for PlaygroundSpot",
-  "main": "server.js",
+  "description": "Routes Express (backend/routes/*) montées par la fonction serverless Vercel api/index.js. Ne contient plus de serveur autonome — server.js a été supprimé car mort en production (audit 2026-08-05) et dupliquait sans authentification correcte des endpoints déjà couverts par api/index.js.",
   "type": "module",
-  "scripts": {
-    "start": "node server.js",
-    "dev": "nodemon server.js"
-  },
   "dependencies": {
     "@supabase/supabase-js": "^2.39.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.19.2",
-    "express-rate-limit": "^7.2.0",
-    "jspdf": "^4.2.1"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
+    "express": "^4.19.2"
   }
 }

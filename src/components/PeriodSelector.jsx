@@ -40,10 +40,10 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
   };
 
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-center gap-2 max-w-full ${className}`}>
+    <div className={`flex flex-col sm:flex-row sm:items-center gap-2 max-w-full min-w-0 ${className}`}>
       {/* Barre de boutons préréglages */}
       <div 
-        className="flex bg-gray-100/90 p-1.5 rounded-2xl border border-gray-200/80 overflow-x-auto max-w-full custom-horizontal-scrollbar items-center gap-1 shrink-0 pb-2.5 sm:pb-1.5"
+        className="flex bg-gray-100/90 p-1 rounded-xl border border-gray-200/80 overflow-x-auto max-w-full no-scrollbar items-center gap-1 shrink-0"
       >
         {PRESET_OPTIONS.map((p) => {
           const isActive = currentMode === 'preset' && currentPreset === p.key;
@@ -52,10 +52,10 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
               key={p.key}
               type="button"
               onClick={() => handleSelectPreset(p.key)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap min-h-[34px] cursor-pointer shrink-0 ${
+              className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap cursor-pointer shrink-0 ${
                 isActive
-                  ? 'bg-white text-primary-dark shadow-sm scale-105 border border-gray-200/60'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+                  ? 'bg-white text-primary-dark shadow-xs border border-gray-200/60'
+                  : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
               }`}
             >
               {p.label}
@@ -66,21 +66,21 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
         <button
           type="button"
           onClick={handleCustomToggle}
-          className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 min-h-[34px] cursor-pointer shrink-0 ${
+          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer shrink-0 ${
             currentMode === 'custom'
-              ? 'bg-[#1A7A4A] text-white shadow-sm scale-105'
-              : 'text-gray-600 hover:text-gray-900 hover:bg-white/60'
+              ? 'bg-[#1A7A4A] text-white shadow-xs'
+              : 'text-gray-500 hover:text-gray-900 hover:bg-white/50'
           }`}
         >
-          <IconCalendar size={14} />
+          <IconCalendar size={13} />
           <span>Sur-mesure</span>
         </button>
       </div>
 
       {/* Date Pickers pour le mode sur-mesure */}
       {currentMode === 'custom' && (
-        <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-2xl border border-gray-200 shadow-sm animate-in fade-in duration-200">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-xl border border-gray-200 shadow-xs animate-in fade-in duration-200 shrink-0">
+          <div className="flex items-center gap-1">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Du</span>
             <CustomDatePicker
               value={startDate}
@@ -90,7 +90,7 @@ export const PeriodSelector = ({ value, onChange, className = '' }) => {
             />
           </div>
           <span className="text-gray-300 font-bold text-xs">—</span>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Au</span>
             <CustomDatePicker
               value={endDate}

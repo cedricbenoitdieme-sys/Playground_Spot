@@ -1,6 +1,3 @@
-[functions.create-gerant]
-verify_jwt = true
-
 [functions.chatbot-query]
 verify_jwt = true
 

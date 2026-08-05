@@ -14,14 +14,33 @@ const geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? ""
 // code (ex. passer à une version plus récente de Gemini) ; valeur par
 // défaut raisonnable pour un bot de support (rapide, peu coûteux).
 const geminiModel = Deno.env.get("GEMINI_MODEL") || "gemini-2.0-flash"
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://playground-spot.vercel.app"
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+// Même whitelist que create-payment/index.ts (audit 2026-08-05 : ce fichier
+// utilisait Access-Control-Allow-Origin: '*', incohérent avec le reste du
+// projet). Toute origine hors liste retombe sur SITE_URL, donc invisible en
+// navigateur pour l'appelant.
+const ALLOWED_ORIGIN_PATTERNS: RegExp[] = [
+  /^https:\/\/playground-spot\.vercel\.app$/,
+  /^https:\/\/playground-spot-[a-z0-9-]+\.vercel\.app$/,
+  /^http:\/\/localhost:5173$/,
+  /^http:\/\/localhost:3000$/,
+]
+
+function corsHeadersFor(req: Request): Record<string, string> {
+  const origin = req.headers.get('origin') ?? ''
+  const allowOrigin = ALLOWED_ORIGIN_PATTERNS.some((re) => re.test(origin)) ? origin : SITE_URL
+  return {
+    'Access-Control-Allow-Origin': allowOrigin,
+    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+    'Vary': 'Origin',
+  }
 }
 
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+function buildJsonResponse(corsHeaders: Record<string, string>) {
+  return (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+}
 
 async function buildSystemPrompt(supabase: ReturnType<typeof createClient>): Promise<string> {
   const { data: sections } = await supabase
@@ -65,6 +84,9 @@ ${plansBlock}
 }
 
 serve(async (req) => {
+  const corsHeaders = corsHeadersFor(req)
+  const json = buildJsonResponse(corsHeaders)
+
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }

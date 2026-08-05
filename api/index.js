@@ -1,7 +1,6 @@
 import express from 'express';
 import cors from 'cors';
 import { createClient } from '@supabase/supabase-js';
-import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 
 import verifyRouter from '../backend/routes/verify.js';
@@ -48,16 +47,28 @@ if (!supabaseUrl || !supabaseKey) {
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-// Rate Limiting : 30 requêtes par minute par IP (Anti brute-force)
-const verifyLimiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 30, // Limite à 30 requêtes par IP par fenêtre
-  message: { error: 'Trop de requêtes. Veuillez réessayer plus tard.' },
-  standardHeaders: true,
-  legacyHeaders: false,
-  // Use X-Forwarded-For if behind a proxy like Vercel
-  keyGenerator: (req) => req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress,
-});
+// Rate limiting : 30 requêtes/minute/IP (anti brute-force sur le scan QR).
+// Persisté en base via la RPC check_rate_limit (même pattern que
+// create-payment/chatbot-query) plutôt qu'un store express-rate-limit en
+// mémoire, qui se réinitialise à chaque cold start sur Vercel serverless
+// et ne protège donc rien en pratique.
+const verifyLimiter = async (req, res, next) => {
+  const identifier = String(req.headers['x-forwarded-for'] || req.ip || req.connection.remoteAddress);
+  const { data: allowed, error } = await supabase.rpc('check_rate_limit', {
+    p_identifier: identifier,
+    p_action: 'verify_ticket',
+    p_max_attempts: 30,
+    p_window: '1 minute',
+  });
+
+  if (error) {
+    console.error('check_rate_limit indisponible:', error.message);
+  } else if (allowed === false) {
+    return res.status(429).json({ error: 'Trop de requêtes. Veuillez réessayer plus tard.' });
+  }
+
+  next();
+};
 
 // Auth Middleware (Vérification du JWT via Supabase)
 const authMiddleware = async (req, res, next) => {
