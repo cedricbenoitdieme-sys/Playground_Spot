@@ -65,7 +65,7 @@ export const JoueurHome = ({ setView, setSelectedTerrain }) => {
 
     const loadPlayerCount = async () => {
       try {
-        const { count } = await supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'joueur');
+        const { count } = await supabase.from('profiles_public').select('id', { count: 'exact', head: true }).eq('role', 'joueur');
         setActivePlayersCount(count || 0);
       } catch (err) {
         console.error(err);

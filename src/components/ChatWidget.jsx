@@ -89,7 +89,7 @@ export const ChatWidget = ({ currentView }) => {
       setTerrains(data);
       if (data.length > 0) setSelectedTerrainId(data[0].id);
     }).catch(() => {});
-    supabase.from('profiles').select('id').eq('role', 'admin').limit(1).maybeSingle()
+    supabase.from('profiles_public').select('id').eq('role', 'admin').limit(1).maybeSingle()
       .then(({ data }) => { if (data) setAdminId(data.id); })
       .catch(() => {});
   }, [isOpen, terrains.length]);
