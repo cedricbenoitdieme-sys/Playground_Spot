@@ -6,7 +6,7 @@ import {
   IconChevronRight, IconCheck, IconX, IconEye, IconEyeOff,
   IconMail, IconPhone, IconBuildingStore, IconLogout,
   IconEdit, IconShield, IconPalette, IconDeviceMobile, IconCamera,
-  IconCash,
+  IconCash, IconCircleCheckFilled,
 } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { supabase } from '../lib/supabase';
@@ -14,6 +14,8 @@ import { updateProfile } from '../services/auth';
 import { uploadAvatarPhoto } from '../services/profiles';
 import { Avatar } from '../components/Avatar';
 import { ImageCropperModal } from '../components/ImageCropperModal';
+import waveLogo from '../assets/wave.png';
+import omLogo from '../assets/orange_money.png';
 
 const ROLE_LABELS = { admin: 'Super Administrateur', gerant: 'Gérant Terrain', joueur: 'Joueur' };
 /* ── Toggle switch ── */
@@ -532,35 +534,79 @@ export const Parametres = ({ setView }) => {
                 plan) sont versés automatiquement sur ce compte après chaque
                 paiement confirmé.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Opérateur</label>
-                  <select
-                    value={payoutInfo.operator}
-                    onChange={(e) => setPayoutInfo(prev => ({ ...prev, operator: e.target.value }))}
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm"
-                  >
-                    <option value="wave">Wave Mobile Money</option>
-                    <option value="orange_money">Orange Money Sénégal</option>
-                  </select>
+                  <label className="block text-xs font-bold text-gray-700 mb-2">Opérateur de versement</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Wave */}
+                    <button
+                      type="button"
+                      onClick={() => setPayoutInfo(prev => ({ ...prev, operator: 'wave' }))}
+                      className={`p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
+                        payoutInfo.operator === 'wave'
+                          ? 'border-[#1DB954] bg-[#1DB954]/5 shadow-sm'
+                          : 'border-gray-100 bg-white hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#1DB954]/10 p-1 flex items-center justify-center shrink-0">
+                          <img src={waveLogo} alt="Wave" className="w-full h-full object-contain" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-sm text-primary-dark">Wave</p>
+                          <p className="text-[10px] text-gray-400 font-medium">Wave Mobile Money</p>
+                        </div>
+                      </div>
+                      {payoutInfo.operator === 'wave' && <IconCircleCheckFilled className="text-[#1DB954] shrink-0" size={20} />}
+                    </button>
+
+                    {/* Orange Money */}
+                    <button
+                      type="button"
+                      onClick={() => setPayoutInfo(prev => ({ ...prev, operator: 'orange_money' }))}
+                      className={`p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
+                        payoutInfo.operator === 'orange_money'
+                          ? 'border-[#FF6600] bg-[#FF6600]/5 shadow-sm'
+                          : 'border-gray-100 bg-white hover:border-gray-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#FF6600]/10 p-1 flex items-center justify-center shrink-0">
+                          <img src={omLogo} alt="Orange Money" className="w-full h-full object-contain" />
+                        </div>
+                        <div className="text-left">
+                          <p className="font-bold text-sm text-primary-dark">Orange Money</p>
+                          <p className="text-[10px] text-gray-400 font-medium">Orange Money Sénégal</p>
+                        </div>
+                      </div>
+                      {payoutInfo.operator === 'orange_money' && <IconCircleCheckFilled className="text-[#FF6600] shrink-0" size={20} />}
+                    </button>
+                  </div>
                 </div>
+
                 <div>
-                  <label className="block text-xs font-bold text-gray-700 mb-1">Numéro de téléphone</label>
-                  <input
-                    type="tel"
-                    value={payoutInfo.phone}
-                    onChange={(e) => setPayoutInfo(prev => ({ ...prev, phone: e.target.value }))}
-                    placeholder="77 123 45 67"
-                    className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-sm"
-                  />
+                  <label className="block text-xs font-bold text-gray-700 mb-1.5">Numéro de téléphone de versement</label>
+                  <div className="relative flex items-center">
+                    <div className="absolute left-3.5 flex items-center gap-1.5 text-gray-400 pointer-events-none">
+                      <IconPhone size={16} />
+                      <span className="text-xs font-bold text-gray-500 border-r border-gray-200 pr-2">+221</span>
+                    </div>
+                    <input
+                      type="tel"
+                      value={payoutInfo.phone}
+                      onChange={(e) => setPayoutInfo(prev => ({ ...prev, phone: e.target.value }))}
+                      placeholder="77 123 45 67"
+                      className="w-full bg-white border border-gray-200 rounded-xl pl-20 pr-3.5 py-2.5 text-sm font-medium text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-xs"
+                    />
+                  </div>
                 </div>
               </div>
               <button
                 onClick={handleSavePayoutInfo}
                 disabled={savingPayoutInfo}
-                className="px-5 py-2.5 bg-primary text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50"
+                className="px-6 py-3 bg-primary hover:bg-primary-hover active:scale-[0.98] transition-all text-white text-xs font-bold rounded-xl cursor-pointer disabled:opacity-50 shadow-md"
               >
-                {savingPayoutInfo ? 'Enregistrement...' : 'Enregistrer'}
+                {savingPayoutInfo ? 'Enregistrement...' : 'Enregistrer le compte de versement'}
               </button>
             </div>
           </Section>

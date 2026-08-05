@@ -27,8 +27,12 @@ import {
   IconExternalLink,
   IconFileTypePdf,
   IconCrosshair,
-  IconSearch
+  IconSearch,
+  IconPhone,
+  IconCircleCheckFilled
 } from '@tabler/icons-react';
+import waveLogo from '../assets/wave.png';
+import omLogo from '../assets/orange_money.png';
 import { ImageCropperModal } from './ImageCropperModal';
 import { 
   uploadTerrainPhoto, 
@@ -971,27 +975,71 @@ export const TerrainFormModal = ({ isOpen, onClose, initialData = null, terrainI
               6. Coordonnées de Versement des Revenus *
             </h4>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="space-y-4">
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Opérateur de versement</label>
-                <select
-                  value={formData.payoutOperator}
-                  onChange={(e) => setFormData(prev => ({ ...prev, payoutOperator: e.target.value }))}
-                  className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-[#1A7A4A]"
-                >
-                  <option value="wave">Wave Mobile Money</option>
-                  <option value="orange_money">Orange Money Sénégal</option>
-                </select>
+                <label className="block text-xs font-bold text-gray-700 mb-2">Opérateur de versement *</label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Wave */}
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, payoutOperator: 'wave' }))}
+                    className={`p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
+                      formData.payoutOperator === 'wave'
+                        ? 'border-[#1DB954] bg-[#1DB954]/5 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#1DB954]/10 p-1 flex items-center justify-center shrink-0">
+                        <img src={waveLogo} alt="Wave" className="w-full h-full object-contain" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-primary-dark">Wave</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Wave Mobile Money</p>
+                      </div>
+                    </div>
+                    {formData.payoutOperator === 'wave' && <IconCircleCheckFilled className="text-[#1DB954] shrink-0" size={20} />}
+                  </button>
+
+                  {/* Orange Money */}
+                  <button
+                    type="button"
+                    onClick={() => setFormData(prev => ({ ...prev, payoutOperator: 'orange_money' }))}
+                    className={`p-3.5 rounded-2xl border-2 flex items-center justify-between transition-all cursor-pointer ${
+                      formData.payoutOperator === 'orange_money'
+                        ? 'border-[#FF6600] bg-[#FF6600]/5 shadow-sm'
+                        : 'border-gray-200 bg-white hover:border-gray-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden bg-[#FF6600]/10 p-1 flex items-center justify-center shrink-0">
+                        <img src={omLogo} alt="Orange Money" className="w-full h-full object-contain" />
+                      </div>
+                      <div className="text-left">
+                        <p className="font-bold text-sm text-primary-dark">Orange Money</p>
+                        <p className="text-[10px] text-gray-400 font-medium">Orange Money Sénégal</p>
+                      </div>
+                    </div>
+                    {formData.payoutOperator === 'orange_money' && <IconCircleCheckFilled className="text-[#FF6600] shrink-0" size={20} />}
+                  </button>
+                </div>
               </div>
+
               <div>
-                <label className="block text-xs font-bold text-gray-700 mb-1">Numéro de téléphone *</label>
-                <input
-                  type="tel"
-                  value={formData.payoutPhone}
-                  onChange={(e) => setFormData(prev => ({ ...prev, payoutPhone: e.target.value }))}
-                  placeholder="77 123 45 67"
-                  className="w-full bg-white border border-gray-300 rounded-xl px-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-[#1A7A4A]"
-                />
+                <label className="block text-xs font-bold text-gray-700 mb-1.5">Numéro de téléphone *</label>
+                <div className="relative flex items-center">
+                  <div className="absolute left-3.5 flex items-center gap-1.5 text-gray-400 pointer-events-none">
+                    <IconPhone size={16} />
+                    <span className="text-xs font-bold text-gray-500 border-r border-gray-200 pr-2">+221</span>
+                  </div>
+                  <input
+                    type="tel"
+                    value={formData.payoutPhone}
+                    onChange={(e) => setFormData(prev => ({ ...prev, payoutPhone: e.target.value }))}
+                    placeholder="77 123 45 67"
+                    className="w-full bg-white border border-gray-300 rounded-xl pl-20 pr-3.5 py-2.5 text-xs text-gray-800 focus:outline-none focus:border-[#1A7A4A] font-medium"
+                  />
+                </div>
               </div>
             </div>
 
