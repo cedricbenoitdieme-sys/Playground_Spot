@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown, IconLoader2, IconFileTypePdf, IconDownload, IconFlame } from '@tabler/icons-react';
+import { IconTrendingUp, IconCalendarEvent, IconStarFilled, IconPercentage, IconX, IconBell, IconGift, IconChevronDown, IconLoader2, IconFileTypePdf, IconDownload, IconFlame, IconLock } from '@tabler/icons-react';
 import { useUser } from '../context/UserContext';
 import { fetchGerantStatsPeriod } from '../services/stats';
+import { fetchUserPlanAndLimits } from '../services/subscriptions';
 import { PeriodSelector, PRESET_OPTIONS } from '../components/PeriodSelector';
 import { exportCSV, exportPDFReport } from '../utils/exportReports';
 import { CustomAlertModal } from '../components/CustomAlertModal';
@@ -230,7 +231,7 @@ const PERIODES = [
   { key: 'quarter', label: '3 mois' },
 ];
 
-export const GerantStats = () => {
+export const GerantStats = ({ setView }) => {
   const { currentUser } = useUser();
 
   // Alert modal
@@ -248,6 +249,7 @@ export const GerantStats = () => {
   const [toast, setToast]           = useState(null);
   const [animKey, setAnimKey]       = useState(0);
 
+  const [planLimits, setPlanLimits] = useState(null);
   const [kpi, setKpi]               = useState({ revenus: 0, reservations: 0, tauxOccupation: 0, noteMoyenne: null, parStatut: null, noteDistribution: null });
   const [terrains, setTerrains]     = useState([{ id: 'all', label: 'Tous les terrains' }]);
   const [repartPay, setRepartPay]   = useState([]);
@@ -259,6 +261,20 @@ export const GerantStats = () => {
   const [rangeDates, setRangeDates] = useState({ dateDebut: null, dateFin: null });
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
+  // Load plan limits
+  useEffect(() => {
+    if (!currentUser?.id) return;
+    const loadPlan = async () => {
+      try {
+        const limits = await fetchUserPlanAndLimits(currentUser.id);
+        setPlanLimits(limits);
+      } catch (err) {
+        console.error("Error loading user plan limits:", err);
+      }
+    };
+    loadPlan();
+  }, [currentUser?.id]);
 
   // Load terrains list
   useEffect(() => {
@@ -439,7 +455,13 @@ export const GerantStats = () => {
     exportCSV(`rapport_financier_gerant_${periodSlug}_${new Date().toISOString().split('T')[0]}.csv`, headers, rows);
   };
 
+  const isPdfDisabled = planLimits !== null && planLimits.pdf_export === false;
+
   const handleExportPDF = () => {
+    if (isPdfDisabled) {
+      if (setView) setView('gerant-tarifs');
+      return;
+    }
     const periodLabel = getPeriodDisplayLabel();
     exportPDFReport({
       title: 'Rapport Financier & Statistiques Gérant',
@@ -479,12 +501,28 @@ export const GerantStats = () => {
           >
             <IconDownload size={15} /> Export CSV
           </button>
-          <button
-            onClick={handleExportPDF}
-            className="px-3.5 py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-subtle cursor-pointer"
-          >
-            <IconFileTypePdf size={15} /> Rapport PDF 📄
-          </button>
+          {isPdfDisabled ? (
+            <button
+              onClick={() => {
+                if (setView) setView('gerant-tarifs');
+              }}
+              className="px-3.5 py-2 bg-gray-100 hover:bg-amber-50 border border-gray-200 hover:border-amber-300 text-gray-400 hover:text-amber-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-subtle cursor-pointer group"
+              title="Export PDF réservé aux plans Starter, Pro et Entreprise — passez à un plan supérieur"
+            >
+              <IconLock size={15} className="text-gray-400 group-hover:text-amber-600" />
+              <span className="line-through decoration-gray-400">Rapport PDF</span>
+              <span className="text-[9px] font-extrabold uppercase bg-amber-500/10 text-amber-700 px-1.5 py-0.5 rounded border border-amber-500/20 ml-0.5">
+                Pro
+              </span>
+            </button>
+          ) : (
+            <button
+              onClick={handleExportPDF}
+              className="px-3.5 py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-subtle cursor-pointer"
+            >
+              <IconFileTypePdf size={15} /> Rapport PDF 📄
+            </button>
+          )}
         </div>
       </div>
 
