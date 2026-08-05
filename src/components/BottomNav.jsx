@@ -24,9 +24,10 @@ import {
 import { useUser } from '../context/UserContext';
 import { Avatar } from './Avatar';
 import { Modal } from './Modal';
+import { PlanBadge } from './PlanBadge';
 
 export const BottomNav = ({ currentView, setView }) => {
-  const { currentUser } = useUser();
+  const { currentUser, displayPlan } = useUser();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   if (!currentUser) return null;
@@ -176,18 +177,26 @@ export const BottomNav = ({ currentView, setView }) => {
 
             {/* En-tête Tiroir */}
             <div className="flex items-center justify-between border-b border-gray-100 pb-4">
-              <div className="flex items-center gap-3">
-                <Avatar user={currentUser} className="w-10 h-10 rounded-2xl shadow-md shadow-primary/20" textSize="text-sm" />
-                <div>
-                  <h3 className="text-base font-bold font-display text-primary-dark">{currentUser.nom}</h3>
-                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20">
-                    {currentUser.role === 'admin' ? 'Super Admin' : currentUser.role === 'gerant' ? 'Gérant de Terrain' : 'Joueur'}
-                  </span>
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar user={currentUser} className="w-10 h-10 rounded-2xl shadow-md shadow-primary/20 shrink-0" textSize="text-sm" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-bold font-display text-primary-dark truncate">{currentUser.nom}</h3>
+                    <PlanBadge displayPlan={displayPlan} className="text-[10px] px-2 py-0.5" />
+                  </div>
+                  <div className="flex items-center gap-2 flex-wrap mt-0.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-primary bg-primary/10 px-2 py-0.5 rounded-full border border-primary/20 shrink-0">
+                      {currentUser.role === 'admin' || currentUser.role === 'super_admin' ? 'Super Admin' : currentUser.role === 'gerant' ? 'Gérant de Terrain' : 'Joueur'}
+                    </span>
+                    {currentUser.quartier && (
+                      <span className="text-xs text-gray-500 font-medium truncate">Quartier {currentUser.quartier}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <button 
                 onClick={() => setIsMenuOpen(false)}
-                className="p-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors cursor-pointer"
+                className="p-2.5 rounded-2xl bg-gray-100 hover:bg-gray-200 text-gray-500 transition-colors cursor-pointer shrink-0 ml-2"
               >
                 <IconX size={20} />
               </button>

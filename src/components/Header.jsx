@@ -147,8 +147,8 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
   const headerInfo = getHeaderInfo();
 
   return (
-    <header className="sticky top-0 lg:relative flex-shrink-0 flex items-center justify-between px-4 py-4 lg:px-8 lg:py-6 z-40 bg-[#F4F6F4]/90 backdrop-blur-md lg:bg-transparent border-b border-gray-100 lg:border-none shadow-sm lg:shadow-none transition-all">
-      <div className="flex items-center gap-3">
+    <header className="sticky top-0 lg:relative flex-shrink-0 flex items-center justify-between px-4 py-2.5 lg:px-8 lg:py-6 z-40 bg-[#F4F6F4]/90 backdrop-blur-md lg:bg-transparent border-b border-gray-100 lg:border-none shadow-sm lg:shadow-none transition-all">
+      <div className="flex items-center gap-3 min-w-0">
         {/* Brand Icon for Mobile Parity */}
         <div 
           onClick={() => { if (setView) setView('landing'); }}
@@ -159,28 +159,30 @@ export const Header = ({ title: passedTitle, showSearch = false, setView, displa
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <h1 className="text-xl lg:text-3xl text-primary-dark tracking-tight font-display font-bold">{headerInfo.title}</h1>
-            <span className="text-[9px] font-black tracking-widest text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded-full uppercase">
+            <h1 className="text-base sm:text-lg lg:text-3xl text-primary-dark tracking-tight font-display font-bold truncate leading-tight">{headerInfo.title}</h1>
+            <span className="hidden lg:inline-flex text-[9px] font-black tracking-widest text-primary bg-primary/5 border border-primary/20 px-2 py-0.5 rounded-full uppercase">
               {headerInfo.badge}
             </span>
-            <PlanBadge displayPlan={displayPlan} />
+            <PlanBadge displayPlan={displayPlan} className="hidden lg:inline-flex" />
           </div>
-          <div className="flex items-center flex-wrap gap-2 text-xs lg:text-sm text-gray-500 font-medium mt-0.5">
-          <span>{headerInfo.sub}</span>
-          {['admin', 'super_admin'].includes(currentUser.role) && (
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/5 text-primary text-xs font-mono font-bold border border-primary/10 tabular-nums shadow-sm select-none">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
-              </span>
-              <span>{timeString}</span>
-            </span>
+          {headerInfo.sub && (
+            <div className="hidden lg:flex items-center flex-wrap gap-2 text-xs lg:text-sm text-gray-500 font-medium mt-0.5">
+              <span>{headerInfo.sub}</span>
+              {['admin', 'super_admin'].includes(currentUser.role) && (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-primary/5 text-primary text-xs font-mono font-bold border border-primary/10 tabular-nums shadow-sm select-none">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                  </span>
+                  <span>{timeString}</span>
+                </span>
+              )}
+            </div>
           )}
         </div>
       </div>
-    </div>
 
-      <div className="flex items-center gap-4 shrink-0">
+      <div className="flex items-center gap-2.5 sm:gap-4 shrink-0 ml-2">
         {/* Search - Hidden on small mobile */}
         {showSearch && (
           <form onSubmit={handleSearch} className="hidden sm:flex items-center bg-white border border-gray-100 rounded-full px-4 py-2 w-64 shadow-sm focus-within:ring-2 ring-primary/20 transition-all">
